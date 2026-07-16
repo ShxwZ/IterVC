@@ -4,6 +4,10 @@ on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build-and-release:
@@ -26,12 +30,13 @@ jobs:
     - name: Crear archivo ZIP
       shell: pwsh
       run: |
-        Compress-Archive -Path ./RadioOSC.Desktop/publish_output/* -DestinationPath ./RadioOSC-Windows.zip
+        # Nombre corregido a IterVC
+        Compress-Archive -Path ./IterVC.Desktop/publish_output/* -DestinationPath ./IterVC-Windows.zip
 
     - name: Crear GitHub Release
       uses: softprops/action-gh-release@v2
       with:
-        files: RadioOSC-Windows.zip
+        files: IterVC-Windows.zip # Nombre corregido a IterVC
         name: Release ${{ github.ref_name }}
         draft: false
         prerelease: false
