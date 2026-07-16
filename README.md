@@ -5,6 +5,12 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/GabrielGarcia/IterVC/releases/latest">
+    <img src="https://img.shields.io/github/v/release/ShxwZ/IterVC?style=for-the-badge&label=Download%20Latest%20Release" alt="Latest Release">
+  </a>
+</p>
+
+<p align="center">
   <a href="https://github.com/ShxwZ/IterVC/stargazers"> 
     <img src="https://img.shields.io/github/stars/ShxwZ/IterVC?style=for-the-badge" alt="Stars">
   </a>
@@ -27,7 +33,9 @@
   <img src="https://img.shields.io/badge/Avalonia-UI-6C2DC7?style=for-the-badge" alt="Avalonia">
   <img src="https://img.shields.io/badge/Windows-10%20%2F%2011-0078D6?style=for-the-badge&logo=windows" alt="Windows">
   <img src="https://img.shields.io/badge/x64-Only-blue?style=for-the-badge" alt="x64">
-</p>
+
+
+
 
 > *"Iter" (Latin for path/journey) + "VC" (Virtual Cable)*
 
