@@ -2,9 +2,9 @@ name: Publicación de Versión (Firma y Release)
 
 on:
   push:
-    tags:
-      - 'v*'
-  workflow_dispatch:
+    branches:
+      - master # Se activa automáticamente cada vez que subes algo a master
+  workflow_dispatch: # Mantiene el botón manual en la web por si acaso
 
 permissions:
   contents: write
@@ -32,11 +32,11 @@ jobs:
     - name: Crear GitHub Release
       uses: softprops/action-gh-release@v2
       with:
-        # Busca dinámicamente cualquier ZIP generado en la raíz
         files: |
           *-Windows.zip
           *.zip
-        name: Release ${{ github.ref_name }}
+        tag_name: v1.0.${{ github.run_number }}
+        name: Release v1.0.${{ github.run_number }}
         draft: false
         prerelease: false
       env:
