@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/GabrielGarcia/IterVC/releases/latest">
+  <a href="https://github.com/ShxwZ/IterVC/releases/latest">
     <img src="https://img.shields.io/github/v/release/ShxwZ/IterVC?style=for-the-badge&label=Download%20Latest%20Release" alt="Latest Release">
   </a>
 </p>
