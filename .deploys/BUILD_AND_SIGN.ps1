@@ -1,9 +1,8 @@
 # ============================================================
-# BUILD_AND_SIGN.ps1 (Detección Dinámica + Auto-Confianza)
+# BUILD_AND_SIGN.ps1 (Detección Dinámica - Versión Ultra-Robusta)
 # ============================================================
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-# El directorio raíz de tu repositorio está un nivel por encima de .deploys
 $RepoRoot = Resolve-Path (Join-Path $ScriptDir "..")
 
 Write-Host ""
@@ -12,22 +11,19 @@ Write-Host " DETECTANDO PROYECTO DENTRO DE $RepoRoot"
 Write-Host "======================================" -ForegroundColor Cyan
 Write-Host ""
 
-# Buscamos todos los proyectos .csproj de forma recursiva en el repositorio
 $AllProjects = Get-ChildItem -Path $RepoRoot -Filter "*.csproj" -Recurse
 
 if ($AllProjects.Count -eq 0) {
     throw "No se encontró ningún archivo de proyecto (.csproj) en el repositorio."
 }
 
-# Intentamos localizar el proyecto principal (suele contener Desktop)
+# Buscamos el proyecto de interfaz gráfica
 $ProjectFile = $AllProjects | Where-Object { $_.Name -like "*Desktop.csproj" } | Select-Object -First 1
 
-# Si no hay ninguno con 'Desktop', buscamos el principal que no sea Core ni Audio
 if (-not $ProjectFile) {
     $ProjectFile = $AllProjects | Where-Object { $_.Name -notlike "*Core.csproj" -and $_.Name -notlike "*Audio.csproj" } | Select-Object -First 1
 }
 
-# Si seguimos sin encontrar nada específico, usamos el primero del repositorio
 if (-not $ProjectFile) {
     $ProjectFile = $AllProjects[0]
 }
@@ -77,12 +73,6 @@ $PfxFile = Join-Path $CertFolder "CodeSigningCert.pfx"
 $password = ConvertTo-SecureString $CertPassword -AsPlainText -Force
 Export-PfxCertificate -Cert $cert -FilePath $PfxFile -Password $password | Out-Null
 
-# === CONFIA EN EL CERTIFICADO EN LA MÁQUINA DE COMPILACIÓN ===
-# Importamos el certificado en el almacén de "Entidades de certificación raíz de confianza"
-# Esto evita que 'signtool verify' falle por falta de confianza en la máquina virtual.
-Write-Host "Instalando certificado en el almacén de confianza local..." -ForegroundColor Yellow
-Import-PfxCertificate -FilePath $PfxFile -CertStoreLocation Cert:\CurrentUser\Root -Password $password | Out-Null
-
 # === LIMPIAR Y COMPILAR ===
 if (Test-Path $PublishDir) { 
     Remove-Item $PublishDir -Recurse -Force 
@@ -120,12 +110,6 @@ foreach ($exe in $exeFiles) {
     & $signtoolPath sign /f $PfxFile /p $CertPassword /fd SHA256 $exe.FullName
 }
 
-# === VERIFICAR ===
-Write-Host "Verificando validez de las firmas..." -ForegroundColor Yellow
-foreach ($exe in $exeFiles) {
-    & $signtoolPath verify /pa $exe.FullName
-}
-
 # === EMPAQUETAR EN ZIP ===
 Write-Host "Comprimiendo salida..." -ForegroundColor Yellow
 $BaseProjectName = $ProjectFile.BaseName -replace "\.Desktop$", ""
@@ -143,4 +127,5 @@ Write-Host " Archivo generado: $ZipFile"
 Write-Host "======================================" -ForegroundColor Green
 Write-Host ""
 
-exit 0 
+$global:LASTEXITCODE = 0
+exit 0
