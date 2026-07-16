@@ -22,22 +22,20 @@ jobs:
       with:
         dotnet-version: '8.0.x'
 
-    - name: Compilar y Firmar Ejecutables
+    - name: Compilar, Firmar y Empaquetar
       shell: pwsh
       env:
         MY_GITHUB_SECRET_PASSWORD: ${{ secrets.CERT_PASSWORD }}
       run: |
         ./.deploys/BUILD_AND_SIGN.ps1
 
-    - name: Crear archivo ZIP
-      shell: pwsh
-      run: |
-        Compress-Archive -Path ./RadioOSC.Desktop/publish_output/* -DestinationPath ./IterVC-Windows.zip
-
     - name: Crear GitHub Release
       uses: softprops/action-gh-release@v2
       with:
-        files: IterVC-Windows.zip
+        # Busca dinámicamente cualquier ZIP generado en la raíz
+        files: |
+          *-Windows.zip
+          *.zip
         name: Release ${{ github.ref_name }}
         draft: false
         prerelease: false

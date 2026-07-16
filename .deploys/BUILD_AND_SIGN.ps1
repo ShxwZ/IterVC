@@ -1,31 +1,49 @@
 # ============================================================
-# BUILD_AND_SIGN.ps1 (IterVC)
+# BUILD_AND_SIGN.ps1 (Detección Dinámica)
 # ============================================================
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$ProjectFile = Resolve-Path (Join-Path $ScriptDir "..\IterVC.Desktop\IterVC.Desktop.csproj") -ErrorAction SilentlyContinue
+# El directorio raíz de tu repositorio está un nivel por encima de .deploys
+$RepoRoot = Resolve-Path (Join-Path $ScriptDir "..")
 
-# Fallback si se ejecuta desde la raíz directamente
-if (-not $ProjectFile) {
-    $ProjectFile = Resolve-Path ".\IterVC.Desktop\IterVC.Desktop.csproj" -ErrorAction SilentlyContinue
+Write-Host ""
+Write-Host "======================================" -ForegroundColor Cyan
+Write-Host " DETECTANDO PROYECTO DENTRO DE $RepoRoot"
+Write-Host "======================================" -ForegroundColor Cyan
+Write-Host ""
+
+# Buscamos todos los proyectos .csproj de forma recursiva en el repositorio
+$AllProjects = Get-ChildItem -Path $RepoRoot -Filter "*.csproj" -Recurse
+
+if ($AllProjects.Count -eq 0) {
+    throw "No se encontró ningún archivo de proyecto (.csproj) en el repositorio."
 }
 
+# Intentamos localizar el proyecto principal (suele contener Desktop)
+$ProjectFile = $AllProjects | Where-Object { $_.Name -like "*Desktop.csproj" } | Select-Object -First 1
+
+# Si no hay ninguno con 'Desktop', buscamos el principal que no sea Core ni Audio
 if (-not $ProjectFile) {
-    throw "No se pudo encontrar el archivo de proyecto IterVC.Desktop.csproj."
+    $ProjectFile = $AllProjects | Where-Object { $_.Name -notlike "*Core.csproj" -and $_.Name -notlike "*Audio.csproj" } | Select-Object -First 1
 }
+
+# Si seguimos sin encontrar nada específico, usamos el primero del repositorio
+if (-not $ProjectFile) {
+    $ProjectFile = $AllProjects[0]
+}
+
+Write-Host "Proyecto localizado con éxito: $($ProjectFile.FullName)" -ForegroundColor Green
 
 $Configuration = "Release"
 $Runtime = "win-x64"
 
 # === GESTIÓN SEGURA DE CONTRASEÑA ===
 $CertPassword = $env:MY_GITHUB_SECRET_PASSWORD
-
 if (-not $CertPassword) {
-    Write-Host "⚠️ Ejecución local detectada (No estás en GitHub)." -ForegroundColor Yellow
-    # Pide la contraseña interactivamente en tu PC para no guardarla en texto plano
-    $CertPassword = Read-Host -Prompt "Introduce una contraseña para el certificado de firma"
+    Write-Host "⚠️ Ejecución local detectada." -ForegroundColor Yellow
+    $CertPassword = Read-Host -Prompt "Introduce la contraseña para el certificado local"
     if (-not $CertPassword) {
-        throw "La contraseña no puede estar vacía para firmar el ejecutable."
+        throw "La contraseña no puede estar vacía."
     }
 }
 
@@ -33,21 +51,15 @@ $CertName = "Gabriel Garcia"
 $SingleFile = $true
 $ErrorActionPreference = "Stop"
 
-Write-Host ""
-Write-Host "======================================" -ForegroundColor Cyan
-Write-Host " ITERVC BUILD + SIGN"
-Write-Host "======================================" -ForegroundColor Cyan
-Write-Host ""
-
-$ProjectDir = Split-Path $ProjectFile -Parent
+$ProjectDir = Split-Path $ProjectFile.FullName -Parent
 $PublishDir = Join-Path $ProjectDir "publish_output"
 
 # === GENERAR CERTIFICADO ===
-Write-Host "Buscando certificado local..." -ForegroundColor Yellow
+Write-Host "Buscando certificado..." -ForegroundColor Yellow
 $cert = Get-ChildItem Cert:\CurrentUser\My | Where-Object { $_.Subject -eq "CN=$CertName" } | Select-Object -First 1
 
 if (-not $cert) {
-    Write-Host "Creando certificado de firma autofirmado..." -ForegroundColor Yellow
+    Write-Host "Creando certificado autofirmado..." -ForegroundColor Yellow
     $cert = New-SelfSignedCertificate `
         -Type CodeSigningCert `
         -Subject "CN=$CertName" `
@@ -70,15 +82,19 @@ if (Test-Path $PublishDir) {
     Remove-Item $PublishDir -Recurse -Force 
 }
 
-Write-Host "Compilando y publicando aplicación con .NET..." -ForegroundColor Cyan
-$PublishArgs = @("publish", $ProjectFile.Path, "-c", $Configuration, "-r", $Runtime, "--self-contained", "true", "-o", $PublishDir)
+Write-Host "Publicando aplicación..." -ForegroundColor Cyan
+$PublishArgs = @("publish", $ProjectFile.FullName, "-c", $Configuration, "-r", $Runtime, "--self-contained", "true", "-o", $PublishDir)
 if ($SingleFile) {
     $PublishArgs += "-p:PublishSingleFile=true"
     $PublishArgs += "-p:IncludeNativeLibrariesForSelfExtract=true"
 }
 & dotnet $PublishArgs
 
-# === BUSCAR SIGNTOOL EN EL SISTEMA ===
+if ($LASTEXITCODE -ne 0) {
+    throw "dotnet publish ha fallado."
+}
+
+# === BUSCAR SIGNTOOL ===
 $PossiblePaths = @(
     "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe",
     "C:\Program Files (x86)\Microsoft SDKs\ClickOnce\SignTool\signtool.exe",
@@ -87,30 +103,35 @@ $PossiblePaths = @(
 $signtoolPath = $null
 foreach ($pattern in $PossiblePaths) {
     $resolved = Resolve-Path $pattern -ErrorAction SilentlyContinue | Select-Object -First 1
-    if ($resolved) { 
-        $signtoolPath = $resolved.Path
-        break 
-    }
+    if ($resolved) { $signtoolPath = $resolved.Path; break }
 }
-if (-not $signtoolPath) { 
-    throw "No se pudo encontrar SignTool.exe en el equipo. Asegúrate de tener instalado el Windows SDK." 
-}
+if (-not $signtoolPath) { throw "No se pudo encontrar SignTool.exe" }
 
-# === FIRMAR EXECUTABLES ===
+# === FIRMAR EXES ===
 $exeFiles = Get-ChildItem $PublishDir -Filter *.exe -File
 foreach ($exe in $exeFiles) {
-    Write-Host "Firmando ejecutable: $($exe.Name)..." -ForegroundColor Cyan
+    Write-Host "Firmando $($exe.Name)..." -ForegroundColor Cyan
     & $signtoolPath sign /f $PfxFile /p $CertPassword /fd SHA256 $exe.FullName
 }
 
-# === VERIFICAR FIRMAS ===
-Write-Host "Verificando validez de las firmas..." -ForegroundColor Yellow
+# === VERIFICAR ===
 foreach ($exe in $exeFiles) {
     & $signtoolPath verify /pa $exe.FullName
 }
 
+# === EMPAQUETAR EN ZIP ===
+Write-Host "Comprimiendo salida..." -ForegroundColor Yellow
+$BaseProjectName = $ProjectFile.BaseName -replace "\.Desktop$", ""
+if (-not $BaseProjectName) { $BaseProjectName = "IterVC" }
+
+$ZipFile = Join-Path $RepoRoot "$BaseProjectName-Windows.zip"
+if (Test-Path $ZipFile) { Remove-Item $ZipFile -Force }
+
+Compress-Archive -Path "$PublishDir\*" -DestinationPath $ZipFile
+
 Write-Host ""
 Write-Host "======================================" -ForegroundColor Green
-Write-Host " ¡COMPILACIÓN Y FIRMA COMPLETADAS! "
+Write-Host " PROCESO COMPLETADO CON ÉXITO"
+Write-Host " Archivo generado: $ZipFile"
 Write-Host "======================================" -ForegroundColor Green
 Write-Host ""
