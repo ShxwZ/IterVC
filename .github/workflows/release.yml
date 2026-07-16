@@ -30,13 +30,12 @@ jobs:
     - name: Crear archivo ZIP
       shell: pwsh
       run: |
-        # Nombre corregido a IterVC
-        Compress-Archive -Path ./IterVC.Desktop/publish_output/* -DestinationPath ./IterVC-Windows.zip
+        Compress-Archive -Path ./RadioOSC.Desktop/publish_output/* -DestinationPath ./IterVC-Windows.zip
 
     - name: Crear GitHub Release
       uses: softprops/action-gh-release@v2
       with:
-        files: IterVC-Windows.zip # Nombre corregido a IterVC
+        files: IterVC-Windows.zip
         name: Release ${{ github.ref_name }}
         draft: false
         prerelease: false
