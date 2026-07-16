@@ -109,7 +109,7 @@ The Avalonia UI frontend containing:
 
 ---
 
-## 📸 Screenshots / Capturas
+## 📸 Screenshots
 
 <p align="center">
   <img src="./Screenshots/screenshot-001.png" width="32%" />
