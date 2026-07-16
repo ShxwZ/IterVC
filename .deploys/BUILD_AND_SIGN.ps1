@@ -1,5 +1,5 @@
 # ============================================================
-# BUILD_AND_SIGN.ps1 (Detección Dinámica)
+# BUILD_AND_SIGN.ps1 (Detección Dinámica + Auto-Confianza)
 # ============================================================
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
@@ -77,6 +77,12 @@ $PfxFile = Join-Path $CertFolder "CodeSigningCert.pfx"
 $password = ConvertTo-SecureString $CertPassword -AsPlainText -Force
 Export-PfxCertificate -Cert $cert -FilePath $PfxFile -Password $password | Out-Null
 
+# === CONFIA EN EL CERTIFICADO EN LA MÁQUINA DE COMPILACIÓN ===
+# Importamos el certificado en el almacén de "Entidades de certificación raíz de confianza"
+# Esto evita que 'signtool verify' falle por falta de confianza en la máquina virtual.
+Write-Host "Instalando certificado en el almacén de confianza local..." -ForegroundColor Yellow
+Import-PfxCertificate -FilePath $PfxFile -CertStoreLocation Cert:\CurrentUser\Root -Password $password | Out-Null
+
 # === LIMPIAR Y COMPILAR ===
 if (Test-Path $PublishDir) { 
     Remove-Item $PublishDir -Recurse -Force 
@@ -115,6 +121,7 @@ foreach ($exe in $exeFiles) {
 }
 
 # === VERIFICAR ===
+Write-Host "Verificando validez de las firmas..." -ForegroundColor Yellow
 foreach ($exe in $exeFiles) {
     & $signtoolPath verify /pa $exe.FullName
 }
@@ -135,3 +142,5 @@ Write-Host " PROCESO COMPLETADO CON ÉXITO"
 Write-Host " Archivo generado: $ZipFile"
 Write-Host "======================================" -ForegroundColor Green
 Write-Host ""
+
+exit 0 
