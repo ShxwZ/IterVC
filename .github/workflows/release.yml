@@ -24,8 +24,10 @@ jobs:
 
     - name: Compilar y Firmar Ejecutables
       shell: pwsh
+      env:
+        MY_GITHUB_SECRET_PASSWORD: ${{ secrets.CERT_PASSWORD }}
       run: |
-        ./.local/BUILD_AND_SIGN.ps1
+        ./.deploys/BUILD_AND_SIGN.ps1
 
     - name: Crear archivo ZIP
       shell: pwsh
