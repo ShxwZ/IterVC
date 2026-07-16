@@ -1,0 +1,105 @@
+## Target directory for linker of world
+# =========================
+# carpetas de compilación (¡Imprescindible para ahorrar tokens!)
+# =========================
+[Dd]ebug/
+[Dd]ebugPS/
+[Rr]elease/
+[Rr]eleasePS/
+x64/
+x86/
+[Aa]rm/
+[Aa]rm64/
+bbin/
+bin/
+obj/
+gen/
+out/
+
+# =========================
+# Archivos de usuario y configuración local
+# =========================
+*.user
+*.userosscache
+*.sln.docstates
+
+# =========================
+# Visual Studio (VS 2026 / 2022)
+# =========================
+.vs/
+# Archivos de caché y bases de datos de VS
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.ltx
+*.dbmdl
+*.jsproj.user
+_ReSharper*/
+*.[Cc]ach[Ee]
+*.openeddf
+*.opendb
+*.unsuccessfulbuild
+
+# =========================
+# VS Code (Configuraciones locales)
+# =========================
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+.history/
+
+# =========================
+# NuGet y dependencias
+# =========================
+absolute_packages/
+# Excluir la carpeta de paquetes si usas el formato antiguo, 
+# el formato moderno (PackageReference) los guarda en la caché global del sistema.
+**/[Pp]ackages/*
+# Pero no queremos borrar los archivos de configuración de NuGet
+!**/[Pp]ackages/repositories.config
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# =========================
+# Archivos del Sistema Operativo
+# =========================
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.trash/
+
+# =========================
+# Logs y Archivos Temporales
+# =========================
+*.log
+*.tmp
+*.temp
+
+*.ps1
+.clineignore
+.clinerules
+
+/skills/
+
+**/TestResults/*
+publish_output/
+
+.local

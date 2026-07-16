@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="100 215 600 370" width="100%" height="100%">
+  <defs>
+    <!-- Degradado limpio y vibrante de cian a azul, adaptado para fondos claros o oscuros -->
+    <linearGradient id="cleanWaveGradient" x1="0%" y1="255" x2="0%" y2="545" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#33f0ff" />
+      <stop offset="50%" stop-color="#1ba2fc" />
+      <stop offset="100%" stop-color="#0072ff" />
+    </linearGradient>
+  </defs>
+
+  <!-- Trazo de la onda con terminaciones perfectamente redondeadas -->
+  <path 
+    d="M 130 460 
+       L 170 460 
+       C 200 460, 212 360, 240 360 
+       C 268 360, 292 545, 320 545 
+       C 345 545, 375 255, 400 255 
+       C 425 255, 455 545, 480 545 
+       C 508 545, 532 390, 560 390 
+       C 588 390, 600 460, 630 460 
+       L 670 460" 
+    fill="none" 
+    stroke="url(#cleanWaveGradient)" 
+    stroke-width="32" 
+    stroke-linecap="round" 
+    stroke-linejoin="round"
+  />
+</svg>

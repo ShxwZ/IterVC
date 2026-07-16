@@ -1,0 +1,365 @@
+<Window xmlns="https://github.com/avaloniaui"
+	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+	xmlns:vm="using:RadioOSC.Desktop.ViewModels"
+	x:Class="RadioOSC.Desktop.Views.MainWindow"
+	x:DataType="vm:MainViewModel"
+	Title="{Binding Texts.AppTitle}"
+	Width="940" Height="580"
+	MinWidth="900" MinHeight="550"
+	Icon="/Assets/logo_ivc3.png"
+	Background="#0A0A0D">
+
+	<Window.Styles>
+		<!-- Estilos Base de Texto -->
+		<Style Selector="TextBlock">
+			<Setter Property="Foreground" Value="#D1D1DB" />
+			<Setter Property="FontFamily" Value="Segoe UI, Arial" />
+		</Style>
+		<Style Selector="TextBlock.label">
+			<Setter Property="FontSize" Value="11" />
+			<Setter Property="FontWeight" Value="SemiBold" />
+			<Setter Property="Foreground" Value="#5F5F7A" />
+			<Setter Property="Margin" Value="0,0,0,4" />
+		</Style>
+
+		<!-- Controles de Entrada -->
+		<Style Selector="ComboBox">
+			<Setter Property="Background" Value="#15151F" />
+			<Setter Property="BorderBrush" Value="#222232" />
+			<Setter Property="BorderThickness" Value="1" />
+			<Setter Property="Foreground" Value="#E2E2E9" />
+			<Setter Property="HorizontalAlignment" Value="Stretch" />
+			<Setter Property="Padding" Value="10,6" />
+			<Setter Property="CornerRadius" Value="6" />
+			<Setter Property="Height" Value="34" />
+		</Style>
+		<Style Selector="TextBox">
+			<Setter Property="Background" Value="#15151F" />
+			<Setter Property="BorderBrush" Value="#222232" />
+			<Setter Property="BorderThickness" Value="1" />
+			<Setter Property="Foreground" Value="#E2E2E9" />
+			<Setter Property="CornerRadius" Value="6" />
+			<Setter Property="Padding" Value="10,6" />
+		</Style>
+
+		<!-- Botones con Feedback Visual -->
+		<Style Selector="Button.primary">
+			<Setter Property="Background" Value="#5B5BF0" />
+			<Setter Property="Foreground" Value="White" />
+			<Setter Property="BorderThickness" Value="0" />
+			<Setter Property="CornerRadius" Value="6" />
+			<Setter Property="Padding" Value="16,0" />
+			<Setter Property="Height" Value="34" />
+			<Setter Property="FontWeight" Value="SemiBold" />
+			<Setter Property="FontSize" Value="13" />
+			<Setter Property="Cursor" Value="Hand" />
+			<Setter Property="VerticalContentAlignment" Value="Center" />
+		</Style>
+		<Style Selector="Button.primary:pointerover /template/ ContentPresenter">
+			<Setter Property="Background" Value="#7070F5" />
+		</Style>
+
+		<Style Selector="Button.danger">
+			<Setter Property="Background" Value="#2D1414" />
+			<Setter Property="Foreground" Value="#F28B8B" />
+			<Setter Property="BorderBrush" Value="#4A1D1D" />
+			<Setter Property="BorderThickness" Value="1" />
+			<Setter Property="CornerRadius" Value="6" />
+			<Setter Property="Padding" Value="16,0" />
+			<Setter Property="Height" Value="34" />
+			<Setter Property="FontWeight" Value="SemiBold" />
+			<Setter Property="FontSize" Value="13" />
+			<Setter Property="Cursor" Value="Hand" />
+			<Setter Property="VerticalContentAlignment" Value="Center" />
+		</Style>
+		<Style Selector="Button.danger:pointerover /template/ ContentPresenter">
+			<Setter Property="Background" Value="#4A1D1D" />
+			<Setter Property="Foreground" Value="#FFA3A3" />
+		</Style>
+
+		<Style Selector="Button.secondary">
+			<Setter Property="Background" Value="#15151F" />
+			<Setter Property="Foreground" Value="#A0A0C0" />
+			<Setter Property="BorderBrush" Value="#222232" />
+			<Setter Property="BorderThickness" Value="1" />
+			<Setter Property="CornerRadius" Value="6" />
+			<Setter Property="Padding" Value="14,0" />
+			<Setter Property="Height" Value="34" />
+			<Setter Property="FontSize" Value="12" />
+			<Setter Property="Cursor" Value="Hand" />
+			<Setter Property="VerticalContentAlignment" Value="Center" />
+		</Style>
+		<Style Selector="Button.secondary:pointerover /template/ ContentPresenter">
+			<Setter Property="Background" Value="#202030" />
+		</Style>
+
+		<!-- Estilo Plano y Moderno para Pestañas (TabControl) -->
+		<Style Selector="TabControl">
+			<Setter Property="Background" Value="Transparent" />
+			<Setter Property="Padding" Value="0,16,0,0" />
+		</Style>
+		<Style Selector="TabItem">
+			<Setter Property="FontSize" Value="12" />
+			<Setter Property="FontWeight" Value="SemiBold" />
+			<Setter Property="Foreground" Value="#6F6F8A" />
+			<Setter Property="Padding" Value="6,8,6,8" />
+			<Setter Property="Margin" Value="0,0,16,0" />
+			<Setter Property="Background" Value="Transparent" />
+		</Style>
+		<Style Selector="TabItem:pointerover">
+			<Setter Property="Foreground" Value="#E2E2E9" />
+		</Style>
+		<Style Selector="TabItem:selected">
+			<Setter Property="Foreground" Value="#5B5BF0" />
+		</Style>
+
+		<Style Selector="CheckBox">
+			<Setter Property="Foreground" Value="#A9A9C3" />
+			<Setter Property="FontSize" Value="13" />
+		</Style>
+
+		<Style Selector="ListBox">
+			<Setter Property="Background" Value="Transparent" />
+			<Setter Property="BorderThickness" Value="0" />
+		</Style>
+		<Style Selector="ListBoxItem">
+			<Setter Property="Background" Value="Transparent" />
+			<Setter Property="Padding" Value="0" />
+		</Style>
+	</Window.Styles>
+
+	<Grid>
+		<!-- Línea decorativa muy sutil superior -->
+		<Border Height="2" VerticalAlignment="Top" Background="#5B5BF0" Opacity="0.5" />
+
+		<Grid Margin="24,18,24,12" RowDefinitions="Auto,*,Auto">
+
+			<!-- PANEL SUPERIOR (HEADER) -->
+			<DockPanel Grid.Row="0" LastChildFill="False" Margin="0,0,0,16">
+				<StackPanel DockPanel.Dock="Left" Orientation="Horizontal" Spacing="16"
+					VerticalAlignment="Center">
+					<TextBlock Text="{Binding Texts.AppTitle}" FontSize="20" FontWeight="Bold"
+						Foreground="#FFFFFF" LetterSpacing="0.5" />
+
+					<!-- Badge de estado activo -->
+					<Border CornerRadius="20" Padding="10,3" Background="#112418"
+						BorderBrush="#183B24" BorderThickness="1" IsVisible="{Binding IsRouting}">
+						<StackPanel Orientation="Horizontal" Spacing="6">
+							<Ellipse Width="6" Height="6" Fill="#4ADE80" VerticalAlignment="Center" />
+							<TextBlock Text="{Binding Texts.StatusRouting}" FontSize="10.5"
+								FontWeight="Bold" Foreground="#4ADE80" VerticalAlignment="Center" />
+						</StackPanel>
+					</Border>
+
+					<!-- Badge de estado inactivo -->
+					<Border CornerRadius="20" Padding="10,3" Background="#14141F"
+						BorderBrush="#202030" BorderThickness="1" IsVisible="{Binding !IsRouting}">
+						<StackPanel Orientation="Horizontal" Spacing="6">
+							<Ellipse Width="6" Height="6" Fill="#5F5F7A" VerticalAlignment="Center" />
+							<TextBlock Text="{Binding Texts.StatusInactive}" FontSize="10.5"
+								FontWeight="Bold" Foreground="#7B7B9A" VerticalAlignment="Center" />
+						</StackPanel>
+					</Border>
+				</StackPanel>
+
+				<!-- Botones de Acción + Selector de Idioma -->
+				<StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="10"
+					VerticalAlignment="Center">
+					<Button Classes="primary" Content="{Binding Texts.ButtonStart}"
+						Command="{Binding ToggleRoutingCommand}" IsVisible="{Binding !IsRouting}" />
+					<Button Classes="danger" Content="{Binding Texts.ButtonStop}"
+						Command="{Binding ToggleRoutingCommand}" IsVisible="{Binding IsRouting}" />
+					<Button Classes="secondary" Content="{Binding Texts.ButtonRefreshApps}"
+						Command="{Binding RefreshRunningAppsCommand}" />
+
+					<Separator Width="1" Height="18" Background="#202030" Margin="4,0" />
+					<ComboBox ItemsSource="{Binding AvailableLanguages}"
+						SelectedItem="{Binding SelectedLanguage}"
+						Width="85" Height="30"
+						FontSize="11"
+						Padding="8,4"
+						VerticalContentAlignment="Center" />
+
+				</StackPanel>
+			</DockPanel>
+
+			<!-- ESPACIO DE TRABAJO SIMÉTRICO (2 Tarjetas Principales del mismo alto) -->
+			<Grid Grid.Row="1" ColumnDefinitions="1.2*, 1*">
+
+				<!-- TARJETA IZQUIERDA: Aplicaciones Detectadas -->
+				<Border Grid.Column="0" Background="#111116" BorderBrush="#1C1C28"
+					BorderThickness="1" CornerRadius="8" Padding="16" Margin="0,0,8,0">
+					<Grid RowDefinitions="Auto,*,Auto">
+						<StackPanel Grid.Row="0" Margin="0,0,0,12">
+							<TextBlock Text="{Binding Texts.CardAppsTitle}" FontWeight="Bold"
+								FontSize="12" Foreground="#8F8FA8" Margin="0,0,0,2" />
+							<TextBlock Text="{Binding Texts.CardAppsHelp}" Foreground="#5F5F7A"
+								FontSize="11" TextWrapping="Wrap" />
+						</StackPanel>
+
+						<!-- Listado de Apps -->
+						<ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+							<ListBox ItemsSource="{Binding RunningApps}">
+								<ListBox.ItemTemplate>
+									<DataTemplate x:DataType="vm:AppAudioItemViewModel">
+										<Border Background="#15151F" BorderBrush="#1F1F2E"
+											BorderThickness="1" Padding="12,10" CornerRadius="6"
+											Margin="0,2">
+											<Grid ColumnDefinitions="Auto,*,Auto">
+												<CheckBox Grid.Column="0"
+													IsChecked="{Binding IsIncludedInMix}"
+													Margin="0,0,12,0" VerticalAlignment="Center" />
+												<StackPanel Grid.Column="1"
+													VerticalAlignment="Center" Spacing="1">
+													<TextBlock Text="{Binding DisplayName}"
+														FontWeight="Bold" FontSize="13"
+														Foreground="#FFFFFF" />
+													<StackPanel Orientation="Horizontal" Spacing="6">
+														<TextBlock Text="{Binding ProcessName}"
+															FontSize="10.5" Foreground="#5F5F7A" />
+														<TextBlock Text="•" FontSize="10.5"
+															Foreground="#3F3F54" />
+														<TextBlock Text="PID" FontSize="10"
+															Foreground="#4A4A63" />
+														<TextBlock Text="{Binding ProcessId}"
+															FontSize="10" Foreground="#4A4A63" />
+													</StackPanel>
+												</StackPanel>
+												<Ellipse Grid.Column="2" Width="6" Height="6"
+													Fill="#5B5BF0" VerticalAlignment="Center"
+													IsVisible="{Binding IsIncludedInMix}" />
+											</Grid>
+										</Border>
+									</DataTemplate>
+								</ListBox.ItemTemplate>
+							</ListBox>
+						</ScrollViewer>
+
+						<!-- Consola de estado integrada abajo si se activa -->
+						<TextBox Grid.Row="3" Classes="status" Text="{Binding StatusMessage}"
+							IsReadOnly="True" TextWrapping="Wrap" AcceptsReturn="True"
+							MaxHeight="55" Margin="0,12,0,0"
+							IsVisible="{Binding StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+					</Grid>
+				</Border>
+
+				<!-- TARJETA DERECHA: Configuración General (Pestañas sin Scroll) -->
+				<Border Grid.Column="1" Background="#111116" BorderBrush="#1C1C28"
+					BorderThickness="1" CornerRadius="8" Padding="16" Margin="8,0,0,0">
+					<TabControl>
+
+						<!-- PESTAÑA 1: Dispositivos de Audio -->
+						<TabItem Header="{Binding Texts.CardDevicesTitle}">
+							<StackPanel Spacing="12" Margin="0,4,0,0">
+								<StackPanel Spacing="4">
+									<TextBlock Text="{Binding Texts.DeviceReference}"
+										Classes="label" />
+									<ComboBox ItemsSource="{Binding OutputDevices}"
+										SelectedItem="{Binding SelectedOutputDevice}" />
+								</StackPanel>
+
+								<StackPanel Spacing="4">
+									<TextBlock Text="{Binding Texts.DeviceVbCable}" Classes="label" />
+									<ComboBox ItemsSource="{Binding VbCableDevices}"
+										SelectedItem="{Binding SelectedVbCableDevice}" />
+								</StackPanel>
+
+								<StackPanel Spacing="4">
+									<TextBlock Text="{Binding Texts.DeviceMicrophone}"
+										Classes="label" />
+									<ComboBox ItemsSource="{Binding InputDevices}"
+										SelectedItem="{Binding SelectedMicrophoneDevice}" />
+								</StackPanel>
+
+								<!-- Nota Informativa de Audio Espacial -->
+								<StackPanel Spacing="2" Margin="0,8,0,0" Opacity="0.7">
+									<TextBlock Text="{Binding Texts.CardSpatialTitle}"
+										FontWeight="Bold" Foreground="#7B7B9A" FontSize="10" />
+									<TextBlock TextWrapping="Wrap" LineHeight="13"
+										Foreground="#5F5F7A" FontSize="9.5"
+										Text="{Binding Texts.CardSpatialBody}" />
+									<TextBlock TextWrapping="Wrap" LineHeight="13"
+										Foreground="#4A4A63" FontSize="9.5"
+										Text="{Binding Texts.CardSpatialHelp}" />
+								</StackPanel>
+							</StackPanel>
+						</TabItem>
+
+						<!-- PESTAÑA 2: Mezclador de Volúmenes -->
+						<TabItem Header="{Binding Texts.CardMixTitle}">
+							<StackPanel Spacing="12" Margin="0,4,0,0">
+								<!-- Slider Apps -->
+								<StackPanel Spacing="4">
+									<Grid ColumnDefinitions="*,Auto">
+										<TextBlock Text="{Binding Texts.MixAppsGain}"
+											Classes="label" VerticalAlignment="Center" />
+										<Border Grid.Column="1" Background="#15151F"
+											CornerRadius="4" Padding="6,2">
+											<TextBlock
+												Text="{Binding AppsVolume, StringFormat={}{0:P0}}"
+												FontSize="11" FontWeight="Bold" Foreground="#5B5BF0" />
+										</Border>
+									</Grid>
+									<Slider Minimum="0" Maximum="3" Value="{Binding AppsVolume}"
+										TickFrequency="0.05" IsSnapToTickEnabled="True" />
+									<TextBlock Text="{Binding Texts.MixAppsGainHelp}" FontSize="10"
+										Foreground="#5F5F7A" />
+								</StackPanel>
+
+								<!-- Slider Micrófono -->
+								<StackPanel Spacing="4">
+									<Grid ColumnDefinitions="*,Auto">
+										<TextBlock Text="{Binding Texts.MixAppsBoost}"
+											Classes="label" VerticalAlignment="Center" />
+										<Border Grid.Column="1" Background="#15151F"
+											CornerRadius="4" Padding="6,2">
+											<TextBlock
+												Text="{Binding MicrophoneBoost, StringFormat={}{0:F2}x}"
+												FontSize="11" FontWeight="Bold" Foreground="#5B5BF0" />
+										</Border>
+									</Grid>
+									<Slider Minimum="0.5" Maximum="3"
+										Value="{Binding MicrophoneBoost}" TickFrequency="0.05"
+										IsSnapToTickEnabled="True" />
+									<TextBlock Text="{Binding Texts.MixAppsBoostHelp}" FontSize="10"
+										Foreground="#5F5F7A" />
+								</StackPanel>
+
+								<Separator Height="1" Background="#1C1C28" Margin="0,4" />
+								<CheckBox Content="{Binding Texts.MixMonitorMic}"
+									IsChecked="{Binding MonitorMicrophone}" />
+							</StackPanel>
+						</TabItem>
+
+						<!-- PESTAÑA 3: Integración OSC (VRChat) -->
+						<TabItem Header="OSC">
+							<StackPanel Spacing="10" Margin="0,4,0,0">
+								<CheckBox Content="{Binding Texts.OscEnableChatbox}"
+									IsChecked="{Binding EnableOscChatbox}" />
+
+								<StackPanel Spacing="6" IsEnabled="{Binding EnableOscChatbox}">
+									<TextBlock Text="{Binding Texts.OscTemplateLabel}"
+										Classes="label" />
+									<TextBox Text="{Binding OscTemplate}"
+										Watermark="{Binding Texts.OscTemplateWatermark}"
+										Height="75"
+										TextWrapping="Wrap"
+										AcceptsReturn="False"
+										VerticalContentAlignment="Top"
+										FontSize="12" />
+									<TextBlock Text="{Binding Texts.OscTemplateTokens}"
+										FontSize="10" Foreground="#5F5F7A" TextWrapping="Wrap" />
+								</StackPanel>
+							</StackPanel>
+						</TabItem>
+
+					</TabControl>
+				</Border>
+			</Grid>
+
+			<!-- PIE DE PÁGINA (FOOTER) -->
+			<TextBlock Grid.Row="2" Text="{Binding Texts.AppFooter}" FontSize="11"
+				Foreground="#3F3F54" HorizontalAlignment="Center" Margin="0,12,0,0" />
+		</Grid>
+	</Grid>
+</Window>

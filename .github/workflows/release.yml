@@ -1,0 +1,39 @@
+name: Publicación de Versión (Firma y Release)
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+
+    steps:
+    - name: Descargar código
+      uses: actions/checkout@v4
+
+    - name: Configurar .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+
+    - name: Compilar y Firmar Ejecutables
+      shell: pwsh
+      run: |
+        ./.local/BUILD_AND_SIGN.ps1
+
+    - name: Crear archivo ZIP
+      shell: pwsh
+      run: |
+        Compress-Archive -Path ./RadioOSC.Desktop/publish_output/* -DestinationPath ./RadioOSC-Windows.zip
+
+    - name: Crear GitHub Release
+      uses: softprops/action-gh-release@v2
+      with:
+        files: RadioOSC-Windows.zip
+        name: Release ${{ github.ref_name }}
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

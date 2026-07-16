@@ -1,0 +1,26 @@
+name: Integración Continua (Prueba de Compilación)
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  test-build:
+    runs-on: windows-latest
+
+    steps:
+    - name: Descargar código
+      uses: actions/checkout@v4
+
+    - name: Configurar .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+
+    - name: Restaurar dependencias
+      run: dotnet restore
+
+    - name: Verificar Compilación
+      run: dotnet build --configuration Release --no-restore
