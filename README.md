@@ -109,6 +109,16 @@ The Avalonia UI frontend containing:
 
 ---
 
+## 📸 Screenshots / Capturas
+
+<p align="center">
+  <img src="./Screenshots/screenshot-001.png" width="32%" />
+  <img src="./Screenshots/screenshot-002.png"  width="32%" />
+  <img src="./Screenshots/screenshot-003.png"  width="32%" />
+</p>
+
+---
+
 ## ⚙️ How It Works
 
 When an application is selected in the UI:
