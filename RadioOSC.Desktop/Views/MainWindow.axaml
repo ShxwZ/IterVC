@@ -344,7 +344,7 @@
 										Watermark="{Binding Texts.OscTemplateWatermark}"
 										Height="75"
 										TextWrapping="Wrap"
-										AcceptsReturn="False"
+										AcceptsReturn="True"
 										VerticalContentAlignment="Top"
 										FontSize="12" />
 									<TextBlock Text="{Binding Texts.OscTemplateTokens}"

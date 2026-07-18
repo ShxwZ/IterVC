@@ -17,7 +17,15 @@ public sealed class OscMediaService : IOscMediaService
             string message = template
                 .Replace("{title}", title ?? "Desconocido")
                 .Replace("{status}", status ?? "N/A");
-
+            char[] newlinessearch = message.ToCharArray();
+            for (int i = 0; i < newlinessearch.Length; i++)
+            {
+                if (newlinessearch[i] == '\n')
+                {
+                    newlinessearch[i] = '\v';
+                }
+            }
+            message = new string(newlinessearch);
             OscChatbox.SendMessage(message, direct: true);
         }
         catch (Exception ex)
