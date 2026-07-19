@@ -131,6 +131,14 @@ When an application is selected in the UI:
 
 Because the capture uses Windows Process Loopback APIs, the original application continues to play audio normally through the user's speakers or headphones.
 
+One can also display a chatbox on VRChat by using the OSC tab on the app. There are three tokens one can use:
+
+1. {title} displays the song title and the artist.
+2. {status} displays wether you are playing the song or not.
+3. {time} displays your current local time and it also displays the song's timestamp. 
+
+Support for having the chatbox opened without playing music is planned for a future release. As of now one must play music to make the chatbox appear.
+
 ---
 
 ## 🤝 Contributing

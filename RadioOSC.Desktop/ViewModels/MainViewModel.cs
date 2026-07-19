@@ -36,7 +36,7 @@ public sealed partial class MainViewModel : ViewModelBase
     [ObservableProperty] private float _appsVolume = 1.0f;
 
     [ObservableProperty] private bool _enableOscChatbox;
-    [ObservableProperty] private string _oscTemplate = "{title} - {status}";
+    [ObservableProperty] private string _oscTemplate = "{title} - [{time}]";
 
     [ObservableProperty] private float _microphoneBoost = 1.0f;
 
