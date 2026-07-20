@@ -1,7 +1,7 @@
 # IterVC
 
 <p align="center">
-  <img src="./RadioOSC.Desktop/Assets/logo_ivc3.svg" alt="IterVC Logo" width="180" />
+  <img src="./IterVC.Desktop/Assets/logo_ivc3.svg" alt="IterVC Logo" width="180" />
 </p>
 
 <p align="center">
@@ -68,14 +68,14 @@ From the repository root:
 ```bash
 dotnet restore
 dotnet build
-dotnet run --project RadioOSC.Desktop
+dotnet run --project IterVC.Desktop
 ```
 
 ---
 
 ## 🛠️ Project Architecture
 
-### RadioOSC.Core
+### IterVC.Core
 
 Core models, settings, and interfaces.
 
@@ -87,7 +87,7 @@ Examples:
 
 This project contains no UI or platform-specific logic.
 
-### RadioOSC.Audio
+### IterVC.Audio
 
 The audio engine responsible for:
 
@@ -98,7 +98,7 @@ The audio engine responsible for:
 - Audio resampling and normalization
 - Real-time mixing using NAudio
 
-### RadioOSC.Desktop
+### IterVC.Desktop
 
 The Avalonia UI frontend containing:
 
