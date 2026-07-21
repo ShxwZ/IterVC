@@ -56,6 +56,17 @@ public sealed class TextsViewModel : ObservableObject
     private string _oscTemplateTokens = G(LK.OscTemplateTokens);
     private string _cardLanguageTitle = G(LK.CardLanguageTitle);
     private string _cardLanguageHelp = G(LK.CardLanguageHelp);
+    private string _updateConsentTitle = G(LK.UpdateConsentTitle);
+    private string _updateConsentBody = G(LK.UpdateConsentBody);
+    private string _updateAllow = G(LK.UpdateAllow);
+    private string _updateDecline = G(LK.UpdateDecline);
+    private string _updateAvailable = G(LK.UpdateAvailable);
+    private string _updateOpen = G(LK.UpdateOpen);
+    private string _updateSettingsTitle = G(LK.UpdateSettingsTitle);
+    private string _updateEnabled = G(LK.UpdateEnabled);
+    private string _updateCheckNow = G(LK.UpdateCheckNow);
+    private string _settingsTitle = G(LK.SettingsTitle);
+    private string _updateDismiss = G(LK.UpdateDismiss);
 
     public string AppTitle { get => _appTitle; set => SetProperty(ref _appTitle, value); }
     public string AppFooter { get => _appFooter; set => SetProperty(ref _appFooter, value); }
@@ -104,6 +115,21 @@ public sealed class TextsViewModel : ObservableObject
     public string OscTemplateTokens { get => _oscTemplateTokens; set => SetProperty(ref _oscTemplateTokens, value); }
     public string CardLanguageTitle { get => _cardLanguageTitle; set => SetProperty(ref _cardLanguageTitle, value); }
     public string CardLanguageHelp { get => _cardLanguageHelp; set => SetProperty(ref _cardLanguageHelp, value); }
+    public string UpdateConsentTitle { get => _updateConsentTitle; set => SetProperty(ref _updateConsentTitle, value); }
+    public string UpdateConsentBody { get => _updateConsentBody; set => SetProperty(ref _updateConsentBody, value); }
+    public string UpdateAllow { get => _updateAllow; set => SetProperty(ref _updateAllow, value); }
+    public string UpdateDecline { get => _updateDecline; set => SetProperty(ref _updateDecline, value); }
+    public string UpdateAvailable { get => _updateAvailable; set => SetProperty(ref _updateAvailable, value); }
+    public string UpdateOpen { get => _updateOpen; set => SetProperty(ref _updateOpen, value); }
+    public string UpdateSettingsTitle { get => _updateSettingsTitle; set => SetProperty(ref _updateSettingsTitle, value); }
+    public string UpdateEnabled { get => _updateEnabled; set => SetProperty(ref _updateEnabled, value); }
+    public string UpdateCheckNow { get => _updateCheckNow; set => SetProperty(ref _updateCheckNow, value); }
+    public string SettingsTitle { get => _settingsTitle; set => SetProperty(ref _settingsTitle, value); }
+    public string UpdateDismiss { get => _updateDismiss; set => SetProperty(ref _updateDismiss, value); }
+    public string UpdateChecking => G(LK.UpdateChecking);
+    public string UpdateCurrent => G(LK.UpdateCurrent);
+    public string UpdateCheckFailed => G(LK.UpdateCheckFailed);
+    public string UpdateOpenFailed => G(LK.UpdateOpenFailed);
 
     /// <summary>Prefijo del mensaje "No se pudo capturar el proceso N".</summary>
     public string AppCaptureErrorPrefix => G(LK.ButtonStart) + ":";
@@ -161,6 +187,21 @@ public sealed class TextsViewModel : ObservableObject
         OscTemplateTokens = G(LK.OscTemplateTokens);
         CardLanguageTitle = G(LK.CardLanguageTitle);
         CardLanguageHelp = G(LK.CardLanguageHelp);
+        UpdateConsentTitle = G(LK.UpdateConsentTitle);
+        UpdateConsentBody = G(LK.UpdateConsentBody);
+        UpdateAllow = G(LK.UpdateAllow);
+        UpdateDecline = G(LK.UpdateDecline);
+        UpdateAvailable = G(LK.UpdateAvailable);
+        UpdateOpen = G(LK.UpdateOpen);
+        UpdateSettingsTitle = G(LK.UpdateSettingsTitle);
+        UpdateEnabled = G(LK.UpdateEnabled);
+        UpdateCheckNow = G(LK.UpdateCheckNow);
+        SettingsTitle = G(LK.SettingsTitle);
+        UpdateDismiss = G(LK.UpdateDismiss);
+        OnPropertyChanged(nameof(UpdateChecking));
+        OnPropertyChanged(nameof(UpdateCurrent));
+        OnPropertyChanged(nameof(UpdateCheckFailed));
+        OnPropertyChanged(nameof(UpdateOpenFailed));
         OnPropertyChanged(nameof(AppCaptureErrorPrefix));
     }
 
@@ -215,6 +256,21 @@ public sealed class TextsViewModel : ObservableObject
         internal const string OscTemplateTokens = LocalizationService.Keys.OscTemplateTokens; 
         internal const string CardLanguageTitle = LocalizationService.Keys.CardLanguageTitle; 
         internal const string CardLanguageHelp = LocalizationService.Keys.CardLanguageHelp;
+        internal const string UpdateConsentTitle = LocalizationService.Keys.UpdateConsentTitle;
+        internal const string UpdateConsentBody = LocalizationService.Keys.UpdateConsentBody;
+        internal const string UpdateAllow = LocalizationService.Keys.UpdateAllow;
+        internal const string UpdateDecline = LocalizationService.Keys.UpdateDecline;
+        internal const string UpdateAvailable = LocalizationService.Keys.UpdateAvailable;
+        internal const string UpdateOpen = LocalizationService.Keys.UpdateOpen;
+        internal const string UpdateSettingsTitle = LocalizationService.Keys.UpdateSettingsTitle;
+        internal const string UpdateEnabled = LocalizationService.Keys.UpdateEnabled;
+        internal const string UpdateCheckNow = LocalizationService.Keys.UpdateCheckNow;
+        internal const string UpdateChecking = LocalizationService.Keys.UpdateChecking;
+        internal const string UpdateCurrent = LocalizationService.Keys.UpdateCurrent;
+        internal const string UpdateCheckFailed = LocalizationService.Keys.UpdateCheckFailed;
+        internal const string UpdateOpenFailed = LocalizationService.Keys.UpdateOpenFailed;
+        internal const string SettingsTitle = LocalizationService.Keys.SettingsTitle;
+        internal const string UpdateDismiss = LocalizationService.Keys.UpdateDismiss;
     }
 }
 

@@ -139,7 +139,7 @@
 		<!-- Línea decorativa muy sutil superior -->
 		<Border Height="2" VerticalAlignment="Top" Background="#5B5BF0" Opacity="0.5" />
 
-		<Grid Margin="24,18,24,12" RowDefinitions="Auto,*,Auto">
+		<Grid Margin="24,18,24,12" RowDefinitions="Auto,Auto,*,Auto">
 
 			<!-- PANEL SUPERIOR (HEADER) -->
 			<DockPanel Grid.Row="0" LastChildFill="False" Margin="0,0,0,16">
@@ -190,14 +190,42 @@
 				</StackPanel>
 			</DockPanel>
 
+			<StackPanel Grid.Row="1" Spacing="8" Margin="0,0,0,12">
+				<Border Background="#17172A" BorderBrush="#39396B" BorderThickness="1"
+					CornerRadius="8" Padding="12" IsVisible="{Binding IsUpdateConsentVisible}">
+					<Grid ColumnDefinitions="*,Auto">
+						<StackPanel Spacing="3">
+							<TextBlock Text="{Binding Texts.UpdateConsentTitle}" FontWeight="Bold" Foreground="#A9A9FF" />
+							<TextBlock Text="{Binding Texts.UpdateConsentBody}" TextWrapping="Wrap" FontSize="11" />
+						</StackPanel>
+						<StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" Margin="16,0,0,0">
+							<Button Classes="secondary" Content="{Binding Texts.UpdateDecline}" Command="{Binding DeclineUpdateChecksCommand}" />
+							<Button Classes="primary" Content="{Binding Texts.UpdateAllow}" Command="{Binding AcceptUpdateChecksCommand}" />
+						</StackPanel>
+					</Grid>
+				</Border>
+				<Border Background="#112418" BorderBrush="#245B38" BorderThickness="1"
+					CornerRadius="8" Padding="10" IsVisible="{Binding IsUpdateAvailable}">
+					<Grid ColumnDefinitions="*,Auto">
+						<TextBlock VerticalAlignment="Center">
+							<Run Text="{Binding Texts.UpdateAvailable}" /><Run Text=" " /><Run Text="{Binding AvailableUpdateVersion}" FontWeight="Bold" />
+						</TextBlock>
+						<StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+							<Button Classes="secondary" Content="{Binding Texts.UpdateDismiss}" Command="{Binding DismissUpdateCommand}" />
+							<Button Classes="secondary" Content="{Binding Texts.UpdateOpen}" Command="{Binding OpenUpdatePageCommand}" />
+						</StackPanel>
+					</Grid>
+				</Border>
+			</StackPanel>
+
 			<!-- ESPACIO DE TRABAJO SIMÉTRICO (2 Tarjetas Principales del mismo alto) -->
-			<Grid Grid.Row="1" ColumnDefinitions="0.85*,1.15*">
+			<Grid Grid.Row="2" ColumnDefinitions="0.85*,1.15*">
 				<views:ApplicationsPanel Grid.Column="0" Margin="0,0,8,0" />
 				<views:SettingsPanel Grid.Column="1" Margin="8,0,0,0" />
 			</Grid>
 
 			<!-- PIE DE PÁGINA (FOOTER) -->
-			<TextBlock Grid.Row="2" Text="{Binding Texts.AppFooter}" FontSize="11"
+			<TextBlock Grid.Row="3" Text="{Binding Texts.AppFooter}" FontSize="11"
 				Foreground="#3F3F54" HorizontalAlignment="Center" Margin="0,12,0,0" />
 		</Grid>
 	</Grid>

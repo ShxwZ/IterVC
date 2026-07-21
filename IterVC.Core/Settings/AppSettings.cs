@@ -6,7 +6,7 @@ namespace IterVC.Core.Settings;
 public sealed class AppSettings
 {
     /// <summary>Versión del esquema, para permitir migraciones futuras.</summary>
-    public int SchemaVersion { get; set; } = 2;
+    public int SchemaVersion { get; set; } = 3;
 
     /// <summary>Id del dispositivo de salida principal (altavoces/auriculares) desde el que se hace loopback.</summary>
     public string? OutputDeviceId { get; set; }
@@ -65,4 +65,19 @@ public sealed class AppSettings
 
     /// <summary>Si el chatbox OSC estaba activo al cerrar la app.</summary>
     public bool EnableOscChatbox { get; set; }
+
+    /// <summary>Whether the user consented to automatic update checks. Null means not answered yet.</summary>
+    public bool? CheckForUpdates { get; set; }
+
+    /// <summary>UTC timestamp of the last successful GitHub Releases check.</summary>
+    public DateTimeOffset? LastSuccessfulUpdateCheckUtc { get; set; }
+
+    /// <summary>Latest release version returned by the last successful check.</summary>
+    public string? CachedLatestVersion { get; set; }
+
+    /// <summary>Validated GitHub URL returned by the last successful check.</summary>
+    public string? CachedReleaseUrl { get; set; }
+
+    /// <summary>Release version whose notification the user explicitly dismissed.</summary>
+    public string? DismissedUpdateVersion { get; set; }
 }

@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using IterVC.Audio;
 using IterVC.Core.Interfaces;
 using IterVC.Desktop.ViewModels;
+using IterVC.Desktop.Services;
 using System.Diagnostics;
 
 namespace IterVC.Desktop;
@@ -43,7 +44,17 @@ internal static class Program
         services.AddSingleton<IMicrophoneService, MicrophoneService>();
         services.AddSingleton<AudioRouterService>();
         services.AddSingleton<IAudioRouterService>(sp => sp.GetRequiredService<AudioRouterService>());
-        services.AddSingleton<MainViewModel>();
+        services.AddSingleton(new HttpClient { Timeout = TimeSpan.FromSeconds(10) });
+        services.AddSingleton(sp => new GitHubUpdateService(sp.GetRequiredService<HttpClient>()));
+        services.AddSingleton(sp => new MainViewModel(
+            sp.GetRequiredService<IAudioRouterService>(),
+            sp.GetRequiredService<IMicrophoneService>(),
+            sp.GetRequiredService<IDeviceService>(),
+            sp.GetRequiredService<IApplicationAudioService>(),
+            sp.GetRequiredService<ISettingsService>(),
+            sp.GetRequiredService<IOscMediaService>(),
+            sp.GetRequiredService<ILogger<MainViewModel>>(),
+            sp.GetRequiredService<GitHubUpdateService>()));
 
         Debug.WriteLine("ConfigureServices completado");
     }
