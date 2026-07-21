@@ -1,13 +1,19 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
+using Avalonia.Input;
 using IterVC.Audio;
 using IterVC.Core.Interfaces;
 using IterVC.Core.Localization;
 using IterVC.Core.Models;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.IO;
 using Windows.Media.Control;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Platform.Storage;
+using IterVC.Desktop.Services;
 
 namespace IterVC.Desktop.ViewModels;
 
@@ -20,6 +26,7 @@ public sealed partial class MainViewModel : ViewModelBase
     private readonly ISettingsService _settingsService;
     private readonly ILogger<MainViewModel> _logger;
     private readonly IOscMediaService _oscMediaService;
+    private readonly IColorExtractionService _colorExtractionService;
 
     public ObservableCollection<AppAudioItemViewModel> RunningApps { get; } = new();
     public ObservableCollection<AudioDeviceInfo> OutputDevices { get; } = new();
@@ -45,6 +52,63 @@ public sealed partial class MainViewModel : ViewModelBase
     public IReadOnlyList<string> AvailableLanguages { get; } = SupportedLanguages.All;
     public TextsViewModel Texts { get; } = new();
 
+    // --- Appearance ---
+    [ObservableProperty] private string? _backgroundImagePath;
+    [ObservableProperty] private Avalonia.Media.Imaging.Bitmap? _backgroundImage;
+    [ObservableProperty] private bool _hasBackgroundImage;
+    [ObservableProperty] private string _accentColorHex = ThemeService.DefaultAccentHex;
+    [ObservableProperty] private string _cardBackgroundHex = ThemeService.DefaultCardBackgroundHex;
+    [ObservableProperty] private bool _autoExtractColors = true;
+    [ObservableProperty] private string _toggleRoutingShortcut = "F9";
+
+    public KeyGesture? ToggleShortcutGesture
+    {
+        get
+        {
+            try { return KeyGesture.Parse(ToggleRoutingShortcut); }
+            catch { return null; }
+        }
+    }
+
+    partial void OnToggleRoutingShortcutChanged(string value)
+    {
+        if (_initializing) return;
+        _ = _settingsService.UpdateAsync(s => s.ToggleRoutingShortcut = value);
+        OnPropertyChanged(nameof(ToggleShortcutGesture));
+    }
+
+    partial void OnBackgroundImagePathChanged(string? value)
+    {
+        var old = BackgroundImage;
+        if (string.IsNullOrEmpty(value) || !File.Exists(value))
+        {
+            BackgroundImage = null;
+        }
+        else
+        {
+            try
+            {
+                BackgroundImage = new Avalonia.Media.Imaging.Bitmap(value);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogWarning(ex, "Failed to load background image.");
+                BackgroundImage = null;
+            }
+        }
+        old?.Dispose();
+    }
+    [ObservableProperty] private byte _accentR;
+    [ObservableProperty] private byte _accentG;
+    [ObservableProperty] private byte _accentB;
+    [ObservableProperty] private byte _cardR;
+    [ObservableProperty] private byte _cardG;
+    [ObservableProperty] private byte _cardB;
+
+    /// <summary>Folder where background images are stored.</summary>
+    private static string AppDataFolder => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "IterVC");
+
     private bool _isRefreshing;
     private bool _initializing;
     private List<string>? _pendingIncludedProcessNames;
@@ -57,6 +121,7 @@ public sealed partial class MainViewModel : ViewModelBase
         IApplicationAudioService applicationAudioService,
         ISettingsService settingsService,
         IOscMediaService oscMediaService,
+        IColorExtractionService colorExtractionService,
         ILogger<MainViewModel> logger)
     {
         _audioRouter = audioRouter;
@@ -65,6 +130,7 @@ public sealed partial class MainViewModel : ViewModelBase
         _applicationAudioService = applicationAudioService;
         _settingsService = settingsService;
         _oscMediaService = oscMediaService;
+        _colorExtractionService = colorExtractionService;
         _logger = logger;
 
         _microphoneService.DataAvailable += (_, data) =>
@@ -111,6 +177,27 @@ public sealed partial class MainViewModel : ViewModelBase
 
             MicrophoneBoost = settings.MicrophoneBoost;
             _audioRouter.SetMicrophoneBoost(MicrophoneBoost);
+
+            ToggleRoutingShortcut = string.IsNullOrWhiteSpace(settings.ToggleRoutingShortcut) ? "F9" : settings.ToggleRoutingShortcut;
+            OnPropertyChanged(nameof(ToggleShortcutGesture));
+
+            // Load appearance settings
+            AutoExtractColors = settings.AutoExtractColors;
+            if (!string.IsNullOrEmpty(settings.BackgroundImageFileName))
+            {
+                var bgPath = Path.Combine(AppDataFolder, settings.BackgroundImageFileName);
+                if (File.Exists(bgPath))
+                {
+                    BackgroundImagePath = bgPath;
+                    HasBackgroundImage = true;
+                }
+            }
+            var accentHex = settings.AccentColor ?? ThemeService.DefaultAccentHex;
+            var cardHex = settings.CardBackgroundColor ?? ThemeService.DefaultCardBackgroundHex;
+            SetAccentFromHex(accentHex);
+            SetCardFromHex(cardHex);
+            await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+                ThemeService.Apply(AccentColorHex, CardBackgroundHex));
 
             _audioRouter.SetAppsVolume(AppsVolume);
             _audioRouter.SetMicrophoneVolume(settings.MicrophoneVolume);
@@ -226,6 +313,154 @@ public sealed partial class MainViewModel : ViewModelBase
         if (_initializing) return;
         _audioRouter.SetAppsVolume(value);
         _ = _settingsService.UpdateAsync(s => s.AppsVolume = value);
+    }
+
+    // ----------------------------------------------------------------
+    // Appearance: RGB slider handlers
+    // ----------------------------------------------------------------
+
+    private bool _suppressColorSlider;
+
+    partial void OnAccentRChanged(byte value) => OnAccentSliderChanged();
+    partial void OnAccentGChanged(byte value) => OnAccentSliderChanged();
+    partial void OnAccentBChanged(byte value) => OnAccentSliderChanged();
+
+    private void OnAccentSliderChanged()
+    {
+        if (_initializing || _suppressColorSlider) return;
+        AccentColorHex = ThemeService.ToHex(AccentR, AccentG, AccentB);
+        Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+            ThemeService.Apply(AccentColorHex, CardBackgroundHex));
+        _ = _settingsService.UpdateAsync(s => s.AccentColor = AccentColorHex);
+    }
+
+    partial void OnCardRChanged(byte value) => OnCardSliderChanged();
+    partial void OnCardGChanged(byte value) => OnCardSliderChanged();
+    partial void OnCardBChanged(byte value) => OnCardSliderChanged();
+
+    private void OnCardSliderChanged()
+    {
+        if (_initializing || _suppressColorSlider) return;
+        CardBackgroundHex = ThemeService.ToHex(CardR, CardG, CardB);
+        Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+            ThemeService.Apply(AccentColorHex, CardBackgroundHex));
+        _ = _settingsService.UpdateAsync(s => s.CardBackgroundColor = CardBackgroundHex);
+    }
+
+    partial void OnAutoExtractColorsChanged(bool value)
+    {
+        if (_initializing) return;
+        _ = _settingsService.UpdateAsync(s => s.AutoExtractColors = value);
+        if (value && HasBackgroundImage && BackgroundImagePath is not null)
+            _ = ExtractAndApplyColorsAsync(BackgroundImagePath);
+    }
+
+    private void SetAccentFromHex(string hex)
+    {
+        _suppressColorSlider = true;
+        AccentColorHex = hex;
+        var (r, g, b) = ThemeService.ParseHex(hex);
+        AccentR = r; AccentG = g; AccentB = b;
+        _suppressColorSlider = false;
+    }
+
+    private void SetCardFromHex(string hex)
+    {
+        _suppressColorSlider = true;
+        CardBackgroundHex = hex;
+        var (r, g, b) = ThemeService.ParseHex(hex);
+        CardR = r; CardG = g; CardB = b;
+        _suppressColorSlider = false;
+    }
+
+    private async Task ExtractAndApplyColorsAsync(string imagePath)
+    {
+        try
+        {
+            var (accentHex, cardHex) = await _colorExtractionService.ExtractThemeColorsAsync(imagePath);
+            await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                SetAccentFromHex(accentHex);
+                SetCardFromHex(cardHex);
+                ThemeService.Apply(AccentColorHex, CardBackgroundHex);
+            });
+            _ = _settingsService.UpdateAsync(s => 
+            {
+                s.AccentColor = accentHex;
+                s.CardBackgroundColor = cardHex;
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not extract colors from image");
+        }
+    }
+
+    // ----------------------------------------------------------------
+    // Appearance commands
+    // ----------------------------------------------------------------
+
+    [RelayCommand]
+    private async Task PickBackgroundImageAsync()
+    {
+        var topLevel = TopLevel.GetTopLevel(
+            (Application.Current?.ApplicationLifetime as Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime)?.MainWindow);
+        if (topLevel is null) return;
+
+        var files = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = Texts.AppearancePickImage,
+            AllowMultiple = false,
+            FileTypeFilter = new[]
+            {
+                new FilePickerFileType("Images") { Patterns = new[] { "*.png", "*.jpg", "*.jpeg", "*.webp", "*.bmp" } }
+            }
+        });
+
+        if (files.Count == 0) return;
+
+        var sourceFile = files[0];
+        var sourcePath = sourceFile.TryGetLocalPath();
+        if (string.IsNullOrEmpty(sourcePath)) return;
+
+        // Copy image to AppData
+        Directory.CreateDirectory(AppDataFolder);
+        var ext = Path.GetExtension(sourcePath);
+        var destName = $"background{ext}";
+        var destPath = Path.Combine(AppDataFolder, destName);
+        File.Copy(sourcePath, destPath, overwrite: true);
+
+        BackgroundImagePath = destPath;
+        HasBackgroundImage = true;
+        _ = _settingsService.UpdateAsync(s => s.BackgroundImageFileName = destName);
+
+        if (AutoExtractColors)
+            await ExtractAndApplyColorsAsync(destPath);
+    }
+
+    [RelayCommand]
+    private void RemoveBackgroundImage()
+    {
+        BackgroundImagePath = null;
+        HasBackgroundImage = false;
+        _ = _settingsService.UpdateAsync(s => s.BackgroundImageFileName = null);
+    }
+
+    [RelayCommand]
+    private void ResetAppearance()
+    {
+        RemoveBackgroundImage();
+        SetAccentFromHex(ThemeService.DefaultAccentHex);
+        SetCardFromHex(ThemeService.DefaultCardBackgroundHex);
+        AutoExtractColors = true;
+        ThemeService.ResetToDefaults();
+        _ = _settingsService.UpdateAsync(s =>
+        {
+            s.AccentColor = null;
+            s.CardBackgroundColor = null;
+            s.AutoExtractColors = true;
+            s.BackgroundImageFileName = null;
+        });
     }
 
     private void RefreshDevices()

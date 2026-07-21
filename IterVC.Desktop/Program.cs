@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using IterVC.Audio;
 using IterVC.Core.Interfaces;
 using IterVC.Desktop.ViewModels;
+using IterVC.Desktop.Services;
 using System.Diagnostics;
 
 namespace IterVC.Desktop;
@@ -43,6 +44,7 @@ internal static class Program
         services.AddSingleton<IMicrophoneService, MicrophoneService>();
         services.AddSingleton<AudioRouterService>();
         services.AddSingleton<IAudioRouterService>(sp => sp.GetRequiredService<AudioRouterService>());
+        services.AddSingleton<IColorExtractionService, ColorExtractionService>();
         services.AddSingleton<MainViewModel>();
 
         Debug.WriteLine("ConfigureServices completado");

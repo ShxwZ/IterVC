@@ -6,7 +6,7 @@ namespace IterVC.Core.Settings;
 public sealed class AppSettings
 {
     /// <summary>Versi\u00f3n del esquema, para permitir migraciones futuras.</summary>
-    public int SchemaVersion { get; set; } = 2;
+    public int SchemaVersion { get; set; } = 3;
 
     /// <summary>Id del dispositivo de salida principal (altavoces/auriculares) desde el que se hace loopback.</summary>
     public string? OutputDeviceId { get; set; }
@@ -49,4 +49,23 @@ public sealed class AppSettings
 
     /// <summary>Si el chatbox OSC estaba activo al cerrar la app.</summary>
     public bool EnableOscChatbox { get; set; }
+
+    // ----------------------------------------------------------------
+    // Campos nuevos (schemaversion 3): appearance / theme.
+    // ----------------------------------------------------------------
+
+    /// <summary>File name of the background image stored in the app data folder (e.g. "bg.png").</summary>
+    public string? BackgroundImageFileName { get; set; }
+
+    /// <summary>Accent hex color (e.g. "#5B5BF0"). Null = default.</summary>
+    public string? AccentColor { get; set; }
+
+    /// <summary>Card background hex color (e.g. "#111116"). Null = default.</summary>
+    public string? CardBackgroundColor { get; set; }
+
+    /// <summary>When true, the accent color is auto-extracted from the background image.</summary>
+    public bool AutoExtractColors { get; set; } = true;
+
+    /// <summary>Atajo de teclado para iniciar y detener (Toggle).</summary>
+    public string ToggleRoutingShortcut { get; set; } = "F9";
 }

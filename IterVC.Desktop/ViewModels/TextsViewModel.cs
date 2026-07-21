@@ -38,6 +38,17 @@ public sealed class TextsViewModel : ObservableObject
     private string _oscTemplateTokens = G(LK.OscTemplateTokens);
     private string _cardLanguageTitle = G(LK.CardLanguageTitle);
     private string _cardLanguageHelp = G(LK.CardLanguageHelp);
+    private string _cardAppearanceTitle = G(LK.CardAppearanceTitle);
+    private string _appearanceBackground = G(LK.AppearanceBackground);
+    private string _appearancePickImage = G(LK.AppearancePickImage);
+    private string _appearanceRemoveImage = G(LK.AppearanceRemoveImage);
+    private string _appearanceAccentColor = G(LK.AppearanceAccentColor);
+    private string _appearanceCardColor = G(LK.AppearanceCardColor);
+    private string _appearanceAutoExtract = G(LK.AppearanceAutoExtract);
+    private string _appearanceResetDefaults = G(LK.AppearanceResetDefaults);
+    private string _cardShortcutsTitle = G(LK.CardShortcutsTitle);
+    private string _shortcutToggleLabel = G(LK.ShortcutToggleLabel);
+    private string _shortcutToggleHelp = G(LK.ShortcutToggleHelp);
 
     public string AppTitle { get => _appTitle; set => SetProperty(ref _appTitle, value); }
     public string AppFooter { get => _appFooter; set => SetProperty(ref _appFooter, value); }
@@ -68,6 +79,17 @@ public sealed class TextsViewModel : ObservableObject
     public string OscTemplateTokens { get => _oscTemplateTokens; set => SetProperty(ref _oscTemplateTokens, value); }
     public string CardLanguageTitle { get => _cardLanguageTitle; set => SetProperty(ref _cardLanguageTitle, value); }
     public string CardLanguageHelp { get => _cardLanguageHelp; set => SetProperty(ref _cardLanguageHelp, value); }
+    public string CardAppearanceTitle { get => _cardAppearanceTitle; set => SetProperty(ref _cardAppearanceTitle, value); }
+    public string AppearanceBackground { get => _appearanceBackground; set => SetProperty(ref _appearanceBackground, value); }
+    public string AppearancePickImage { get => _appearancePickImage; set => SetProperty(ref _appearancePickImage, value); }
+    public string AppearanceRemoveImage { get => _appearanceRemoveImage; set => SetProperty(ref _appearanceRemoveImage, value); }
+    public string AppearanceAccentColor { get => _appearanceAccentColor; set => SetProperty(ref _appearanceAccentColor, value); }
+    public string AppearanceCardColor { get => _appearanceCardColor; set => SetProperty(ref _appearanceCardColor, value); }
+    public string AppearanceAutoExtract { get => _appearanceAutoExtract; set => SetProperty(ref _appearanceAutoExtract, value); }
+    public string AppearanceResetDefaults { get => _appearanceResetDefaults; set => SetProperty(ref _appearanceResetDefaults, value); }
+    public string CardShortcutsTitle { get => _cardShortcutsTitle; set => SetProperty(ref _cardShortcutsTitle, value); }
+    public string ShortcutToggleLabel { get => _shortcutToggleLabel; set => SetProperty(ref _shortcutToggleLabel, value); }
+    public string ShortcutToggleHelp { get => _shortcutToggleHelp; set => SetProperty(ref _shortcutToggleHelp, value); }
 
     /// <summary>Etiqueta del dispositivo "ninguno" en la lista de microfnos.</summary>
     public string MicrophoneNoneLabel => LocalizationService.Instance.Get(LK.DeviceNoneMic);
@@ -110,6 +132,17 @@ public sealed class TextsViewModel : ObservableObject
         OscTemplateTokens = G(LK.OscTemplateTokens);
         CardLanguageTitle = G(LK.CardLanguageTitle);
         CardLanguageHelp = G(LK.CardLanguageHelp);
+        CardAppearanceTitle = G(LK.CardAppearanceTitle);
+        AppearanceBackground = G(LK.AppearanceBackground);
+        AppearancePickImage = G(LK.AppearancePickImage);
+        AppearanceRemoveImage = G(LK.AppearanceRemoveImage);
+        AppearanceAccentColor = G(LK.AppearanceAccentColor);
+        AppearanceCardColor = G(LK.AppearanceCardColor);
+        AppearanceAutoExtract = G(LK.AppearanceAutoExtract);
+        AppearanceResetDefaults = G(LK.AppearanceResetDefaults);
+        CardShortcutsTitle = G(LK.CardShortcutsTitle);
+        ShortcutToggleLabel = G(LK.ShortcutToggleLabel);
+        ShortcutToggleHelp = G(LK.ShortcutToggleHelp);
         OnPropertyChanged(nameof(MicrophoneNoneLabel));
         OnPropertyChanged(nameof(AppCaptureErrorPrefix));
     }
@@ -147,6 +180,17 @@ public sealed class TextsViewModel : ObservableObject
         internal const string OscTemplateTokens = LocalizationService.Keys.OscTemplateTokens; 
         internal const string CardLanguageTitle = LocalizationService.Keys.CardLanguageTitle; 
         internal const string CardLanguageHelp = LocalizationService.Keys.CardLanguageHelp;
+        internal const string CardAppearanceTitle = LocalizationService.Keys.CardAppearanceTitle;
+        internal const string AppearanceBackground = LocalizationService.Keys.AppearanceBackground;
+        internal const string AppearancePickImage = LocalizationService.Keys.AppearancePickImage;
+        internal const string AppearanceRemoveImage = LocalizationService.Keys.AppearanceRemoveImage;
+        internal const string AppearanceAccentColor = LocalizationService.Keys.AppearanceAccentColor;
+        internal const string AppearanceCardColor = LocalizationService.Keys.AppearanceCardColor;
+        internal const string AppearanceAutoExtract = LocalizationService.Keys.AppearanceAutoExtract;
+        internal const string AppearanceResetDefaults = LocalizationService.Keys.AppearanceResetDefaults;
+        internal const string CardShortcutsTitle = LocalizationService.Keys.CardShortcutsTitle;
+        internal const string ShortcutToggleLabel = LocalizationService.Keys.ShortcutToggleLabel;
+        internal const string ShortcutToggleHelp = LocalizationService.Keys.ShortcutToggleHelp;
     }
 }
 

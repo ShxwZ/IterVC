@@ -7,4 +7,16 @@
     <FluentTheme />
   </Application.Styles>
 
+  <Application.Resources>
+    <!-- Default theme values; overridden at runtime by ThemeService -->
+    <SolidColorBrush x:Key="ThemeAccentColor" Color="#5B5BF0" />
+    <SolidColorBrush x:Key="ThemeAccentHoverColor" Color="#7070F5" />
+    <SolidColorBrush x:Key="ThemeCardBackground" Color="#111116" />
+    <SolidColorBrush x:Key="ThemeCardBorder" Color="#1C1C28" />
+    
+    <SolidColorBrush x:Key="ThemeTextPrimary" Color="#D1D1DB" />
+    <SolidColorBrush x:Key="ThemeTextSecondary" Color="#5F5F7A" />
+    <SolidColorBrush x:Key="ThemeTextMuted" Color="#3F3F54" />
+  </Application.Resources>
+
 </Application>

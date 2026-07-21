@@ -47,6 +47,21 @@ public sealed class LocalizationService : ILocalizationService
         public const string MediaPlayingStatus = "media.playing";
         public const string MediaPausedStatus  = "media.paused";
         public const string MediaStoppedStatus = "media.stopped";
+
+        // Appearance tab
+        public const string CardAppearanceTitle    = "card.appearance.title";
+        public const string AppearanceBackground   = "appearance.background";
+        public const string AppearancePickImage    = "appearance.pick_image";
+        public const string AppearanceRemoveImage  = "appearance.remove_image";
+        public const string AppearanceAccentColor  = "appearance.accent_color";
+        public const string AppearanceCardColor    = "appearance.card_color";
+        public const string AppearanceAutoExtract  = "appearance.auto_extract";
+        public const string AppearanceResetDefaults = "appearance.reset_defaults";
+
+        // Shortcuts tab
+        public const string CardShortcutsTitle     = "card.shortcuts.title";
+        public const string ShortcutToggleLabel    = "shortcut.toggle.label";
+        public const string ShortcutToggleHelp     = "shortcut.toggle.help";
     }
 
     private readonly Dictionary<string, string> _es = new()
@@ -84,6 +99,17 @@ public sealed class LocalizationService : ILocalizationService
         [Keys.MediaPlayingStatus]   = "Reproduciendo",
         [Keys.MediaPausedStatus]    = "Pausado",
         [Keys.MediaStoppedStatus]   = "Detenido",
+        [Keys.CardAppearanceTitle]    = "APARIENCIA",
+        [Keys.AppearanceBackground]   = "Imagen de fondo",
+        [Keys.AppearancePickImage]    = "Elegir imagen...",
+        [Keys.AppearanceRemoveImage]  = "Eliminar",
+        [Keys.AppearanceAccentColor]  = "Color de acento",
+        [Keys.AppearanceCardColor]    = "Color de tarjeta",
+        [Keys.AppearanceAutoExtract]  = "Extraer colores de la imagen",
+        [Keys.AppearanceResetDefaults] = "Restablecer valores predeterminados",
+        [Keys.CardShortcutsTitle]     = "ATAJOS",
+        [Keys.ShortcutToggleLabel]    = "Atajo para iniciar/detener",
+        [Keys.ShortcutToggleHelp]     = "Ej. F9, Ctrl+S, Espacio",
     };
 
     private readonly Dictionary<string, string> _en = new()
@@ -121,6 +147,17 @@ public sealed class LocalizationService : ILocalizationService
         [Keys.MediaPlayingStatus]   = "Playing",
         [Keys.MediaPausedStatus]    = "Paused",
         [Keys.MediaStoppedStatus]   = "Stopped",
+        [Keys.CardAppearanceTitle]    = "APPEARANCE",
+        [Keys.AppearanceBackground]   = "Background image",
+        [Keys.AppearancePickImage]    = "Choose image...",
+        [Keys.AppearanceRemoveImage]  = "Remove",
+        [Keys.AppearanceAccentColor]  = "Accent color",
+        [Keys.AppearanceCardColor]    = "Card color",
+        [Keys.AppearanceAutoExtract]  = "Auto-extract colors from image",
+        [Keys.AppearanceResetDefaults] = "Reset to defaults",
+        [Keys.CardShortcutsTitle]     = "SHORTCUTS",
+        [Keys.ShortcutToggleLabel]    = "Start/stop shortcut",
+        [Keys.ShortcutToggleHelp]     = "E.g. F9, Ctrl+S, Space",
     };
 
     public string CurrentLanguage { get; private set; } = SupportedLanguages.Spanish;
