@@ -46,6 +46,7 @@ public sealed class SettingsService : ISettingsService
             await using var stream = File.OpenRead(_filePath);
             var loaded = await JsonSerializer.DeserializeAsync<AppSettings>(stream, JsonOptions, cancellationToken);
             Current = loaded ?? new AppSettings();
+            Current.SchemaVersion = 3;
             return Current;
         }
         catch (Exception ex)

@@ -21,7 +21,8 @@
 
 			<!-- PESTAÑA 1: Dispositivos de Audio -->
 			<TabItem Header="{Binding Texts.CardDevicesTitle}">
-				<StackPanel Spacing="12" Margin="0,4,0,0">
+				<ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+				<StackPanel Spacing="12" Margin="0,4,8,8">
 					<StackPanel Spacing="4">
 						<TextBlock Text="{Binding Texts.DeviceReference}"
 								   Classes="label" />
@@ -57,11 +58,13 @@
 								   Text="{Binding Texts.CardSpatialHelp}" />
 					</StackPanel>
 				</StackPanel>
+				</ScrollViewer>
 			</TabItem>
 
 			<!-- PESTAÑA 2: Mezclador de Volúmenes -->
 			<TabItem Header="{Binding Texts.CardMixTitle}">
-				<StackPanel Spacing="12" Margin="0,4,0,0">
+				<ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+				<StackPanel Spacing="12" Margin="0,4,8,8">
 					<!-- Slider Apps -->
 					<StackPanel Spacing="4">
 						<Grid ColumnDefinitions="*,Auto">
@@ -103,10 +106,11 @@
 					<CheckBox Content="{Binding Texts.MixMonitorMic}"
 							  IsChecked="{Binding MonitorMicrophone}" />
 				</StackPanel>
+				</ScrollViewer>
 			</TabItem>
 
 			<TabItem Header="{Binding Texts.NoiseGateTitle}">
-				<ScrollViewer VerticalScrollBarVisibility="Auto">
+				<ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
 					<StackPanel Spacing="12" Margin="0,4,8,8">
 						<CheckBox Content="{Binding Texts.NoiseGateEnable}"
 								  IsChecked="{Binding NoiseGateEnabled}" />
@@ -241,7 +245,8 @@
 
 			<!-- PESTAÑA 3: Integración OSC (VRChat) -->
 			<TabItem Header="OSC">
-				<StackPanel Spacing="10" Margin="0,4,0,0">
+				<ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+				<StackPanel Spacing="10" Margin="0,4,8,8">
 					<CheckBox Content="{Binding Texts.OscEnableChatbox}"
 							  IsChecked="{Binding EnableOscChatbox}" />
 
@@ -258,6 +263,21 @@
 						<TextBlock Text="{Binding Texts.OscTemplateTokens}"
 								   FontSize="10" Foreground="#5F5F7A" TextWrapping="Wrap" />
 					</StackPanel>
+				</StackPanel>
+				</ScrollViewer>
+			</TabItem>
+
+			<TabItem Header="{Binding Texts.SettingsTitle}">
+				<StackPanel Spacing="12" Margin="0,4,0,0">
+					<TextBlock Text="{Binding Texts.UpdateSettingsTitle}" FontWeight="Bold"
+						Foreground="#A9A9C3" FontSize="11" />
+					<CheckBox Content="{Binding Texts.UpdateEnabled}"
+						IsChecked="{Binding CheckForUpdatesEnabled}" />
+					<Button Classes="secondary" Content="{Binding Texts.UpdateCheckNow}"
+						Command="{Binding CheckForUpdatesNowCommand}"
+						IsEnabled="{Binding !IsCheckingForUpdates}" />
+					<TextBlock Text="{Binding UpdateCheckStatus}" TextWrapping="Wrap"
+						FontSize="10" Foreground="#7B7B9A" />
 				</StackPanel>
 			</TabItem>
 

@@ -37,7 +37,7 @@ public sealed class SettingsServiceTests : IDisposable
         var loaded = await service.LoadAsync();
 
         Assert.IsNotNull(loaded);
-        Assert.AreEqual(2, loaded.SchemaVersion);
+        Assert.AreEqual(3, loaded.SchemaVersion);
         Assert.AreEqual(1.0f, loaded.AppsVolume);
         Assert.AreEqual(1.0f, loaded.MicrophoneVolume);
         Assert.IsTrue(loaded.MicrophoneEnabled);
@@ -125,6 +125,39 @@ public sealed class SettingsServiceTests : IDisposable
     }
 
     [TestMethod]
+    public async Task UpdateAsync_RoundTripsUpdateConsentAndCache()
+    {
+        var service = CreateService();
+        await service.LoadAsync();
+        var checkedAt = DateTimeOffset.Parse("2026-07-21T12:00:00Z");
+
+        await service.UpdateAsync(settings =>
+        {
+            settings.CheckForUpdates = true;
+            settings.LastSuccessfulUpdateCheckUtc = checkedAt;
+            settings.CachedLatestVersion = "1.4.0";
+            settings.CachedReleaseUrl = "https://github.com/ShxwZ/IterVC/releases/tag/v1.4.0";
+            settings.DismissedUpdateVersion = "1.3.0";
+        });
+
+        var reloaded = await CreateService().LoadAsync();
+        Assert.AreEqual(true, reloaded.CheckForUpdates);
+        Assert.AreEqual(checkedAt, reloaded.LastSuccessfulUpdateCheckUtc);
+        Assert.AreEqual("1.4.0", reloaded.CachedLatestVersion);
+        Assert.AreEqual("https://github.com/ShxwZ/IterVC/releases/tag/v1.4.0", reloaded.CachedReleaseUrl);
+        Assert.AreEqual("1.3.0", reloaded.DismissedUpdateVersion);
+    }
+
+    [TestMethod]
+    public async Task LoadAsync_MigratesPreviousSchema()
+    {
+        await File.WriteAllTextAsync(Path.Combine(_tempDir, "settings.json"), "{\"SchemaVersion\":2}");
+        var loaded = await CreateService().LoadAsync();
+        Assert.AreEqual(3, loaded.SchemaVersion);
+        Assert.IsNull(loaded.CheckForUpdates);
+    }
+
+    [TestMethod]
     public async Task LoadAsync_WithCorruptJson_FallsBackToDefaults()
     {
         // Escribimos un JSON inválido y comprobamos que no se rompe (log de error + defaults).
@@ -135,7 +168,7 @@ public sealed class SettingsServiceTests : IDisposable
         var loaded = await service.LoadAsync();
 
         Assert.IsNotNull(loaded);
-        Assert.AreEqual(2, loaded.SchemaVersion);
+        Assert.AreEqual(3, loaded.SchemaVersion);
         Assert.AreEqual(1.0f, loaded.AppsVolume);
     }
 

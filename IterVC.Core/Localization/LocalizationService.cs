@@ -64,6 +64,21 @@ public sealed class LocalizationService : ILocalizationService
         public const string MediaPlayingStatus = "media.playing";
         public const string MediaPausedStatus  = "media.paused";
         public const string MediaStoppedStatus = "media.stopped";
+        public const string UpdateConsentTitle = "update.consent.title";
+        public const string UpdateConsentBody = "update.consent.body";
+        public const string UpdateAllow = "update.allow";
+        public const string UpdateDecline = "update.decline";
+        public const string UpdateAvailable = "update.available";
+        public const string UpdateOpen = "update.open";
+        public const string UpdateSettingsTitle = "update.settings.title";
+        public const string UpdateEnabled = "update.enabled";
+        public const string UpdateCheckNow = "update.check_now";
+        public const string UpdateChecking = "update.checking";
+        public const string UpdateCurrent = "update.current";
+        public const string UpdateCheckFailed = "update.check_failed";
+        public const string UpdateOpenFailed = "update.open_failed";
+        public const string SettingsTitle = "settings.title";
+        public const string UpdateDismiss = "update.dismiss";
     }
 
     private readonly Dictionary<string, string> _es = new()
@@ -118,6 +133,21 @@ public sealed class LocalizationService : ILocalizationService
         [Keys.MediaPlayingStatus]   = "Reproduciendo",
         [Keys.MediaPausedStatus]    = "Pausado",
         [Keys.MediaStoppedStatus]   = "Detenido",
+        [Keys.UpdateConsentTitle]   = "COMPROBAR ACTUALIZACIONES",
+        [Keys.UpdateConsentBody]    = "¿Quieres que IterVC consulte GitHub Releases al iniciarse? Solo se envía una solicitud a GitHub y puedes desactivarla cuando quieras.",
+        [Keys.UpdateAllow]          = "Permitir",
+        [Keys.UpdateDecline]        = "Ahora no",
+        [Keys.UpdateAvailable]      = "Hay una nueva versión disponible.",
+        [Keys.UpdateOpen]           = "Ver versión",
+        [Keys.UpdateSettingsTitle]  = "ACTUALIZACIONES",
+        [Keys.UpdateEnabled]        = "Comprobar automáticamente al iniciar",
+        [Keys.UpdateCheckNow]       = "Comprobar ahora",
+        [Keys.UpdateChecking]       = "Buscando actualizaciones…",
+        [Keys.UpdateCurrent]        = "Ya tienes la versión más reciente.",
+        [Keys.UpdateCheckFailed]    = "No se pudo comprobar. Revisa tu conexión e inténtalo de nuevo.",
+        [Keys.UpdateOpenFailed]     = "No se pudo abrir la página de la versión.",
+        [Keys.SettingsTitle]        = "CONFIGURACIÓN",
+        [Keys.UpdateDismiss]        = "Descartar",
     };
 
     private readonly Dictionary<string, string> _en = new()
@@ -172,6 +202,21 @@ public sealed class LocalizationService : ILocalizationService
         [Keys.MediaPlayingStatus]   = "Playing",
         [Keys.MediaPausedStatus]    = "Paused",
         [Keys.MediaStoppedStatus]   = "Stopped",
+        [Keys.UpdateConsentTitle]   = "CHECK FOR UPDATES",
+        [Keys.UpdateConsentBody]    = "Allow IterVC to check GitHub Releases at startup? This only sends a request to GitHub and can be disabled at any time.",
+        [Keys.UpdateAllow]          = "Allow",
+        [Keys.UpdateDecline]        = "Not now",
+        [Keys.UpdateAvailable]      = "A new version is available.",
+        [Keys.UpdateOpen]           = "View release",
+        [Keys.UpdateSettingsTitle]  = "UPDATES",
+        [Keys.UpdateEnabled]        = "Check automatically at startup",
+        [Keys.UpdateCheckNow]       = "Check now",
+        [Keys.UpdateChecking]       = "Checking for updates…",
+        [Keys.UpdateCurrent]        = "You already have the latest version.",
+        [Keys.UpdateCheckFailed]    = "Could not check. Verify your connection and try again.",
+        [Keys.UpdateOpenFailed]     = "Could not open the release page.",
+        [Keys.SettingsTitle]        = "SETTINGS",
+        [Keys.UpdateDismiss]        = "Dismiss",
     };
 
     public string CurrentLanguage { get; private set; } = SupportedLanguages.Spanish;

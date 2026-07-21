@@ -9,6 +9,7 @@ using System.Collections.ObjectModel;
 using System.Diagnostics;
 using Windows.Media.Control;
 using Avalonia.Threading;
+using IterVC.Desktop.Services;
 
 namespace IterVC.Desktop.ViewModels;
 
@@ -21,6 +22,7 @@ public sealed partial class MainViewModel : ViewModelBase
     private readonly ISettingsService _settingsService;
     private readonly ILogger<MainViewModel> _logger;
     private readonly IOscMediaService _oscMediaService;
+    private readonly GitHubUpdateService _updateService;
 
     public ObservableCollection<AppAudioItemViewModel> RunningApps { get; } = new();
     public ObservableCollection<AudioDeviceInfo> OutputDevices { get; } = new();
@@ -50,6 +52,13 @@ public sealed partial class MainViewModel : ViewModelBase
     [ObservableProperty] private bool _isCalibratingNoiseGate;
 
     [ObservableProperty] private string _selectedLanguage = LocalizationService.Instance.CurrentLanguage;
+    [ObservableProperty] private bool _isUpdateConsentVisible;
+    [ObservableProperty] private bool _checkForUpdatesEnabled;
+    [ObservableProperty] private bool _isCheckingForUpdates;
+    [ObservableProperty] private bool _isUpdateAvailable;
+    [ObservableProperty] private string? _availableUpdateVersion;
+    [ObservableProperty] private string? _availableUpdateUrl;
+    [ObservableProperty] private string? _updateCheckStatus;
 
     public IReadOnlyList<string> AvailableLanguages { get; } = SupportedLanguages.All;
     public TextsViewModel Texts { get; } = new();
@@ -70,6 +79,20 @@ public sealed partial class MainViewModel : ViewModelBase
         ISettingsService settingsService,
         IOscMediaService oscMediaService,
         ILogger<MainViewModel> logger)
+        : this(audioRouter, microphoneService, deviceService, applicationAudioService, settingsService,
+            oscMediaService, logger, new GitHubUpdateService(new HttpClient { Timeout = TimeSpan.FromSeconds(10) }))
+    {
+    }
+
+    internal MainViewModel(
+        IAudioRouterService audioRouter,
+        IMicrophoneService microphoneService,
+        IDeviceService deviceService,
+        IApplicationAudioService applicationAudioService,
+        ISettingsService settingsService,
+        IOscMediaService oscMediaService,
+        ILogger<MainViewModel> logger,
+        GitHubUpdateService updateService)
     {
         _audioRouter = audioRouter;
         _microphoneService = microphoneService;
@@ -78,6 +101,7 @@ public sealed partial class MainViewModel : ViewModelBase
         _settingsService = settingsService;
         _oscMediaService = oscMediaService;
         _logger = logger;
+        _updateService = updateService;
 
         _microphoneService.DataAvailable += (_, data) =>
         {
@@ -133,6 +157,8 @@ public sealed partial class MainViewModel : ViewModelBase
 
             OscTemplate = settings.OscTemplate;
             EnableOscChatbox = settings.EnableOscChatbox;
+            IsUpdateConsentVisible = settings.CheckForUpdates is null;
+            CheckForUpdatesEnabled = settings.CheckForUpdates == true;
 
             MicrophoneBoost = settings.MicrophoneBoost;
             _audioRouter.SetMicrophoneBoost(MicrophoneBoost);
@@ -192,6 +218,116 @@ public sealed partial class MainViewModel : ViewModelBase
         {
             _applicationAudioService.UseDevice(SelectedOutputDevice.Id);
             await RefreshRunningAppsAsync();
+        }
+
+        if (CheckForUpdatesEnabled)
+            _ = CheckForUpdatesAsync(isManual: false);
+    }
+
+    [RelayCommand]
+    private async Task AcceptUpdateChecksAsync()
+    {
+        IsUpdateConsentVisible = false;
+        CheckForUpdatesEnabled = true;
+        await _settingsService.UpdateAsync(s => s.CheckForUpdates = true);
+        await CheckForUpdatesAsync(isManual: false);
+    }
+
+    [RelayCommand]
+    private Task DeclineUpdateChecksAsync()
+    {
+        IsUpdateConsentVisible = false;
+        CheckForUpdatesEnabled = false;
+        return _settingsService.UpdateAsync(s => s.CheckForUpdates = false);
+    }
+
+    partial void OnCheckForUpdatesEnabledChanged(bool value)
+    {
+        if (_initializing || IsUpdateConsentVisible) return;
+        _ = _settingsService.UpdateAsync(s => s.CheckForUpdates = value);
+    }
+
+    [RelayCommand]
+    private Task CheckForUpdatesNowAsync() => CheckForUpdatesAsync(isManual: true);
+
+    [RelayCommand]
+    private void OpenUpdatePage()
+    {
+        if (!GitHubUpdateService.TryValidateReleaseUrl(AvailableUpdateUrl, out var url)) return;
+        try
+        {
+            Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not open the update release page");
+            UpdateCheckStatus = Texts.UpdateOpenFailed;
+        }
+    }
+
+    [RelayCommand]
+    private Task DismissUpdateAsync()
+    {
+        var dismissedVersion = AvailableUpdateVersion;
+        IsUpdateAvailable = false;
+        AvailableUpdateVersion = null;
+        AvailableUpdateUrl = null;
+        return dismissedVersion is null
+            ? Task.CompletedTask
+            : _settingsService.UpdateAsync(s => s.DismissedUpdateVersion = dismissedVersion);
+    }
+
+    private async Task CheckForUpdatesAsync(bool isManual)
+    {
+        if (IsCheckingForUpdates) return;
+        IsCheckingForUpdates = true;
+        if (isManual) UpdateCheckStatus = Texts.UpdateChecking;
+        try
+        {
+            var settings = _settingsService.Current;
+            UpdateCheckResult result;
+            var cacheIsFresh = !isManual && settings.LastSuccessfulUpdateCheckUtc is { } checkedAt &&
+                DateTimeOffset.UtcNow - checkedAt < TimeSpan.FromHours(24) &&
+                AppVersion.NormalizeSemantic(settings.CachedLatestVersion) is not null &&
+                GitHubUpdateService.TryValidateReleaseUrl(settings.CachedReleaseUrl, out _);
+
+            if (cacheIsFresh)
+            {
+                result = new UpdateCheckResult(true, settings.CachedLatestVersion, settings.CachedReleaseUrl);
+            }
+            else
+            {
+                result = await _updateService.CheckAsync();
+                if (result.Success)
+                {
+                    await _settingsService.UpdateAsync(s =>
+                    {
+                        s.LastSuccessfulUpdateCheckUtc = DateTimeOffset.UtcNow;
+                        s.CachedLatestVersion = result.Version;
+                        s.CachedReleaseUrl = result.ReleaseUrl;
+                    });
+                }
+            }
+
+            if (!result.Success)
+            {
+                if (isManual) UpdateCheckStatus = Texts.UpdateCheckFailed;
+                return;
+            }
+
+            var current = AppVersion.CurrentSemanticVersion;
+            var isNewer = current is not null && result.Version is not null &&
+                AppVersion.IsNewer(result.Version, current);
+            IsUpdateAvailable = isNewer && result.Version is not null &&
+                AppVersion.ShouldNotify(result.Version, current!, settings.DismissedUpdateVersion, isManual);
+            AvailableUpdateVersion = IsUpdateAvailable ? result.Version : null;
+            AvailableUpdateUrl = IsUpdateAvailable ? result.ReleaseUrl : null;
+            if (isManual)
+                UpdateCheckStatus = IsUpdateAvailable ? Texts.UpdateAvailable : Texts.UpdateCurrent;
+        }
+        finally
+        {
+            IsCheckingForUpdates = false;
         }
     }
 
