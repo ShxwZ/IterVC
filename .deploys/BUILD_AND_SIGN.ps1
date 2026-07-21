@@ -80,6 +80,10 @@ if (Test-Path $PublishDir) {
 
 Write-Host "Publicando aplicación..." -ForegroundColor Cyan
 $PublishArgs = @("publish", $ProjectFile.FullName, "-c", $Configuration, "-r", $Runtime, "--self-contained", "true", "-o", $PublishDir)
+if ($env:RELEASE_VERSION) {
+    Write-Host "Aplicando version de release: $($env:RELEASE_VERSION)" -ForegroundColor Cyan
+    $PublishArgs += "-p:ReleaseVersion=$($env:RELEASE_VERSION)"
+}
 if ($SingleFile) {
     $PublishArgs += "-p:PublishSingleFile=true"
     $PublishArgs += "-p:IncludeNativeLibrariesForSelfExtract=true"

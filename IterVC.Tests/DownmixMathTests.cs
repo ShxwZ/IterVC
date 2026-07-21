@@ -61,16 +61,16 @@ public sealed class DownmixMathTests
     [TestMethod]
     public void Downmix5_1_AppliesFormula_AllChannels()
     {
-        // Caso del enunciado: L = FL + 0.707*FC + 0.707*LFE + 0.707*LS, igual para R con RS.
+        // Center and surround use 1/sqrt(2); LFE uses its dedicated 0.5 attenuation.
         // Valores pequeños para evitar SoftClip (>1).
         var fl = 0.30f; var fr = -0.20f; var fc = 0.10f; var lfe = 0.05f;
         var ls = 0.15f; var rs = -0.15f;
         var frame = new float[6] { fl, fr, fc, lfe, ls, rs };
         var (l, r) = DownmixMath.Downmix5_1(frame);
-        var expectedL = fl + DownmixMath.InvSqrt2 * fc + DownmixMath.InvSqrt2 * lfe + DownmixMath.InvSqrt2 * ls;
-        var expectedR = fr + DownmixMath.InvSqrt2 * fc + DownmixMath.InvSqrt2 * lfe + DownmixMath.InvSqrt2 * rs;
-        // 0.30 + 0.0707 + 0.0354 + 0.1061 ≈ 0.5122  (no satura)
-        // -0.20 + 0.0707 + 0.0354 + -0.1061 ≈ -0.20
+        var expectedL = fl + DownmixMath.InvSqrt2 * fc + DownmixMath.LfeGain * lfe + DownmixMath.InvSqrt2 * ls;
+        var expectedR = fr + DownmixMath.InvSqrt2 * fc + DownmixMath.LfeGain * lfe + DownmixMath.InvSqrt2 * rs;
+        // 0.30 + 0.0707 + 0.025 + 0.1061 ≈ 0.5018 (no clipping).
+        // -0.20 + 0.0707 + 0.025 - 0.1061 ≈ -0.2104.
         Assert.AreEqual(expectedL, l, 1e-4f);
         Assert.AreEqual(expectedR, r, 1e-4f);
     }

@@ -12,6 +12,9 @@
     <PlatformTarget>x64</PlatformTarget>
     <AssemblyName>IterVC</AssemblyName>
     <ApplicationIcon>Assets\icon.ico</ApplicationIcon>
+    <InformationalVersion Condition="'$(ReleaseVersion)' == ''">local-development</InformationalVersion>
+    <InformationalVersion Condition="'$(ReleaseVersion)' != ''">$(ReleaseVersion)</InformationalVersion>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
 
   <ItemGroup>

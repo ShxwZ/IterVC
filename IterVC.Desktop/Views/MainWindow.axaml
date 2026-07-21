@@ -1,6 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
 	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 	xmlns:vm="using:IterVC.Desktop.ViewModels"
+	xmlns:views="using:IterVC.Desktop.Views"
 	x:Class="IterVC.Desktop.Views.MainWindow"
 	x:DataType="vm:MainViewModel"
 	Title="{Binding Texts.AppTitle}"
@@ -125,6 +126,12 @@
 		<Style Selector="ListBoxItem">
 			<Setter Property="Background" Value="Transparent" />
 			<Setter Property="Padding" Value="0" />
+			<Setter Property="Focusable" Value="False" />
+			<Setter Property="FocusAdorner" Value="{x:Null}" />
+		</Style>
+		<Style Selector="ListBoxItem:selected /template/ ContentPresenter">
+			<Setter Property="Background" Value="Transparent" />
+			<Setter Property="BorderBrush" Value="Transparent" />
 		</Style>
 	</Window.Styles>
 
@@ -184,177 +191,9 @@
 			</DockPanel>
 
 			<!-- ESPACIO DE TRABAJO SIMÉTRICO (2 Tarjetas Principales del mismo alto) -->
-			<Grid Grid.Row="1" ColumnDefinitions="1.2*, 1*">
-
-				<!-- TARJETA IZQUIERDA: Aplicaciones Detectadas -->
-				<Border Grid.Column="0" Background="#111116" BorderBrush="#1C1C28"
-					BorderThickness="1" CornerRadius="8" Padding="16" Margin="0,0,8,0">
-					<Grid RowDefinitions="Auto,*,Auto">
-						<StackPanel Grid.Row="0" Margin="0,0,0,12">
-							<TextBlock Text="{Binding Texts.CardAppsTitle}" FontWeight="Bold"
-								FontSize="12" Foreground="#8F8FA8" Margin="0,0,0,2" />
-							<TextBlock Text="{Binding Texts.CardAppsHelp}" Foreground="#5F5F7A"
-								FontSize="11" TextWrapping="Wrap" />
-						</StackPanel>
-
-						<!-- Listado de Apps -->
-						<ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-							<ListBox ItemsSource="{Binding RunningApps}">
-								<ListBox.ItemTemplate>
-									<DataTemplate x:DataType="vm:AppAudioItemViewModel">
-										<Border Background="#15151F" BorderBrush="#1F1F2E"
-											BorderThickness="1" Padding="12,10" CornerRadius="6"
-											Margin="0,2">
-											<Grid ColumnDefinitions="Auto,*,Auto">
-												<CheckBox Grid.Column="0"
-													IsChecked="{Binding IsIncludedInMix}"
-													Margin="0,0,12,0" VerticalAlignment="Center" />
-												<StackPanel Grid.Column="1"
-													VerticalAlignment="Center" Spacing="1">
-													<TextBlock Text="{Binding DisplayName}"
-														FontWeight="Bold" FontSize="13"
-														Foreground="#FFFFFF" />
-													<StackPanel Orientation="Horizontal" Spacing="6">
-														<TextBlock Text="{Binding ProcessName}"
-															FontSize="10.5" Foreground="#5F5F7A" />
-														<TextBlock Text="•" FontSize="10.5"
-															Foreground="#3F3F54" />
-														<TextBlock Text="PID" FontSize="10"
-															Foreground="#4A4A63" />
-														<TextBlock Text="{Binding ProcessId}"
-															FontSize="10" Foreground="#4A4A63" />
-													</StackPanel>
-												</StackPanel>
-												<Ellipse Grid.Column="2" Width="6" Height="6"
-													Fill="#5B5BF0" VerticalAlignment="Center"
-													IsVisible="{Binding IsIncludedInMix}" />
-											</Grid>
-										</Border>
-									</DataTemplate>
-								</ListBox.ItemTemplate>
-							</ListBox>
-						</ScrollViewer>
-
-						<!-- Consola de estado integrada abajo si se activa -->
-						<TextBox Grid.Row="3" Classes="status" Text="{Binding StatusMessage}"
-							IsReadOnly="True" TextWrapping="Wrap" AcceptsReturn="True"
-							MaxHeight="55" Margin="0,12,0,0"
-							IsVisible="{Binding StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-					</Grid>
-				</Border>
-
-				<!-- TARJETA DERECHA: Configuración General (Pestañas sin Scroll) -->
-				<Border Grid.Column="1" Background="#111116" BorderBrush="#1C1C28"
-					BorderThickness="1" CornerRadius="8" Padding="16" Margin="8,0,0,0">
-					<TabControl>
-
-						<!-- PESTAÑA 1: Dispositivos de Audio -->
-						<TabItem Header="{Binding Texts.CardDevicesTitle}">
-							<StackPanel Spacing="12" Margin="0,4,0,0">
-								<StackPanel Spacing="4">
-									<TextBlock Text="{Binding Texts.DeviceReference}"
-										Classes="label" />
-									<ComboBox ItemsSource="{Binding OutputDevices}"
-										SelectedItem="{Binding SelectedOutputDevice}" />
-								</StackPanel>
-
-								<StackPanel Spacing="4">
-									<TextBlock Text="{Binding Texts.DeviceVbCable}" Classes="label" />
-									<ComboBox ItemsSource="{Binding VbCableDevices}"
-										SelectedItem="{Binding SelectedVbCableDevice}" />
-								</StackPanel>
-
-								<StackPanel Spacing="4">
-									<TextBlock Text="{Binding Texts.DeviceMicrophone}"
-										Classes="label" />
-									<ComboBox ItemsSource="{Binding InputDevices}"
-										SelectedItem="{Binding SelectedMicrophoneDevice}" />
-								</StackPanel>
-
-								<!-- Nota Informativa de Audio Espacial -->
-								<StackPanel Spacing="2" Margin="0,8,0,0" Opacity="0.7">
-									<TextBlock Text="{Binding Texts.CardSpatialTitle}"
-										FontWeight="Bold" Foreground="#7B7B9A" FontSize="10" />
-									<TextBlock TextWrapping="Wrap" LineHeight="13"
-										Foreground="#5F5F7A" FontSize="9.5"
-										Text="{Binding Texts.CardSpatialBody}" />
-									<TextBlock TextWrapping="Wrap" LineHeight="13"
-										Foreground="#4A4A63" FontSize="9.5"
-										Text="{Binding Texts.CardSpatialHelp}" />
-								</StackPanel>
-							</StackPanel>
-						</TabItem>
-
-						<!-- PESTAÑA 2: Mezclador de Volúmenes -->
-						<TabItem Header="{Binding Texts.CardMixTitle}">
-							<StackPanel Spacing="12" Margin="0,4,0,0">
-								<!-- Slider Apps -->
-								<StackPanel Spacing="4">
-									<Grid ColumnDefinitions="*,Auto">
-										<TextBlock Text="{Binding Texts.MixAppsGain}"
-											Classes="label" VerticalAlignment="Center" />
-										<Border Grid.Column="1" Background="#15151F"
-											CornerRadius="4" Padding="6,2">
-											<TextBlock
-												Text="{Binding AppsVolume, StringFormat={}{0:P0}}"
-												FontSize="11" FontWeight="Bold" Foreground="#5B5BF0" />
-										</Border>
-									</Grid>
-									<Slider Minimum="0" Maximum="3" Value="{Binding AppsVolume}"
-										TickFrequency="0.05" IsSnapToTickEnabled="True" />
-									<TextBlock Text="{Binding Texts.MixAppsGainHelp}" FontSize="10"
-										Foreground="#5F5F7A" />
-								</StackPanel>
-
-								<!-- Slider Micrófono -->
-								<StackPanel Spacing="4">
-									<Grid ColumnDefinitions="*,Auto">
-										<TextBlock Text="{Binding Texts.MixAppsBoost}"
-											Classes="label" VerticalAlignment="Center" />
-										<Border Grid.Column="1" Background="#15151F"
-											CornerRadius="4" Padding="6,2">
-											<TextBlock
-												Text="{Binding MicrophoneBoost, StringFormat={}{0:F2}x}"
-												FontSize="11" FontWeight="Bold" Foreground="#5B5BF0" />
-										</Border>
-									</Grid>
-									<Slider Minimum="0.5" Maximum="3"
-										Value="{Binding MicrophoneBoost}" TickFrequency="0.05"
-										IsSnapToTickEnabled="True" />
-									<TextBlock Text="{Binding Texts.MixAppsBoostHelp}" FontSize="10"
-										Foreground="#5F5F7A" />
-								</StackPanel>
-
-								<Separator Height="1" Background="#1C1C28" Margin="0,4" />
-								<CheckBox Content="{Binding Texts.MixMonitorMic}"
-									IsChecked="{Binding MonitorMicrophone}" />
-							</StackPanel>
-						</TabItem>
-
-						<!-- PESTAÑA 3: Integración OSC (VRChat) -->
-						<TabItem Header="OSC">
-							<StackPanel Spacing="10" Margin="0,4,0,0">
-								<CheckBox Content="{Binding Texts.OscEnableChatbox}"
-									IsChecked="{Binding EnableOscChatbox}" />
-
-								<StackPanel Spacing="6" IsEnabled="{Binding EnableOscChatbox}">
-									<TextBlock Text="{Binding Texts.OscTemplateLabel}"
-										Classes="label" />
-									<TextBox Text="{Binding OscTemplate}"
-										Watermark="{Binding Texts.OscTemplateWatermark}"
-										Height="75"
-										TextWrapping="Wrap"
-										AcceptsReturn="True"
-										VerticalContentAlignment="Top"
-										FontSize="12" />
-									<TextBlock Text="{Binding Texts.OscTemplateTokens}"
-										FontSize="10" Foreground="#5F5F7A" TextWrapping="Wrap" />
-								</StackPanel>
-							</StackPanel>
-						</TabItem>
-
-					</TabControl>
-				</Border>
+			<Grid Grid.Row="1" ColumnDefinitions="0.85*,1.15*">
+				<views:ApplicationsPanel Grid.Column="0" Margin="0,0,8,0" />
+				<views:SettingsPanel Grid.Column="1" Margin="8,0,0,0" />
 			</Grid>
 
 			<!-- PIE DE PÁGINA (FOOTER) -->
