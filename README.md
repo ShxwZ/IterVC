@@ -111,11 +111,40 @@ The Avalonia UI frontend containing:
 
 ## 📸 Screenshots
 
-<p align="center">
-  <img src="./Screenshots/screenshot-001.png" width="32%" />
-  <img src="./Screenshots/screenshot-002.png"  width="32%" />
-  <img src="./Screenshots/screenshot-003.png"  width="32%" />
-</p>
+<table>
+  <tr>
+    <td width="50%" align="center">
+      <a href="./Screenshots/screenshot-001.png">
+        <img src="./Screenshots/screenshot-001.png" alt="Audio device configuration" width="100%" />
+      </a>
+      <br />
+      <sub><strong>Audio devices</strong></sub>
+    </td>
+    <td width="50%" align="center">
+      <a href="./Screenshots/screenshot-002.png">
+        <img src="./Screenshots/screenshot-002.png" alt="Application and microphone mix controls" width="100%" />
+      </a>
+      <br />
+      <sub><strong>Mix controls</strong></sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" align="center">
+      <a href="./Screenshots/screenshot-003.png">
+        <img src="./Screenshots/screenshot-003.png" alt="Microphone noise gate configuration" width="100%" />
+      </a>
+      <br />
+      <sub><strong>Microphone noise gate</strong></sub>
+    </td>
+    <td width="50%" align="center">
+      <a href="./Screenshots/screenshot-004.png">
+        <img src="./Screenshots/screenshot-004.png" alt="OSC Chatbox integration settings" width="100%" />
+      </a>
+      <br />
+      <sub><strong>OSC integration</strong></sub>
+    </td>
+  </tr>
+</table>
 
 ---
 

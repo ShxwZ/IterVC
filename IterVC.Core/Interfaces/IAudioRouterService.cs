@@ -8,6 +8,10 @@ namespace IterVC.Core.Interfaces;
 public interface IAudioRouterService : IDisposable
 {
     bool IsRouting { get; }
+    float MicrophoneInputLevelDb { get; }
+    float MicrophoneOutputLevelDb { get; }
+    float NoiseGateGain { get; }
+    bool IsNoiseGateOpen { get; }
 
     /// <summary>
     /// Inicia el enrutado: abre el dispositivo VB-Cable de salida y comienza a mezclar
@@ -46,5 +50,8 @@ public interface IAudioRouterService : IDisposable
 
     /// <summary>Multiplicador extra de boost sobre el volumen base. 1.0 = sin boost.</summary>
     void SetMicrophoneBoost(float boost);
+
+    /// <summary>Configures the real-time microphone noise gate.</summary>
+    void ConfigureNoiseGate(bool enabled, float thresholdDb, float attackMilliseconds, float releaseMilliseconds);
 }
 

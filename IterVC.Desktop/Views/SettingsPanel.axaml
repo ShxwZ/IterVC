@@ -1,0 +1,266 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+			 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+			 xmlns:vm="using:IterVC.Desktop.ViewModels"
+			 x:Class="IterVC.Desktop.Views.SettingsPanel"
+			 x:DataType="vm:MainViewModel">
+	<UserControl.Styles>
+		<Style Selector="Expander /template/ ToggleButton">
+			<Setter Property="Background" Value="#15151F" />
+			<Setter Property="Foreground" Value="#A9A9C3" />
+		</Style>
+		<Style Selector="Expander /template/ ToggleButton:pointerover">
+			<Setter Property="Background" Value="#1B1B27" />
+		</Style>
+		<Style Selector="Expander /template/ ToggleButton:pressed">
+			<Setter Property="Background" Value="#202030" />
+		</Style>
+	</UserControl.Styles>
+	<Border Background="#111116" BorderBrush="#1C1C28"
+			BorderThickness="1" CornerRadius="8" Padding="16">
+		<TabControl>
+
+			<!-- PESTAÑA 1: Dispositivos de Audio -->
+			<TabItem Header="{Binding Texts.CardDevicesTitle}">
+				<StackPanel Spacing="12" Margin="0,4,0,0">
+					<StackPanel Spacing="4">
+						<TextBlock Text="{Binding Texts.DeviceReference}"
+								   Classes="label" />
+						<ComboBox ItemsSource="{Binding OutputDevices}"
+								  SelectedItem="{Binding SelectedOutputDevice}" />
+					</StackPanel>
+
+					<StackPanel Spacing="4">
+						<TextBlock Text="{Binding Texts.DeviceVbCable}" Classes="label" />
+						<ComboBox ItemsSource="{Binding VbCableDevices}"
+								  SelectedItem="{Binding SelectedVbCableDevice}" />
+					</StackPanel>
+
+					<StackPanel Spacing="4">
+						<TextBlock Text="{Binding Texts.DeviceMicrophone}"
+								   Classes="label" />
+						<ComboBox ItemsSource="{Binding InputDevices}"
+								  SelectedItem="{Binding SelectedMicrophoneDevice}"
+								  IsEnabled="{Binding MicrophoneEnabled}" />
+						<CheckBox Content="{Binding Texts.DeviceMicrophoneEnable}"
+								  IsChecked="{Binding MicrophoneEnabled}" />
+					</StackPanel>
+
+					<!-- Nota Informativa de Audio Espacial -->
+					<StackPanel Spacing="2" Margin="0,8,0,0" Opacity="0.7">
+						<TextBlock Text="{Binding Texts.CardSpatialTitle}"
+								   FontWeight="Bold" Foreground="#7B7B9A" FontSize="10" />
+						<TextBlock TextWrapping="Wrap" LineHeight="13"
+								   Foreground="#5F5F7A" FontSize="9.5"
+								   Text="{Binding Texts.CardSpatialBody}" />
+						<TextBlock TextWrapping="Wrap" LineHeight="13"
+								   Foreground="#4A4A63" FontSize="9.5"
+								   Text="{Binding Texts.CardSpatialHelp}" />
+					</StackPanel>
+				</StackPanel>
+			</TabItem>
+
+			<!-- PESTAÑA 2: Mezclador de Volúmenes -->
+			<TabItem Header="{Binding Texts.CardMixTitle}">
+				<StackPanel Spacing="12" Margin="0,4,0,0">
+					<!-- Slider Apps -->
+					<StackPanel Spacing="4">
+						<Grid ColumnDefinitions="*,Auto">
+							<TextBlock Text="{Binding Texts.MixAppsGain}"
+									   Classes="label" VerticalAlignment="Center" />
+							<Border Grid.Column="1" Background="#15151F"
+									CornerRadius="4" Padding="6,2">
+								<TextBlock
+									Text="{Binding AppsVolume, StringFormat={}{0:P0}}"
+									FontSize="11" FontWeight="Bold" Foreground="#5B5BF0" />
+							</Border>
+						</Grid>
+						<Slider Minimum="0" Maximum="3" Value="{Binding AppsVolume}"
+								TickFrequency="0.05" IsSnapToTickEnabled="True" />
+						<TextBlock Text="{Binding Texts.MixAppsGainHelp}" FontSize="10"
+								   Foreground="#5F5F7A" />
+					</StackPanel>
+
+					<!-- Slider Micrófono -->
+					<StackPanel Spacing="4">
+						<Grid ColumnDefinitions="*,Auto">
+							<TextBlock Text="{Binding Texts.MixAppsBoost}"
+									   Classes="label" VerticalAlignment="Center" />
+							<Border Grid.Column="1" Background="#15151F"
+									CornerRadius="4" Padding="6,2">
+								<TextBlock
+									Text="{Binding MicrophoneBoost, StringFormat={}{0:F2}x}"
+									FontSize="11" FontWeight="Bold" Foreground="#5B5BF0" />
+							</Border>
+						</Grid>
+						<Slider Minimum="0.5" Maximum="3"
+								Value="{Binding MicrophoneBoost}" TickFrequency="0.05"
+								IsSnapToTickEnabled="True" />
+						<TextBlock Text="{Binding Texts.MixAppsBoostHelp}" FontSize="10"
+								   Foreground="#5F5F7A" />
+					</StackPanel>
+
+					<Separator Height="1" Background="#1C1C28" Margin="0,4" />
+					<CheckBox Content="{Binding Texts.MixMonitorMic}"
+							  IsChecked="{Binding MonitorMicrophone}" />
+				</StackPanel>
+			</TabItem>
+
+			<TabItem Header="{Binding Texts.NoiseGateTitle}">
+				<ScrollViewer VerticalScrollBarVisibility="Auto">
+					<StackPanel Spacing="12" Margin="0,4,8,8">
+						<CheckBox Content="{Binding Texts.NoiseGateEnable}"
+								  IsChecked="{Binding NoiseGateEnabled}" />
+
+						<TextBlock Text="{Binding Texts.NoiseGateHelp}" FontSize="10"
+								   Foreground="#7B7B9A" TextWrapping="Wrap" />
+
+						<Border Background="#12121A" BorderBrush="#29293B" BorderThickness="1"
+								CornerRadius="6" Padding="10">
+							<StackPanel Spacing="8">
+								<Grid ColumnDefinitions="*,Auto">
+									<TextBlock Text="{Binding Texts.NoiseGateOutput}" Classes="label" />
+									<TextBlock Grid.Column="1"
+											   Text="{Binding NoiseGateOutputLevelDb, StringFormat={}{0:F0} dB}"
+											   FontSize="11" FontWeight="Bold" />
+								</Grid>
+								<StackPanel Spacing="4">
+									<ProgressBar Minimum="-80" Maximum="0" Value="{Binding NoiseGateThresholdDb}"
+												 Height="3" Foreground="#A1A1AA" Background="#27272F" />
+									<Grid Height="16" Background="#09090E">
+										<ProgressBar Minimum="-80" Maximum="0" Value="{Binding NoiseGateOutputLevelDb}"
+													 Height="10" Margin="3" Foreground="#F59E0B" Background="Transparent"
+													 IsVisible="{Binding !IsNoiseGateOpen}" />
+										<ProgressBar Minimum="-80" Maximum="0" Value="{Binding NoiseGateOutputLevelDb}"
+													 Height="10" Margin="3" Foreground="#4ADE80" Background="Transparent"
+													 IsVisible="{Binding IsNoiseGateOpen}" />
+									</Grid>
+								</StackPanel>
+								<Grid ColumnDefinitions="Auto,*,Auto">
+									<TextBlock Text="-80 dB" FontSize="9" Foreground="#5F5F7A" />
+									<TextBlock Grid.Column="2" Text="0 dB" FontSize="9" Foreground="#5F5F7A" />
+								</Grid>
+								<Border Background="#153522" BorderBrush="#245B38" BorderThickness="1"
+										CornerRadius="10" Padding="8,3" HorizontalAlignment="Left"
+										IsVisible="{Binding IsNoiseGateOpen}">
+									<TextBlock Text="{Binding Texts.NoiseGateOpen}" Foreground="#4ADE80"
+											   FontSize="10" FontWeight="Bold" />
+								</Border>
+								<Border Background="#3A2A12" BorderBrush="#6B4915" BorderThickness="1"
+										CornerRadius="10" Padding="8,3" HorizontalAlignment="Left"
+										IsVisible="{Binding !IsNoiseGateOpen}">
+									<TextBlock Text="{Binding Texts.NoiseGateClosed}" Foreground="#FBBF24"
+											   FontSize="10" FontWeight="Bold" />
+								</Border>
+							</StackPanel>
+						</Border>
+
+						<Border Background="#15151F" CornerRadius="6" Padding="10,8"
+								IsEnabled="{Binding NoiseGateEnabled}">
+							<StackPanel Spacing="5">
+								<Grid ColumnDefinitions="*,Auto">
+									<TextBlock Text="{Binding Texts.NoiseGateThreshold}" Classes="label" />
+									<TextBlock Grid.Column="1" Text="{Binding NoiseGateThresholdDb, StringFormat={}{0:F0} dB}" FontSize="11" />
+								</Grid>
+								<Slider Minimum="-80" Maximum="0" Value="{Binding NoiseGateThresholdDb}"
+										TickFrequency="1" IsSnapToTickEnabled="True" />
+								<TextBlock Text="{Binding Texts.NoiseGateThresholdHelp}" FontSize="9.5"
+									Foreground="#6F6F8A" TextWrapping="Wrap" />
+							</StackPanel>
+						</Border>
+
+						<Button Classes="secondary" Command="{Binding CalibrateNoiseGateCommand}"
+							Content="{Binding Texts.NoiseGateCalibrate}"
+							IsEnabled="{Binding !IsCalibratingNoiseGate}" />
+						<TextBlock Text="{Binding Texts.NoiseGateCalibrating}" FontSize="10"
+								   Foreground="#5B5BF0" IsVisible="{Binding IsCalibratingNoiseGate}" />
+
+						<!-- Opciones Avanzadas -->
+						<Expander HorizontalAlignment="Stretch"
+								  HorizontalContentAlignment="Stretch"
+								  Background="#15151F"
+								  BorderBrush="#29293B"
+								  BorderThickness="1"
+								  CornerRadius="6"
+								  Padding="12,8">
+							<Expander.Header>
+								<TextBlock Text="{Binding Texts.NoiseGateAdvanced}"
+										   FontSize="11"
+										   FontWeight="SemiBold"
+										   Foreground="#A9A9C3"
+										   VerticalAlignment="Center" />
+							</Expander.Header>
+
+							<StackPanel Spacing="12" Margin="0,10,0,4" IsEnabled="{Binding NoiseGateEnabled}">
+
+								<!-- Control: Attack -->
+								<StackPanel Spacing="4">
+									<Grid ColumnDefinitions="*,Auto">
+										<TextBlock Text="{Binding Texts.NoiseGateAttack}" Classes="label" />
+										<TextBlock Grid.Column="1"
+												   Text="{Binding NoiseGateAttackMilliseconds, StringFormat={}{0:F0} ms}"
+												   FontSize="11"
+												   FontWeight="Medium"
+												   Foreground="#D1D1E0" />
+									</Grid>
+									<Slider Minimum="0" Maximum="250"
+											Value="{Binding NoiseGateAttackMilliseconds}"
+											TickFrequency="5" />
+									<TextBlock Text="{Binding Texts.NoiseGateAttackHelp}"
+											   FontSize="9.5"
+											   Foreground="#6F6F8A"
+											   TextWrapping="Wrap" />
+								</StackPanel>
+
+								<!-- Línea divisora sutil -->
+								<Rectangle Height="1" Fill="#222232" Margin="0,2" />
+
+								<!-- Control: Release -->
+								<StackPanel Spacing="4">
+									<Grid ColumnDefinitions="*,Auto">
+										<TextBlock Text="{Binding Texts.NoiseGateRelease}" Classes="label" />
+										<TextBlock Grid.Column="1"
+												   Text="{Binding NoiseGateReleaseMilliseconds, StringFormat={}{0:F0} ms}"
+												   FontSize="11"
+												   FontWeight="Medium"
+												   Foreground="#D1D1E0" />
+									</Grid>
+									<Slider Minimum="0" Maximum="1000"
+											Value="{Binding NoiseGateReleaseMilliseconds}"
+											TickFrequency="10" />
+									<TextBlock Text="{Binding Texts.NoiseGateReleaseHelp}"
+											   FontSize="9.5"
+											   Foreground="#6F6F8A"
+											   TextWrapping="Wrap" />
+								</StackPanel>
+
+							</StackPanel>
+						</Expander>
+					</StackPanel>
+				</ScrollViewer>
+			</TabItem>
+
+			<!-- PESTAÑA 3: Integración OSC (VRChat) -->
+			<TabItem Header="OSC">
+				<StackPanel Spacing="10" Margin="0,4,0,0">
+					<CheckBox Content="{Binding Texts.OscEnableChatbox}"
+							  IsChecked="{Binding EnableOscChatbox}" />
+
+					<StackPanel Spacing="6" IsEnabled="{Binding EnableOscChatbox}">
+						<TextBlock Text="{Binding Texts.OscTemplateLabel}"
+								   Classes="label" />
+						<TextBox Text="{Binding OscTemplate}"
+								 Watermark="{Binding Texts.OscTemplateWatermark}"
+								 Height="75"
+								 TextWrapping="Wrap"
+								 AcceptsReturn="True"
+								 VerticalContentAlignment="Top"
+								 FontSize="12" />
+						<TextBlock Text="{Binding Texts.OscTemplateTokens}"
+								   FontSize="10" Foreground="#5F5F7A" TextWrapping="Wrap" />
+					</StackPanel>
+				</StackPanel>
+			</TabItem>
+
+		</TabControl>
+	</Border>
+</UserControl>

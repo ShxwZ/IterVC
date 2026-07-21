@@ -37,10 +37,15 @@ public sealed class SettingsServiceTests : IDisposable
         var loaded = await service.LoadAsync();
 
         Assert.IsNotNull(loaded);
-        Assert.AreEqual(1, loaded.SchemaVersion);
+        Assert.AreEqual(2, loaded.SchemaVersion);
         Assert.AreEqual(1.0f, loaded.AppsVolume);
         Assert.AreEqual(1.0f, loaded.MicrophoneVolume);
+        Assert.IsTrue(loaded.MicrophoneEnabled);
         Assert.IsFalse(loaded.MonitorMicrophone);
+        Assert.IsFalse(loaded.NoiseGateEnabled);
+        Assert.AreEqual(-45f, loaded.NoiseGateThresholdDb);
+        Assert.AreEqual(10f, loaded.NoiseGateAttackMilliseconds);
+        Assert.AreEqual(150f, loaded.NoiseGateReleaseMilliseconds);
         Assert.IsNotNull(loaded.IncludedProcessNames);
         Assert.AreEqual(0, loaded.IncludedProcessNames.Count);
     }
@@ -97,6 +102,29 @@ public sealed class SettingsServiceTests : IDisposable
     }
 
     [TestMethod]
+    public async Task UpdateAsync_RoundTripsMicrophoneAndNoiseGateSettings()
+    {
+        var service = CreateService();
+        await service.LoadAsync();
+
+        await service.UpdateAsync(settings =>
+        {
+            settings.MicrophoneEnabled = false;
+            settings.NoiseGateEnabled = true;
+            settings.NoiseGateThresholdDb = -37.5f;
+            settings.NoiseGateAttackMilliseconds = 24f;
+            settings.NoiseGateReleaseMilliseconds = 280f;
+        });
+
+        var reloaded = await CreateService().LoadAsync();
+        Assert.IsFalse(reloaded.MicrophoneEnabled);
+        Assert.IsTrue(reloaded.NoiseGateEnabled);
+        Assert.AreEqual(-37.5f, reloaded.NoiseGateThresholdDb);
+        Assert.AreEqual(24f, reloaded.NoiseGateAttackMilliseconds);
+        Assert.AreEqual(280f, reloaded.NoiseGateReleaseMilliseconds);
+    }
+
+    [TestMethod]
     public async Task LoadAsync_WithCorruptJson_FallsBackToDefaults()
     {
         // Escribimos un JSON inválido y comprobamos que no se rompe (log de error + defaults).
@@ -107,7 +135,7 @@ public sealed class SettingsServiceTests : IDisposable
         var loaded = await service.LoadAsync();
 
         Assert.IsNotNull(loaded);
-        Assert.AreEqual(1, loaded.SchemaVersion);
+        Assert.AreEqual(2, loaded.SchemaVersion);
         Assert.AreEqual(1.0f, loaded.AppsVolume);
     }
 
