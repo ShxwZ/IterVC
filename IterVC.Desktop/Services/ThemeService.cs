@@ -1,4 +1,4 @@
-using Avalonia;
+﻿using Avalonia;
 using Avalonia.Media;
 
 namespace IterVC.Desktop.Services;
@@ -36,7 +36,7 @@ public static class ThemeService
         var cardBg = Color.Parse(cardBackgroundHex);
         // Inject transparency (alpha 180 = ~70% opacity) for glassmorphism
         cardBg = new Color(180, cardBg.R, cardBg.G, cardBg.B);
-        
+
         // Tint the border with the accent color
         var baseBorder = Lighten(cardBg, 0.08);
         var cardBorder = Blend(accent, baseBorder, 0.25); // 25% accent
@@ -51,7 +51,7 @@ public static class ThemeService
         app.Resources[AccentHoverColorKey] = new SolidColorBrush(accentHover);
         app.Resources[CardBackgroundKey] = new SolidColorBrush(cardBg);
         app.Resources[CardBorderKey] = new SolidColorBrush(cardBorder);
-        
+
         app.Resources["ThemeTextPrimary"] = new SolidColorBrush(textPrimary);
         app.Resources["ThemeTextSecondary"] = new SolidColorBrush(textSecondary);
         app.Resources["ThemeTextMuted"] = new SolidColorBrush(textMuted);

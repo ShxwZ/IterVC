@@ -1,4 +1,4 @@
-using IterVC.Core.Interfaces;
+﻿using IterVC.Core.Interfaces;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.PixelFormats;
 using SixLabors.ImageSharp.Processing;

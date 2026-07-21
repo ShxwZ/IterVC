@@ -1,4 +1,4 @@
-namespace IterVC.Core.Settings;
+﻿namespace IterVC.Core.Settings;
 
 /// <summary>
 /// Configuraci\u00f3n persistida de la aplicaci\u00f3n (settings.json).
@@ -20,12 +20,9 @@ public sealed class AppSettings
     /// <summary>Volumen conjunto de las apps capturadas en la mezcla (0.0 - 1.0).</summary>
     public float AppsVolume { get; set; } = 1.0f;
 
-    /// <summary>Volumen del micr\u00f3fono en la mezcla (0.0 - 1.0).</summary>
-    public float MicrophoneVolume { get; set; } = 1.0f;
-
     /// <summary>
-    /// Multiplicador extra aplicado encima de <see cref="MicrophoneVolume"/>: 1.0 = sin boost,
-    /// 2.0 = doble de volumen efectivo. Rango recomendado 0.5 - 3.0.
+    /// Microphone volume multiplier: 1.0 = unity gain (default),
+    /// 2.0 = twice as loud. Range 0.5 – 3.0 recommended.
     /// </summary>
     public float MicrophoneBoost { get; set; } = 1.0f;
 
@@ -68,4 +65,13 @@ public sealed class AppSettings
 
     /// <summary>Atajo de teclado para iniciar y detener (Toggle).</summary>
     public string ToggleRoutingShortcut { get; set; } = "F9";
+
+    /// <summary>Si true, cerrar la ventana la oculta en la bandeja del sistema en vez de salir.</summary>
+    public bool MinimizeToTray { get; set; } = true;
+
+    /// <summary>
+    /// Volumen individual por app capturada (0.0 - 2.0, 1.0 = sin cambio), por nombre de
+    /// proceso porque el PID cambia entre ejecuciones. Se multiplica con <see cref="AppsVolume"/>.
+    /// </summary>
+    public Dictionary<string, float> AppVolumes { get; set; } = new();
 }

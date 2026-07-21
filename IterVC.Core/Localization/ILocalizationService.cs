@@ -1,4 +1,4 @@
-namespace IterVC.Core.Localization;
+﻿namespace IterVC.Core.Localization;
 
 /// <summary>
 /// Idiomas soportados por la UI.

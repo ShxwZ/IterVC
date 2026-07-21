@@ -223,11 +223,11 @@
 											<Border Background="#15151F" BorderBrush="#1F1F2E"
 												BorderThickness="1" Padding="12,10" CornerRadius="6"
 												Margin="0,2">
-												<Grid ColumnDefinitions="Auto,*,Auto">
-													<CheckBox Grid.Column="0"
+												<Grid RowDefinitions="Auto,Auto" ColumnDefinitions="Auto,*,Auto">
+													<CheckBox Grid.Row="0" Grid.Column="0"
 														IsChecked="{Binding IsIncludedInMix}"
 														Margin="0,0,12,0" VerticalAlignment="Center" />
-													<StackPanel Grid.Column="1"
+													<StackPanel Grid.Row="0" Grid.Column="1"
 														VerticalAlignment="Center" Spacing="1">
 														<TextBlock Text="{Binding DisplayName}"
 															FontWeight="Bold" FontSize="13"
@@ -243,10 +243,32 @@
 																FontSize="10" Foreground="{DynamicResource ThemeTextMuted}" />
 														</StackPanel>
 													</StackPanel>
-													<Ellipse Grid.Column="2" Width="6" Height="6"
+													<Ellipse Grid.Row="0" Grid.Column="2" Width="6" Height="6"
 														Fill="{DynamicResource ThemeAccentColor}"
 														VerticalAlignment="Center"
 														IsVisible="{Binding IsIncludedInMix}" />
+
+													<!-- Volumen individual + medidor de nivel (solo si está en la mezcla) -->
+													<StackPanel Grid.Row="1" Grid.Column="1" Grid.ColumnSpan="2"
+														Spacing="4" Margin="0,8,0,0"
+														IsVisible="{Binding IsIncludedInMix}">
+														<Grid ColumnDefinitions="*,Auto">
+															<Slider Minimum="0" Maximum="2"
+																Value="{Binding Volume}"
+																TickFrequency="0.05" IsSnapToTickEnabled="True"
+																Margin="0,-6" />
+															<TextBlock Grid.Column="1"
+																Text="{Binding Volume, StringFormat={}{0:P0}}"
+																FontSize="10" FontWeight="Bold"
+																Foreground="{DynamicResource ThemeAccentColor}"
+																VerticalAlignment="Center" Margin="8,0,0,0" />
+														</Grid>
+														<ProgressBar Minimum="0" Maximum="1"
+															Value="{Binding Level}"
+															Height="4" MinWidth="0"
+															Background="#0A0A0D"
+															Foreground="{DynamicResource ThemeAccentColor}" />
+													</StackPanel>
 												</Grid>
 											</Border>
 										</DataTemplate>
@@ -346,6 +368,12 @@
 											IsSnapToTickEnabled="True" />
 										<TextBlock Text="{Binding Texts.MixAppsBoostHelp}" FontSize="10"
 											Foreground="#5F5F7A" />
+										<!-- Medidor de nivel del micrófono -->
+										<ProgressBar Minimum="0" Maximum="1"
+											Value="{Binding MicrophoneLevel}"
+											Height="4" MinWidth="0" Margin="0,4,0,0"
+											Background="#0A0A0D"
+											Foreground="{DynamicResource ThemeAccentColor}" />
 									</StackPanel>
 
 									<Separator Height="1" Background="#1C1C28" Margin="0,4" />
@@ -499,11 +527,18 @@
 								<StackPanel Spacing="10" Margin="0,4,0,0">
 									<StackPanel Spacing="4">
 										<TextBlock Text="{Binding Texts.ShortcutToggleLabel}" Classes="label" />
-										<TextBox Text="{Binding ToggleRoutingShortcut, Mode=OneWay}" 
-												 Watermark="{Binding Texts.ShortcutToggleHelp}" 
+										<TextBox Text="{Binding ToggleRoutingShortcut, Mode=OneWay}"
+												 Watermark="{Binding Texts.ShortcutToggleHelp}"
 												 IsReadOnly="True"
 												 KeyDown="ShortcutTextBox_KeyDown" />
+										<TextBlock Text="{Binding Texts.ShortcutGlobalHint}" FontSize="10"
+											Foreground="#5F5F7A" TextWrapping="Wrap" />
 									</StackPanel>
+
+									<Separator Height="1" Background="#1C1C28" Margin="0,2" />
+
+									<CheckBox Content="{Binding Texts.BehaviorMinimizeToTray}"
+										IsChecked="{Binding MinimizeToTray}" />
 								</StackPanel>
 							</TabItem>
 

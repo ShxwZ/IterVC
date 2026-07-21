@@ -1,4 +1,4 @@
-namespace IterVC.Core.Helpers;
+﻿namespace IterVC.Core.Helpers;
 
 /// <summary>
 /// Resultado simple de operación, evita usar excepciones para flujo de control

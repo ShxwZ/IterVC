@@ -1,4 +1,4 @@
-using System.Collections.Concurrent;
+﻿using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Threading;
 using Microsoft.Extensions.Logging;
@@ -26,6 +26,12 @@ public sealed class AudioRouterService : IAudioRouterService
     private readonly ConcurrentDictionary<int, AppSource> _appSources = new();
     private float _appsVolume = 1.0f;
 
+    /// <summary>Factor de caída de los medidores entre lecturas (evita el parpadeo).</summary>
+    private const float LevelDecay = 0.7f;
+
+    private float _micLevel;
+    private long _micLevelTimestamp;
+
     private MixingSampleProvider? _mainMixer;
     private WasapiOut? _cableOutput;
     private WasapiOut? _monitorOutput;
@@ -45,7 +51,21 @@ public sealed class AudioRouterService : IAudioRouterService
     }
 
     public void FeedMicrophoneSamples(byte[] pcmBytes, int count)
-        => _micBuffer.AddSamples(pcmBytes, 0, count);
+    {
+        _micBuffer.AddSamples(pcmBytes, 0, count);
+
+        // Nivel de pico para el medidor de la UI. El micrófono llega ya en MixFormat
+        // (float32), así que podemos reinterpretar los bytes directamente.
+        var samples = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(pcmBytes.AsSpan(0, count));
+        var peak = 0f;
+        foreach (var sample in samples)
+        {
+            var abs = Math.Abs(sample);
+            if (abs > peak) peak = abs;
+        }
+        _micLevel = Math.Max(peak, _micLevel * LevelDecay);
+        _micLevelTimestamp = Environment.TickCount64;
+    }
 
     public Task StartAsync(string vbCableDeviceId, CancellationToken cancellationToken = default)
     {
@@ -53,13 +73,16 @@ public sealed class AudioRouterService : IAudioRouterService
 
         Debug.WriteLine($"[Router] StartAsync — fuentes existentes: {_appSources.Count}");
 
+        // Flush stale samples so old audio is never replayed after Stop→Start.
+        _micBuffer.ClearBuffer();
+
         _micTap = new TapSampleProvider(_micVolume) { MonitorEnabled = _monitorMicRequested };
         _mainMixer = new MixingSampleProvider(MixFormat) { ReadFully = true };
         _mainMixer.AddMixerInput(_micTap);
 
         foreach (var source in _appSources.Values)
         {
-            _mainMixer.AddMixerInput(source.Volume);
+            _mainMixer.AddMixerInput(source.Meter);
             Debug.WriteLine("[Router] Fuente de app añadida al mixer en StartAsync");
         }
 
@@ -133,9 +156,10 @@ public sealed class AudioRouterService : IAudioRouterService
         // resamplear y downmixear de forma limpia
         var adapted = AdaptToMixFormat(buffer.ToSampleProvider());
         var volume = new VolumeSampleProvider(adapted) { Volume = _appsVolume };
+        var meter = new LevelMeterSampleProvider(volume);
 
-        _appSources[processId] = new AppSource(capture, volume);
-        _mainMixer?.AddMixerInput(volume);
+        _appSources[processId] = new AppSource(capture, volume, meter);
+        _mainMixer?.AddMixerInput(meter);
 
         Debug.WriteLine($"[Router] App {processId} añadida al mixer correctamente");
     }
@@ -171,7 +195,7 @@ public sealed class AudioRouterService : IAudioRouterService
     {
         if (_appSources.TryRemove(processId, out var source))
         {
-            _mainMixer?.RemoveMixerInput(source.Volume);
+            _mainMixer?.RemoveMixerInput(source.Meter);
             source.Capture.Dispose();
             Debug.WriteLine($"[Router] Proceso {processId} eliminado del mixer");
         }
@@ -183,7 +207,17 @@ public sealed class AudioRouterService : IAudioRouterService
         _monitorMicRequested = enabled;
         if (_micTap is null) return;
         _micTap.MonitorEnabled = enabled;
-        EnsureMonitorOutput();
+
+        if (enabled)
+        {
+            EnsureMonitorOutput();
+        }
+        else
+        {
+            _monitorOutput?.Stop();
+            _monitorOutput?.Dispose();
+            _monitorOutput = null;
+        }
     }
 
     private void EnsureMonitorOutput()
@@ -205,33 +239,41 @@ public sealed class AudioRouterService : IAudioRouterService
     {
         _appsVolume = Math.Clamp(volume, 0f, 3f);
         foreach (var source in _appSources.Values)
-            source.Volume.Volume = _appsVolume;
+            source.Volume.Volume = _appsVolume * source.BaseVolume;
     }
 
-    private float _microphoneVolume = 1.0f;
+    public void SetAppSourceVolume(int processId, float volume)
+    {
+        if (!_appSources.TryGetValue(processId, out var source)) return;
+        source.BaseVolume = Math.Clamp(volume, 0f, 2f);
+        source.Volume.Volume = _appsVolume * source.BaseVolume;
+    }
+
+    public float GetAppSourceLevel(int processId)
+    {
+        if (!IsRouting) return 0f;
+        return _appSources.TryGetValue(processId, out var source)
+            ? Math.Clamp(source.Meter.CurrentLevel, 0f, 1f)
+            : 0f;
+    }
+
+    public float GetMicrophoneLevel()
+    {
+        // Si el micro dejó de enviar datos (parado o sin dispositivo), el medidor cae a cero.
+        if (Environment.TickCount64 - _micLevelTimestamp > 300) return 0f;
+        return Math.Clamp(_micLevel * _microphoneBoost, 0f, 1f);
+    }
+
     private float _microphoneBoost = 1.0f;
 
-    /// <summary>Volumen base del micrófono (0.0 - 1.0). Se combina con el boost.</summary>
-    public void SetMicrophoneVolume(float volume)
-    {
-        _microphoneVolume = Math.Clamp(volume, 0f, 1f);
-        ApplyMicrophoneVolume();
-    }
-
     /// <summary>
-    /// Multiplicador extra encima del volumen base. 1.0 = sin boost (el comportamiento por defecto),
-    /// 2.0 = el micro suena el doble de fuerte en la mezcla final hacia VB-Cable.
+    /// Microphone volume multiplier. 1.0 = unity gain (default),
+    /// 2.0 = twice as loud in the final mix towards VB-Cable.
     /// </summary>
     public void SetMicrophoneBoost(float boost)
     {
-        _microphoneBoost = Math.Clamp(boost, 0f, 5f); // tope alto para que los tests no saturan
-        ApplyMicrophoneVolume();
-    }
-
-    private void ApplyMicrophoneVolume()
-    {
-        
-        _micVolume.Volume = _microphoneVolume * _microphoneBoost;
+        _microphoneBoost = Math.Clamp(boost, 0f, 5f);
+        _micVolume.Volume = _microphoneBoost;
     }
 
     //private static ISampleProvider AdaptToMixFormat(ISampleProvider source)
@@ -291,7 +333,50 @@ public sealed class AudioRouterService : IAudioRouterService
         _enumerator.Dispose();
     }
 
-    private sealed record AppSource(ProcessLoopbackCapture Capture, VolumeSampleProvider Volume);
+    private sealed class AppSource
+    {
+        public ProcessLoopbackCapture Capture { get; }
+        public VolumeSampleProvider Volume { get; }
+        public LevelMeterSampleProvider Meter { get; }
+
+        /// <summary>Volumen individual de la app (slider por app); se multiplica con el volumen conjunto.</summary>
+        public float BaseVolume { get; set; } = 1.0f;
+
+        public AppSource(ProcessLoopbackCapture capture, VolumeSampleProvider volume, LevelMeterSampleProvider meter)
+        {
+            Capture = capture;
+            Volume = volume;
+            Meter = meter;
+        }
+    }
+
+    /// <summary>
+    /// Tap transparente que mide el pico de cada buffer leído (con caída suave) para
+    /// alimentar los medidores de nivel de la UI sin tocar la señal.
+    /// </summary>
+    private sealed class LevelMeterSampleProvider : ISampleProvider
+    {
+        private readonly ISampleProvider _source;
+        private volatile float _level;
+
+        public WaveFormat WaveFormat => _source.WaveFormat;
+        public float CurrentLevel => _level;
+
+        public LevelMeterSampleProvider(ISampleProvider source) => _source = source;
+
+        public int Read(float[] buffer, int offset, int count)
+        {
+            var read = _source.Read(buffer, offset, count);
+            var peak = 0f;
+            for (var i = 0; i < read; i++)
+            {
+                var abs = Math.Abs(buffer[offset + i]);
+                if (abs > peak) peak = abs;
+            }
+            _level = Math.Max(peak, _level * LevelDecay);
+            return read;
+        }
+    }
 
     private sealed class TapSampleProvider : ISampleProvider
     {

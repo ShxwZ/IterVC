@@ -1,4 +1,4 @@
-namespace IterVC.Core.Interfaces;
+﻿namespace IterVC.Core.Interfaces;
 
 /// <summary>
 /// Extracts a vibrant accent color and a matching dark card background color from an image.

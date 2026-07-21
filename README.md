@@ -134,10 +134,10 @@ Because the capture uses Windows Process Loopback APIs, the original application
 One can also display a chatbox on VRChat by using the OSC tab on the app. There are three tokens one can use:
 
 1. {title} displays the song title and the artist.
-2. {status} displays wether you are playing the song or not.
-3. {time} displays your current local time and it also displays the song's timestamp. 
+2. {status} displays the playback state (Playing / Paused / Stopped).
+3. {time} displays the song's timestamp (position / duration).
 
-Support for having the chatbox opened without playing music is planned for a future release. As of now one must play music to make the chatbox appear.
+The chatbox no longer requires music to be playing: with no active media session, {title} shows "Nothing playing", {status} shows "Stopped" and {time} shows your local time, so custom messages stay visible at all times. Paused sessions are also detected and shown with their track info. When the chatbox option is disabled, the last message is cleared from VRChat automatically.
 
 ---
 

@@ -1,4 +1,4 @@
-namespace IterVC.Core.Helpers;
+﻿namespace IterVC.Core.Helpers;
 
 /// <summary>
 /// Funciones puras para conversión multicanal (5.1 / 7.1 / N) a estéreo.

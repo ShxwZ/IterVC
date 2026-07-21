@@ -1,4 +1,4 @@
-namespace IterVC.Core.Interfaces;
+﻿namespace IterVC.Core.Interfaces;
 
 /// <summary>
 /// Captura el micrófono físico seleccionado y expone su señal como stream de audio

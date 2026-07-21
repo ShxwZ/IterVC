@@ -1,4 +1,4 @@
-namespace IterVC.Core.Models;
+﻿namespace IterVC.Core.Models;
 
 /// <summary>
 /// Representa una aplicación en ejecución con una sesión de audio activa en Windows.

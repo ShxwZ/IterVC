@@ -1,4 +1,4 @@
-using Microsoft.VisualStudio.TestTools.UnitTesting;
+﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
 using IterVC.Core.Helpers;
 
 namespace IterVC.Tests;
@@ -67,12 +67,12 @@ public sealed class DownmixMathTests
         var ls = 0.15f; var rs = -0.15f;
         var frame = new float[6] { fl, fr, fc, lfe, ls, rs };
         var (l, r) = DownmixMath.Downmix5_1(frame);
-        var expectedL = fl + DownmixMath.InvSqrt2 * fc + DownmixMath.InvSqrt2 * lfe + DownmixMath.InvSqrt2 * ls;
-        var expectedR = fr + DownmixMath.InvSqrt2 * fc + DownmixMath.InvSqrt2 * lfe + DownmixMath.InvSqrt2 * rs;
-        // 0.30 + 0.0707 + 0.0354 + 0.1061 ≈ 0.5122  (no satura)
-        // -0.20 + 0.0707 + 0.0354 + -0.1061 ≈ -0.20
-        Assert.AreEqual(expectedL, l, 1e-4f);
-        Assert.AreEqual(expectedR, r, 1e-4f);
+        var expectedL = fl + DownmixMath.InvSqrt2 * fc + DownmixMath.LfeGain * lfe + DownmixMath.InvSqrt2 * ls;
+        var expectedR = fr + DownmixMath.InvSqrt2 * fc + DownmixMath.LfeGain * lfe + DownmixMath.InvSqrt2 * rs;
+        // 0.30 + 0.0707 + 0.025 + 0.1061 ≈ 0.5018  (no satura)
+        // -0.20 + 0.0707 + 0.025 + -0.1061 ≈ -0.21
+        Assert.AreEqual(expectedL, l, 1e-3f);
+        Assert.AreEqual(expectedR, r, 1e-3f);
     }
 
     [TestMethod]

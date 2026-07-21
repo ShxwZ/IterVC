@@ -1,4 +1,4 @@
-namespace IterVC.Core.Models;
+﻿namespace IterVC.Core.Models;
 
 public enum AudioDeviceKind
 {

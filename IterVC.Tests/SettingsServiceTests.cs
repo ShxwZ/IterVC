@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging.Abstractions;
+﻿using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using IterVC.Audio;
 using IterVC.Core.Settings;
@@ -37,9 +37,9 @@ public sealed class SettingsServiceTests : IDisposable
         var loaded = await service.LoadAsync();
 
         Assert.IsNotNull(loaded);
-        Assert.AreEqual(1, loaded.SchemaVersion);
+        Assert.AreEqual(3, loaded.SchemaVersion);
         Assert.AreEqual(1.0f, loaded.AppsVolume);
-        Assert.AreEqual(1.0f, loaded.MicrophoneVolume);
+        Assert.AreEqual(1.0f, loaded.MicrophoneBoost);
         Assert.IsFalse(loaded.MonitorMicrophone);
         Assert.IsNotNull(loaded.IncludedProcessNames);
         Assert.AreEqual(0, loaded.IncludedProcessNames.Count);
@@ -50,13 +50,13 @@ public sealed class SettingsServiceTests : IDisposable
     {
         var service = CreateService();
         await service.LoadAsync();
-        await service.UpdateAsync(s => s.MicrophoneVolume = 0.42f);
+        await service.UpdateAsync(s => s.MicrophoneBoost = 0.42f);
 
         var expectedPath = Path.Combine(_tempDir, "settings.json");
         Assert.IsTrue(File.Exists(expectedPath), $"No se creó {expectedPath}");
 
         var json = await File.ReadAllTextAsync(expectedPath);
-        Assert.IsTrue(json.Contains("\"MicrophoneVolume\": 0.42"), $"JSON no contiene el cambio: {json}");
+        Assert.IsTrue(json.Contains("\"MicrophoneBoost\": 0.42"), $"JSON no contiene el cambio: {json}");
     }
 
     [TestMethod]
@@ -107,7 +107,7 @@ public sealed class SettingsServiceTests : IDisposable
         var loaded = await service.LoadAsync();
 
         Assert.IsNotNull(loaded);
-        Assert.AreEqual(1, loaded.SchemaVersion);
+        Assert.AreEqual(3, loaded.SchemaVersion);
         Assert.AreEqual(1.0f, loaded.AppsVolume);
     }
 

@@ -1,4 +1,4 @@
-namespace IterVC.Core.Interfaces;
+﻿namespace IterVC.Core.Interfaces;
 
 /// <summary>
 /// Captura el audio de las apps seleccionadas (proceso a proceso, sin silenciarlas) y del
@@ -41,10 +41,22 @@ public interface IAudioRouterService : IDisposable
     /// <summary>Volumen conjunto aplicado a todas las apps capturadas.</summary>
     void SetAppsVolume(float volume);
 
-    /// <summary>Volumen base del micrófono (0.0 - 1.0). Se combina con el boost.</summary>
-    void SetMicrophoneVolume(float volume);
+    /// <summary>
+    /// Volumen individual de una app capturada (0.0 - 2.0, 1.0 = sin cambio).
+    /// Se multiplica con el volumen conjunto de <see cref="SetAppsVolume"/>.
+    /// </summary>
+    void SetAppSourceVolume(int processId, float volume);
 
-    /// <summary>Multiplicador extra de boost sobre el volumen base. 1.0 = sin boost.</summary>
+    /// <summary>
+    /// Nivel de pico actual (0.0 - 1.0) de la señal de una app en la mezcla, para medidores
+    /// de la UI. Devuelve 0 si la app no está capturada o el enrutado está detenido.
+    /// </summary>
+    float GetAppSourceLevel(int processId);
+
+    /// <summary>Nivel de pico actual (0.0 - 1.0) del micrófono tras ganancia, para medidores de la UI.</summary>
+    float GetMicrophoneLevel();
+
+    /// <summary>Microphone volume multiplier. 1.0 = unity gain (default).</summary>
     void SetMicrophoneBoost(float boost);
 }
 

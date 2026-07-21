@@ -1,4 +1,4 @@
-using CommunityToolkit.Mvvm.ComponentModel;
+﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using Avalonia.Input;
@@ -47,6 +47,9 @@ public sealed partial class MainViewModel : ViewModelBase
 
     [ObservableProperty] private float _microphoneBoost = 1.0f;
 
+    /// <summary>Nivel de pico del micrófono (0-1) para el medidor de la pestaña Mezcla.</summary>
+    [ObservableProperty] private float _microphoneLevel;
+
     [ObservableProperty] private string _selectedLanguage = LocalizationService.Instance.CurrentLanguage;
 
     public IReadOnlyList<string> AvailableLanguages { get; } = SupportedLanguages.All;
@@ -60,6 +63,7 @@ public sealed partial class MainViewModel : ViewModelBase
     [ObservableProperty] private string _cardBackgroundHex = ThemeService.DefaultCardBackgroundHex;
     [ObservableProperty] private bool _autoExtractColors = true;
     [ObservableProperty] private string _toggleRoutingShortcut = "F9";
+    [ObservableProperty] private bool _minimizeToTray = true;
 
     public KeyGesture? ToggleShortcutGesture
     {
@@ -113,6 +117,7 @@ public sealed partial class MainViewModel : ViewModelBase
     private bool _initializing;
     private List<string>? _pendingIncludedProcessNames;
     private GlobalSystemMediaTransportControlsSessionManager? _mediaSessionManager;
+    private readonly Avalonia.Threading.DispatcherTimer _levelTimer;
 
     public MainViewModel(
         IAudioRouterService audioRouter,
@@ -153,6 +158,21 @@ public sealed partial class MainViewModel : ViewModelBase
 
         LocalizationService.Instance.Changed += (_, _) =>
             Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => Texts.RaiseAll());
+
+        _levelTimer = new Avalonia.Threading.DispatcherTimer(
+            TimeSpan.FromMilliseconds(66),
+            Avalonia.Threading.DispatcherPriority.Background,
+            OnLevelTimerTick);
+    }
+
+    private void OnLevelTimerTick(object? sender, EventArgs e)
+    {
+        MicrophoneLevel = SelectedMicrophoneDevice?.Id == "none"
+            ? 0f
+            : _audioRouter.GetMicrophoneLevel();
+
+        foreach (var app in RunningApps)
+            app.Level = app.IsIncludedInMix ? _audioRouter.GetAppSourceLevel(app.ProcessId) : 0f;
     }
 
     public async Task InitializeAsync()
@@ -181,6 +201,8 @@ public sealed partial class MainViewModel : ViewModelBase
             ToggleRoutingShortcut = string.IsNullOrWhiteSpace(settings.ToggleRoutingShortcut) ? "F9" : settings.ToggleRoutingShortcut;
             OnPropertyChanged(nameof(ToggleShortcutGesture));
 
+            MinimizeToTray = settings.MinimizeToTray;
+
             // Load appearance settings
             AutoExtractColors = settings.AutoExtractColors;
             if (!string.IsNullOrEmpty(settings.BackgroundImageFileName))
@@ -200,7 +222,6 @@ public sealed partial class MainViewModel : ViewModelBase
                 ThemeService.Apply(AccentColorHex, CardBackgroundHex));
 
             _audioRouter.SetAppsVolume(AppsVolume);
-            _audioRouter.SetMicrophoneVolume(settings.MicrophoneVolume);
             _audioRouter.SetMonitorMicrophone(settings.MonitorMicrophone);
 
             await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
@@ -282,7 +303,13 @@ public sealed partial class MainViewModel : ViewModelBase
     {
         if (_initializing) return;
         _audioRouter.SetMicrophoneBoost(value);
-        _ = _settingsService.UpdateAsync(s => s.MicrophoneBoost = value);
+        _settingsService.QueueUpdate(s => s.MicrophoneBoost = value);
+    }
+
+    partial void OnMinimizeToTrayChanged(bool value)
+    {
+        if (_initializing) return;
+        _ = _settingsService.UpdateAsync(s => s.MinimizeToTray = value);
     }
 
     partial void OnEnableOscChatboxChanged(bool value)
@@ -294,7 +321,7 @@ public sealed partial class MainViewModel : ViewModelBase
     partial void OnOscTemplateChanged(string value)
     {
         if (_initializing) return;
-        _ = _settingsService.UpdateAsync(s => s.OscTemplate = value);
+        _settingsService.QueueUpdate(s => s.OscTemplate = value);
     }
 
     partial void OnSelectedLanguageChanged(string value)
@@ -312,7 +339,7 @@ public sealed partial class MainViewModel : ViewModelBase
     {
         if (_initializing) return;
         _audioRouter.SetAppsVolume(value);
-        _ = _settingsService.UpdateAsync(s => s.AppsVolume = value);
+        _settingsService.QueueUpdate(s => s.AppsVolume = value);
     }
 
     // ----------------------------------------------------------------
@@ -331,7 +358,7 @@ public sealed partial class MainViewModel : ViewModelBase
         AccentColorHex = ThemeService.ToHex(AccentR, AccentG, AccentB);
         Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
             ThemeService.Apply(AccentColorHex, CardBackgroundHex));
-        _ = _settingsService.UpdateAsync(s => s.AccentColor = AccentColorHex);
+        _settingsService.QueueUpdate(s => s.AccentColor = AccentColorHex);
     }
 
     partial void OnCardRChanged(byte value) => OnCardSliderChanged();
@@ -344,7 +371,7 @@ public sealed partial class MainViewModel : ViewModelBase
         CardBackgroundHex = ThemeService.ToHex(CardR, CardG, CardB);
         Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
             ThemeService.Apply(AccentColorHex, CardBackgroundHex));
-        _ = _settingsService.UpdateAsync(s => s.CardBackgroundColor = CardBackgroundHex);
+        _settingsService.QueueUpdate(s => s.CardBackgroundColor = CardBackgroundHex);
     }
 
     partial void OnAutoExtractColorsChanged(bool value)
@@ -384,7 +411,7 @@ public sealed partial class MainViewModel : ViewModelBase
                 SetCardFromHex(cardHex);
                 ThemeService.Apply(AccentColorHex, CardBackgroundHex);
             });
-            _ = _settingsService.UpdateAsync(s => 
+            _ = _settingsService.UpdateAsync(s =>
             {
                 s.AccentColor = accentHex;
                 s.CardBackgroundColor = cardHex;
@@ -518,12 +545,23 @@ public sealed partial class MainViewModel : ViewModelBase
                 ? includedProcessNamesOverride.Contains(app.ProcessName, StringComparer.OrdinalIgnoreCase)
                 : currentlyCapturedIds.Contains(app.ProcessId);
 
-            if (included && !await TryAddAppSourceAsync(app.ProcessId))
-                anyCaptureFailed = true;
+            var initialVolume = _settingsService.Current.AppVolumes.TryGetValue(app.ProcessName, out var savedVolume)
+                ? savedVolume
+                : 1.0f;
+
+            if (included)
+            {
+                if (await TryAddAppSourceAsync(app.ProcessId))
+                    _audioRouter.SetAppSourceVolume(app.ProcessId, initialVolume);
+                else
+                    anyCaptureFailed = true;
+            }
 
             RunningApps.Add(new AppAudioItemViewModel(
                 app with { IsIncludedInMix = included },
-                OnAppIncludedChanged));
+                OnAppIncludedChanged,
+                OnAppVolumeChanged,
+                initialVolume));
         }
 
         if (!anyCaptureFailed)
@@ -536,11 +574,22 @@ public sealed partial class MainViewModel : ViewModelBase
     private async Task OnAppIncludedChangedAsync(AppAudioItemViewModel app, bool included)
     {
         if (included)
-            await TryAddAppSourceAsync(app.ProcessId);
+        {
+            if (await TryAddAppSourceAsync(app.ProcessId))
+                _audioRouter.SetAppSourceVolume(app.ProcessId, app.Volume);
+        }
         else
+        {
             await _audioRouter.RemoveAppSourceAsync(app.ProcessId);
+        }
 
         await PersistIncludedAppsAsync();
+    }
+
+    private void OnAppVolumeChanged(AppAudioItemViewModel app, float volume)
+    {
+        _audioRouter.SetAppSourceVolume(app.ProcessId, volume);
+        _settingsService.QueueUpdate(s => s.AppVolumes[app.ProcessName] = volume);
     }
 
     private async Task<bool> TryAddAppSourceAsync(int processId)
@@ -576,26 +625,48 @@ public sealed partial class MainViewModel : ViewModelBase
 
     private async Task OscLoop(CancellationToken ct)
     {
+        // VRChat descarta mensajes del chatbox que lleguen más rápido que ~1.5 s.
+        const int intervalMs = 1500;
+        var wasEnabled = false;
+
         while (!ct.IsCancellationRequested)
         {
             if (EnableOscChatbox)
             {
+                wasEnabled = true;
                 var mediaInfo = await GetActiveMediaInfoAsync();
+
+                string title, status, time;
                 if (mediaInfo != null && !string.IsNullOrEmpty(mediaInfo.Title))
                 {
-                    string templateWithTime = OscTemplate
-                        .Replace("{title}", mediaInfo.Title)
-                        .Replace("{status}", mediaInfo.Status)
-                        .Replace("{time}", mediaInfo.TimeInfo);
-
-                    _oscMediaService.SendMediaInfo(mediaInfo.Title, mediaInfo.Status, templateWithTime);
+                    title = mediaInfo.Title;
+                    status = mediaInfo.Status;
+                    time = mediaInfo.TimeInfo;
                 }
-                await Task.Delay(1000, ct);
+                else
+                {
+                    // Sin sesión de medios: el chatbox sigue visible con valores neutros.
+                    title = LocalizationService.Instance.Get(LocalizationService.Keys.MediaNothingPlaying);
+                    status = LocalizationService.Instance.Get(LocalizationService.Keys.MediaStoppedStatus);
+                    time = DateTime.Now.ToString("HH:mm");
+                }
+
+                var message = OscTemplate
+                    .Replace("{title}", title)
+                    .Replace("{status}", status)
+                    .Replace("{time}", time);
+
+                if (!string.IsNullOrWhiteSpace(message))
+                    _oscMediaService.SendMediaInfo(title, status, message);
             }
-            else
+            else if (wasEnabled)
             {
-                await Task.Delay(1000, ct);
+                // Al desactivar el chatbox, borramos el último mensaje que quedó en VRChat.
+                wasEnabled = false;
+                _oscMediaService.ClearChatbox();
             }
+
+            await Task.Delay(intervalMs, ct);
         }
     }
 
@@ -607,19 +678,25 @@ public sealed partial class MainViewModel : ViewModelBase
             var sessions = _mediaSessionManager.GetSessions();
             if (sessions == null || sessions.Count == 0) return null;
 
+            // Preferimos una sesión reproduciendo; si no hay, usamos la primera disponible
+            // (pausada/detenida) para que el chatbox también muestre música en pausa.
             var activeSession = sessions.FirstOrDefault(s =>
-                s.GetPlaybackInfo()?.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing);
+                    s.GetPlaybackInfo()?.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing)
+                ?? sessions.FirstOrDefault();
             if (activeSession == null) return null;
 
             var props = await activeSession.TryGetMediaPropertiesAsync();
             var timeline = activeSession.GetTimelineProperties();
             if (props == null) return null;
 
+            var playbackStatus = activeSession.GetPlaybackInfo()?.PlaybackStatus;
+            var isPlaying = playbackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing;
+
             string timeFormatted = "00:00 / 00:00";
             if (timeline != null)
             {
                 var pos = timeline.Position;
-                if (activeSession.GetPlaybackInfo()?.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing)
+                if (isPlaying)
                 {
                     var elapsedSinceUpdate = DateTime.UtcNow - timeline.LastUpdatedTime.UtcDateTime;
                     if (elapsedSinceUpdate > TimeSpan.Zero)
@@ -637,15 +714,23 @@ public sealed partial class MainViewModel : ViewModelBase
                 ? $"{props.Artist} - {props.Title}"
                 : props.Title;
 
+            var statusKey = playbackStatus switch
+            {
+                GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing => LocalizationService.Keys.MediaPlayingStatus,
+                GlobalSystemMediaTransportControlsSessionPlaybackStatus.Paused => LocalizationService.Keys.MediaPausedStatus,
+                _ => LocalizationService.Keys.MediaStoppedStatus
+            };
+
             return new MediaInfo
             {
                 Title = displayTitle,
-                Status = LocalizationService.Instance.Get(LocalizationService.Keys.MediaPlayingStatus),
+                Status = LocalizationService.Instance.Get(statusKey),
                 TimeInfo = timeFormatted
             };
         }
-        catch
+        catch (Exception ex)
         {
+            _logger.LogDebug(ex, "No se pudo obtener la información de medios del sistema");
             return null;
         }
     }

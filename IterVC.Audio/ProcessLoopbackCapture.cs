@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Runtime.InteropServices;
 using Microsoft.Extensions.Logging;
 using NAudio.Wave;
@@ -41,116 +41,116 @@ public sealed class ProcessLoopbackCapture : IDisposable
     /// (<c>AUDCLNT_E_RAW_STREAM_CONFIG_NOT_SUPPORTED</c>), se re-activa un cliente nuevo
     /// y se hace fallback automÃ¡tico al modo normal.
     /// </summary>
-   public async Task StartAsync(int processId, bool includeProcessTree, bool useRawAudio, ILogger? logger = null)
-{
-    // 1. Limpieza de seguridad: Si había un cliente anterior vivo, lo liberamos
-    if (_audioClient != null)
+    public async Task StartAsync(int processId, bool includeProcessTree, bool useRawAudio, ILogger? logger = null)
     {
-        try { Marshal.ReleaseComObject(_audioClient); } catch { /* ignore */ }
-        _audioClient = null;
-    }
-
-    int sampleRate = 48000;
-    const int channels = 2; 
-
-    try
-    {
-        using (var enumerator = new MMDeviceEnumerator())
-        using (var device = enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia))
+        // 1. Limpieza de seguridad: Si había un cliente anterior vivo, lo liberamos
+        if (_audioClient != null)
         {
-            var mixFormat = device.AudioClient.MixFormat;
-            sampleRate = mixFormat.SampleRate; // 44100, 48000, 96000, etc.
+            try { Marshal.ReleaseComObject(_audioClient); } catch { /* ignore */ }
+            _audioClient = null;
         }
-    }
-    catch (Exception ex)
-    {
-        logger?.LogWarning(ex, "No se pudo obtener el SampleRate nativo. Usando fallback a 48000Hz.");
-    }
 
-    var baseFlags = ProcessLoopbackNativeMethods.AUDCLNT_STREAMFLAGS_LOOPBACK
-                  | ProcessLoopbackNativeMethods.AUDCLNT_STREAMFLAGS_EVENTCALLBACK;
+        int sampleRate = 48000;
+        const int channels = 2;
 
-    // Configuración limpia y segura de 2 canales en frecuencia nativa
-    var format = new WAVEFORMATEX
-    {
-        wFormatTag = ProcessLoopbackNativeMethods.WAVE_FORMAT_IEEE_FLOAT,
-        nChannels = (ushort)channels,
-        nSamplesPerSec = (uint)sampleRate,
-        wBitsPerSample = 32,
-        nBlockAlign = (ushort)(channels * (32 / 8)),
-        nAvgBytesPerSec = (uint)(sampleRate * channels * (32 / 8)),
-        cbSize = 0
-    };
+        try
+        {
+            using (var enumerator = new MMDeviceEnumerator())
+            using (var device = enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia))
+            {
+                var mixFormat = device.AudioClient.MixFormat;
+                sampleRate = mixFormat.SampleRate; // 44100, 48000, 96000, etc.
+            }
+        }
+        catch (Exception ex)
+        {
+            logger?.LogWarning(ex, "No se pudo obtener el SampleRate nativo. Usando fallback a 48000Hz.");
+        }
 
-    const long hnsBufferDuration = 200 * 10_000;
+        var baseFlags = ProcessLoopbackNativeMethods.AUDCLNT_STREAMFLAGS_LOOPBACK
+                      | ProcessLoopbackNativeMethods.AUDCLNT_STREAMFLAGS_EVENTCALLBACK;
 
-    // Activamos el cliente de audio antes del primer intento
-    _audioClient = await ActivateAsync(processId, includeProcessTree);
+        // Configuración limpia y segura de 2 canales en frecuencia nativa
+        var format = new WAVEFORMATEX
+        {
+            wFormatTag = ProcessLoopbackNativeMethods.WAVE_FORMAT_IEEE_FLOAT,
+            nChannels = (ushort)channels,
+            nSamplesPerSec = (uint)sampleRate,
+            wBitsPerSample = 32,
+            nBlockAlign = (ushort)(channels * (32 / 8)),
+            nAvgBytesPerSec = (uint)(sampleRate * channels * (32 / 8)),
+            cbSize = 0
+        };
 
-    // Decidir si intentamos usar modo RAW
-    var flagsToTry = useRawAudio
-        ? baseFlags | ProcessLoopbackNativeMethods.AUDCLNT_STREAMFLAGS_RAW
-        : baseFlags;
+        const long hnsBufferDuration = 200 * 10_000;
 
-    // Primer intento de inicialización
-    var hrInit = _audioClient.Initialize(
-        ProcessLoopbackNativeMethods.AUDCLNT_SHAREMODE_SHARED,
-        flagsToTry,
-        hnsBufferDuration,
-        0,
-        ref format,
-        IntPtr.Zero);
-
-    const int AUDCLNT_E_INVALID_STREAM_FLAG = unchecked((int)0x88890021);
-
-    // Fallback si el dispositivo no tolera el modo RAW
-    if (hrInit == ProcessLoopbackNativeMethods.AUDCLNT_E_RAW_STREAM_CONFIG_NOT_SUPPORTED || 
-        (useRawAudio && hrInit == AUDCLNT_E_INVALID_STREAM_FLAG))
-    {
-        IsUsingRawAudio = false;
-        logger?.LogInformation(
-            "La tarjeta de audio rechazó el modo RAW (Error: 0x{HR:X8}). Fallback a modo normal para {ProcessId}.", hrInit, processId);
-
-        try { Marshal.ReleaseComObject(_audioClient); } catch { /* ignore */ }
-        _audioClient = null;
-
+        // Activamos el cliente de audio antes del primer intento
         _audioClient = await ActivateAsync(processId, includeProcessTree);
-        hrInit = _audioClient.Initialize(
+
+        // Decidir si intentamos usar modo RAW
+        var flagsToTry = useRawAudio
+            ? baseFlags | ProcessLoopbackNativeMethods.AUDCLNT_STREAMFLAGS_RAW
+            : baseFlags;
+
+        // Primer intento de inicialización
+        var hrInit = _audioClient.Initialize(
             ProcessLoopbackNativeMethods.AUDCLNT_SHAREMODE_SHARED,
-            baseFlags,
+            flagsToTry,
             hnsBufferDuration,
             0,
             ref format,
             IntPtr.Zero);
+
+        const int AUDCLNT_E_INVALID_STREAM_FLAG = unchecked((int)0x88890021);
+
+        // Fallback si el dispositivo no tolera el modo RAW
+        if (hrInit == ProcessLoopbackNativeMethods.AUDCLNT_E_RAW_STREAM_CONFIG_NOT_SUPPORTED ||
+            (useRawAudio && hrInit == AUDCLNT_E_INVALID_STREAM_FLAG))
+        {
+            IsUsingRawAudio = false;
+            logger?.LogInformation(
+                "La tarjeta de audio rechazó el modo RAW (Error: 0x{HR:X8}). Fallback a modo normal para {ProcessId}.", hrInit, processId);
+
+            try { Marshal.ReleaseComObject(_audioClient); } catch { /* ignore */ }
+            _audioClient = null;
+
+            _audioClient = await ActivateAsync(processId, includeProcessTree);
+            hrInit = _audioClient.Initialize(
+                ProcessLoopbackNativeMethods.AUDCLNT_SHAREMODE_SHARED,
+                baseFlags,
+                hnsBufferDuration,
+                0,
+                ref format,
+                IntPtr.Zero);
+        }
+        else
+        {
+            IsUsingRawAudio = useRawAudio;
+        }
+
+        // Si sigue fallando por otra razón, lanzamos la excepción
+        Marshal.ThrowExceptionForHR(hrInit);
+
+        // Asignamos el formato de salida real con el que se inicializó el stream
+        WaveFormat = WaveFormat.CreateIeeeFloatWaveFormat((int)format.nSamplesPerSec, format.nChannels);
+
+        _bufferEvent = new AutoResetEvent(false);
+        Marshal.ThrowExceptionForHR(_audioClient.SetEventHandle(_bufferEvent.SafeWaitHandle.DangerousGetHandle()));
+
+        var iidCaptureClient = ProcessLoopbackNativeMethods.IID_IAudioCaptureClient;
+        Marshal.ThrowExceptionForHR(_audioClient.GetService(ref iidCaptureClient, out var serviceObj));
+        _captureClient = (IAudioCaptureClient)serviceObj;
+
+        Marshal.ThrowExceptionForHR(_audioClient.Start());
+
+        _stopRequested = false;
+        _captureThread = new Thread(() => CaptureLoop(logger))
+        {
+            IsBackground = true,
+            Name = $"ProcessLoopback-{processId}"
+        };
+        _captureThread.Start();
     }
-    else
-    {
-        IsUsingRawAudio = useRawAudio;
-    }
-
-    // Si sigue fallando por otra razón, lanzamos la excepción
-    Marshal.ThrowExceptionForHR(hrInit);
-
-    // Asignamos el formato de salida real con el que se inicializó el stream
-    WaveFormat = WaveFormat.CreateIeeeFloatWaveFormat((int)format.nSamplesPerSec, format.nChannels);
-
-    _bufferEvent = new AutoResetEvent(false);
-    Marshal.ThrowExceptionForHR(_audioClient.SetEventHandle(_bufferEvent.SafeWaitHandle.DangerousGetHandle()));
-
-    var iidCaptureClient = ProcessLoopbackNativeMethods.IID_IAudioCaptureClient;
-    Marshal.ThrowExceptionForHR(_audioClient.GetService(ref iidCaptureClient, out var serviceObj));
-    _captureClient = (IAudioCaptureClient)serviceObj;
-
-    Marshal.ThrowExceptionForHR(_audioClient.Start());
-
-    _stopRequested = false;
-    _captureThread = new Thread(() => CaptureLoop(logger))
-    {
-        IsBackground = true,
-        Name = $"ProcessLoopback-{processId}"
-    };
-    _captureThread.Start();
-}
     /// <summary>
     /// Activa el IAudioClient para process loopback usando un hilo STA con message loop real.
     /// ActivateAudioInterfaceAsync necesita un message loop (PeekMessage/GetMessage) para

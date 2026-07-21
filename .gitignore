@@ -101,5 +101,6 @@ $RECYCLE.BIN/
 
 **/TestResults/*
 publish_output/
+publish/
 
 .local

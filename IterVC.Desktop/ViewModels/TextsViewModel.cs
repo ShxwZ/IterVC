@@ -1,4 +1,4 @@
-using CommunityToolkit.Mvvm.ComponentModel;
+﻿using CommunityToolkit.Mvvm.ComponentModel;
 using IterVC.Core.Localization;
 
 namespace IterVC.Desktop.ViewModels;
@@ -49,6 +49,11 @@ public sealed class TextsViewModel : ObservableObject
     private string _cardShortcutsTitle = G(LK.CardShortcutsTitle);
     private string _shortcutToggleLabel = G(LK.ShortcutToggleLabel);
     private string _shortcutToggleHelp = G(LK.ShortcutToggleHelp);
+    private string _shortcutGlobalHint = G(LK.ShortcutGlobalHint);
+    private string _shortcutGlobalFailed = G(LK.ShortcutGlobalFailed);
+    private string _trayShowWindow = G(LK.TrayShowWindow);
+    private string _trayExit = G(LK.TrayExit);
+    private string _behaviorMinimizeToTray = G(LK.BehaviorMinimizeToTray);
 
     public string AppTitle { get => _appTitle; set => SetProperty(ref _appTitle, value); }
     public string AppFooter { get => _appFooter; set => SetProperty(ref _appFooter, value); }
@@ -90,6 +95,11 @@ public sealed class TextsViewModel : ObservableObject
     public string CardShortcutsTitle { get => _cardShortcutsTitle; set => SetProperty(ref _cardShortcutsTitle, value); }
     public string ShortcutToggleLabel { get => _shortcutToggleLabel; set => SetProperty(ref _shortcutToggleLabel, value); }
     public string ShortcutToggleHelp { get => _shortcutToggleHelp; set => SetProperty(ref _shortcutToggleHelp, value); }
+    public string ShortcutGlobalHint { get => _shortcutGlobalHint; set => SetProperty(ref _shortcutGlobalHint, value); }
+    public string ShortcutGlobalFailed { get => _shortcutGlobalFailed; set => SetProperty(ref _shortcutGlobalFailed, value); }
+    public string TrayShowWindow { get => _trayShowWindow; set => SetProperty(ref _trayShowWindow, value); }
+    public string TrayExit { get => _trayExit; set => SetProperty(ref _trayExit, value); }
+    public string BehaviorMinimizeToTray { get => _behaviorMinimizeToTray; set => SetProperty(ref _behaviorMinimizeToTray, value); }
 
     /// <summary>Etiqueta del dispositivo "ninguno" en la lista de microfnos.</summary>
     public string MicrophoneNoneLabel => LocalizationService.Instance.Get(LK.DeviceNoneMic);
@@ -143,6 +153,11 @@ public sealed class TextsViewModel : ObservableObject
         CardShortcutsTitle = G(LK.CardShortcutsTitle);
         ShortcutToggleLabel = G(LK.ShortcutToggleLabel);
         ShortcutToggleHelp = G(LK.ShortcutToggleHelp);
+        ShortcutGlobalHint = G(LK.ShortcutGlobalHint);
+        ShortcutGlobalFailed = G(LK.ShortcutGlobalFailed);
+        TrayShowWindow = G(LK.TrayShowWindow);
+        TrayExit = G(LK.TrayExit);
+        BehaviorMinimizeToTray = G(LK.BehaviorMinimizeToTray);
         OnPropertyChanged(nameof(MicrophoneNoneLabel));
         OnPropertyChanged(nameof(AppCaptureErrorPrefix));
     }
@@ -152,33 +167,33 @@ public sealed class TextsViewModel : ObservableObject
     {
         internal const string AppTitle = LocalizationService.Keys.AppTitle;
         internal const string AppFooter = LocalizationService.Keys.AppFooter;
-        internal const string StatusRouting = LocalizationService.Keys.StatusRouting; 
-        internal const string StatusInactive = LocalizationService.Keys.StatusInactive; 
-        internal const string ButtonStart = LocalizationService.Keys.ButtonStart; 
-        internal const string ButtonStop = LocalizationService.Keys.ButtonStop; 
-        internal const string ButtonRefreshApps = LocalizationService.Keys.ButtonRefreshApps; 
-        internal const string CardAppsTitle = LocalizationService.Keys.CardAppsTitle; 
-        internal const string CardAppsHelp = LocalizationService.Keys.CardAppsHelp; 
-        internal const string CardDevicesTitle = LocalizationService.Keys.CardDevicesTitle; 
-        internal const string DeviceReference = LocalizationService.Keys.DeviceReference; 
-        internal const string DeviceVbCable = LocalizationService.Keys.DeviceVbCable; 
-        internal const string DeviceMicrophone = LocalizationService.Keys.DeviceMicrophone; 
-        internal const string DeviceNoneMic = LocalizationService.Keys.DeviceNoneMic; 
-        internal const string CardSpatialInfoTitle = LocalizationService.Keys.CardSpatialInfoTitle; 
-        internal const string CardSpatialInfoBody = LocalizationService.Keys.CardSpatialInfoBody; 
-        internal const string CardSpatialInfoHelp = LocalizationService.Keys.CardSpatialInfoHelp; 
-        internal const string CardMixTitle = LocalizationService.Keys.CardMixTitle; 
-        internal const string MixAppsGain = LocalizationService.Keys.MixAppsGain; 
-        internal const string MixAppsBoost = LocalizationService.Keys.MixAppsBoost; 
-        internal const string MixAppsBoostHelp = LocalizationService.Keys.MixAppsBoostHelp; 
-        internal const string MixAppsGainHelp = LocalizationService.Keys.MixAppsGainHelp; 
-        internal const string MixMonitorMic = LocalizationService.Keys.MixMonitorMic; 
-        internal const string CardOscTitle = LocalizationService.Keys.CardOscTitle; 
-        internal const string OscEnableChatbox = LocalizationService.Keys.OscEnableChatbox; 
-        internal const string OscTemplateLabel = LocalizationService.Keys.OscTemplateLabel; 
-        internal const string OscTemplateWatermark = LocalizationService.Keys.OscTemplateWatermark; 
-        internal const string OscTemplateTokens = LocalizationService.Keys.OscTemplateTokens; 
-        internal const string CardLanguageTitle = LocalizationService.Keys.CardLanguageTitle; 
+        internal const string StatusRouting = LocalizationService.Keys.StatusRouting;
+        internal const string StatusInactive = LocalizationService.Keys.StatusInactive;
+        internal const string ButtonStart = LocalizationService.Keys.ButtonStart;
+        internal const string ButtonStop = LocalizationService.Keys.ButtonStop;
+        internal const string ButtonRefreshApps = LocalizationService.Keys.ButtonRefreshApps;
+        internal const string CardAppsTitle = LocalizationService.Keys.CardAppsTitle;
+        internal const string CardAppsHelp = LocalizationService.Keys.CardAppsHelp;
+        internal const string CardDevicesTitle = LocalizationService.Keys.CardDevicesTitle;
+        internal const string DeviceReference = LocalizationService.Keys.DeviceReference;
+        internal const string DeviceVbCable = LocalizationService.Keys.DeviceVbCable;
+        internal const string DeviceMicrophone = LocalizationService.Keys.DeviceMicrophone;
+        internal const string DeviceNoneMic = LocalizationService.Keys.DeviceNoneMic;
+        internal const string CardSpatialInfoTitle = LocalizationService.Keys.CardSpatialInfoTitle;
+        internal const string CardSpatialInfoBody = LocalizationService.Keys.CardSpatialInfoBody;
+        internal const string CardSpatialInfoHelp = LocalizationService.Keys.CardSpatialInfoHelp;
+        internal const string CardMixTitle = LocalizationService.Keys.CardMixTitle;
+        internal const string MixAppsGain = LocalizationService.Keys.MixAppsGain;
+        internal const string MixAppsBoost = LocalizationService.Keys.MixAppsBoost;
+        internal const string MixAppsBoostHelp = LocalizationService.Keys.MixAppsBoostHelp;
+        internal const string MixAppsGainHelp = LocalizationService.Keys.MixAppsGainHelp;
+        internal const string MixMonitorMic = LocalizationService.Keys.MixMonitorMic;
+        internal const string CardOscTitle = LocalizationService.Keys.CardOscTitle;
+        internal const string OscEnableChatbox = LocalizationService.Keys.OscEnableChatbox;
+        internal const string OscTemplateLabel = LocalizationService.Keys.OscTemplateLabel;
+        internal const string OscTemplateWatermark = LocalizationService.Keys.OscTemplateWatermark;
+        internal const string OscTemplateTokens = LocalizationService.Keys.OscTemplateTokens;
+        internal const string CardLanguageTitle = LocalizationService.Keys.CardLanguageTitle;
         internal const string CardLanguageHelp = LocalizationService.Keys.CardLanguageHelp;
         internal const string CardAppearanceTitle = LocalizationService.Keys.CardAppearanceTitle;
         internal const string AppearanceBackground = LocalizationService.Keys.AppearanceBackground;
@@ -191,6 +206,11 @@ public sealed class TextsViewModel : ObservableObject
         internal const string CardShortcutsTitle = LocalizationService.Keys.CardShortcutsTitle;
         internal const string ShortcutToggleLabel = LocalizationService.Keys.ShortcutToggleLabel;
         internal const string ShortcutToggleHelp = LocalizationService.Keys.ShortcutToggleHelp;
+        internal const string ShortcutGlobalHint = LocalizationService.Keys.ShortcutGlobalHint;
+        internal const string ShortcutGlobalFailed = LocalizationService.Keys.ShortcutGlobalFailed;
+        internal const string TrayShowWindow = LocalizationService.Keys.TrayShowWindow;
+        internal const string TrayExit = LocalizationService.Keys.TrayExit;
+        internal const string BehaviorMinimizeToTray = LocalizationService.Keys.BehaviorMinimizeToTray;
     }
 }
 
