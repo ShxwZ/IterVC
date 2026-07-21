@@ -8,6 +8,7 @@ using IterVC.Core.Models;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using Windows.Media.Control;
+using Avalonia.Threading;
 
 namespace IterVC.Desktop.ViewModels;
 
@@ -29,6 +30,7 @@ public sealed partial class MainViewModel : ViewModelBase
     [ObservableProperty] private AudioDeviceInfo? _selectedOutputDevice;
     [ObservableProperty] private AudioDeviceInfo? _selectedVbCableDevice;
     [ObservableProperty] private AudioDeviceInfo? _selectedMicrophoneDevice;
+    [ObservableProperty] private bool _microphoneEnabled = true;
     [ObservableProperty] private bool _monitorMicrophone;
     [ObservableProperty] private bool _isRouting;
     [ObservableProperty] private string? _statusMessage;
@@ -39,6 +41,13 @@ public sealed partial class MainViewModel : ViewModelBase
     [ObservableProperty] private string _oscTemplate = "{title} - [{time}]";
 
     [ObservableProperty] private float _microphoneBoost = 1.0f;
+    [ObservableProperty] private bool _noiseGateEnabled;
+    [ObservableProperty] private float _noiseGateThresholdDb = -45f;
+    [ObservableProperty] private float _noiseGateAttackMilliseconds = 10f;
+    [ObservableProperty] private float _noiseGateReleaseMilliseconds = 150f;
+    [ObservableProperty] private float _noiseGateOutputLevelDb = -80f;
+    [ObservableProperty] private bool _isNoiseGateOpen;
+    [ObservableProperty] private bool _isCalibratingNoiseGate;
 
     [ObservableProperty] private string _selectedLanguage = LocalizationService.Instance.CurrentLanguage;
 
@@ -47,8 +56,11 @@ public sealed partial class MainViewModel : ViewModelBase
 
     private bool _isRefreshing;
     private bool _initializing;
+    private bool _statusShowsDetectedApps;
     private List<string>? _pendingIncludedProcessNames;
     private GlobalSystemMediaTransportControlsSessionManager? _mediaSessionManager;
+    private readonly DispatcherTimer _noiseGateMeterTimer;
+    private float _smoothedMicrophoneLevelDb = -80f;
 
     public MainViewModel(
         IAudioRouterService audioRouter,
@@ -69,7 +81,7 @@ public sealed partial class MainViewModel : ViewModelBase
 
         _microphoneService.DataAvailable += (_, data) =>
         {
-            if (SelectedMicrophoneDevice?.Id == "none") return;
+            if (!MicrophoneEnabled) return;
             if (_audioRouter is AudioRouterService concreteRouter)
                 concreteRouter.FeedMicrophoneSamples(data, data.Length);
         };
@@ -87,6 +99,17 @@ public sealed partial class MainViewModel : ViewModelBase
 
         LocalizationService.Instance.Changed += (_, _) =>
             Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => Texts.RaiseAll());
+
+        _noiseGateMeterTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(50) };
+        _noiseGateMeterTimer.Tick += (_, _) =>
+        {
+            var targetLevelDb = _audioRouter.MicrophoneOutputLevelDb;
+            var smoothing = targetLevelDb > _smoothedMicrophoneLevelDb ? 0.55f : 0.18f;
+            _smoothedMicrophoneLevelDb += (targetLevelDb - _smoothedMicrophoneLevelDb) * smoothing;
+            NoiseGateOutputLevelDb = Math.Clamp(_smoothedMicrophoneLevelDb, -80f, 0f);
+            IsNoiseGateOpen = _audioRouter.IsNoiseGateOpen;
+        };
+        _noiseGateMeterTimer.Start();
     }
 
     public async Task InitializeAsync()
@@ -97,6 +120,8 @@ public sealed partial class MainViewModel : ViewModelBase
             var settings = await _settingsService.LoadAsync();
             await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(RefreshDevices);
 
+            var usedLegacyDisabledMicrophone = settings.MicrophoneDeviceId == "none";
+            MicrophoneEnabled = settings.MicrophoneEnabled && !usedLegacyDisabledMicrophone;
             MonitorMicrophone = settings.MonitorMicrophone;
             _pendingIncludedProcessNames = settings.IncludedProcessNames;
             AppsVolume = settings.AppsVolume;
@@ -111,6 +136,12 @@ public sealed partial class MainViewModel : ViewModelBase
 
             MicrophoneBoost = settings.MicrophoneBoost;
             _audioRouter.SetMicrophoneBoost(MicrophoneBoost);
+
+            NoiseGateEnabled = settings.NoiseGateEnabled;
+            NoiseGateThresholdDb = settings.NoiseGateThresholdDb;
+            NoiseGateAttackMilliseconds = settings.NoiseGateAttackMilliseconds;
+            NoiseGateReleaseMilliseconds = settings.NoiseGateReleaseMilliseconds;
+            ApplyNoiseGateSettings();
 
             _audioRouter.SetAppsVolume(AppsVolume);
             _audioRouter.SetMicrophoneVolume(settings.MicrophoneVolume);
@@ -130,8 +161,17 @@ public sealed partial class MainViewModel : ViewModelBase
                 await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => IsRouting = true);
             }
 
-            if (SelectedMicrophoneDevice is not null && SelectedMicrophoneDevice.Id != "none")
+            if (MicrophoneEnabled && SelectedMicrophoneDevice is not null)
                 await _microphoneService.StartAsync(SelectedMicrophoneDevice.Id);
+
+            if (usedLegacyDisabledMicrophone && SelectedMicrophoneDevice is not null)
+            {
+                await _settingsService.UpdateAsync(s =>
+                {
+                    s.MicrophoneEnabled = false;
+                    s.MicrophoneDeviceId = SelectedMicrophoneDevice.Id;
+                });
+            }
 
             await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
             {
@@ -179,9 +219,45 @@ public sealed partial class MainViewModel : ViewModelBase
     partial void OnSelectedMicrophoneDeviceChanged(AudioDeviceInfo? value)
     {
         if (_initializing || _isRefreshing || value is null) return;
-        if (value.Id == "none") { try { _ = _microphoneService.StopAsync(); } catch { } }
-        else _ = _microphoneService.SetDeviceAsync(value.Id);
+        if (MicrophoneEnabled)
+            _ = ChangeMicrophoneDeviceAsync(value.Id);
         _ = _settingsService.UpdateAsync(s => s.MicrophoneDeviceId = value.Id);
+    }
+
+    partial void OnMicrophoneEnabledChanged(bool value)
+    {
+        if (_initializing) return;
+
+        _ = SetMicrophoneCaptureEnabledAsync(value, SelectedMicrophoneDevice?.Id);
+
+        _ = _settingsService.UpdateAsync(s => s.MicrophoneEnabled = value);
+    }
+
+    private async Task ChangeMicrophoneDeviceAsync(string deviceId)
+    {
+        try
+        {
+            await _microphoneService.SetDeviceAsync(deviceId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Could not switch microphone capture to device '{DeviceId}'", deviceId);
+        }
+    }
+
+    private async Task SetMicrophoneCaptureEnabledAsync(bool enabled, string? deviceId)
+    {
+        try
+        {
+            if (enabled && deviceId is not null)
+                await _microphoneService.StartAsync(deviceId);
+            else
+                await _microphoneService.StopAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Could not {Action} microphone capture", enabled ? "start" : "stop");
+        }
     }
 
     partial void OnMonitorMicrophoneChanged(bool value)
@@ -196,6 +272,54 @@ public sealed partial class MainViewModel : ViewModelBase
         if (_initializing) return;
         _audioRouter.SetMicrophoneBoost(value);
         _ = _settingsService.UpdateAsync(s => s.MicrophoneBoost = value);
+    }
+
+    partial void OnNoiseGateEnabledChanged(bool value) => UpdateNoiseGateSettings();
+    partial void OnNoiseGateThresholdDbChanged(float value) => UpdateNoiseGateSettings();
+    partial void OnNoiseGateAttackMillisecondsChanged(float value) => UpdateNoiseGateSettings();
+    partial void OnNoiseGateReleaseMillisecondsChanged(float value) => UpdateNoiseGateSettings();
+
+    private void UpdateNoiseGateSettings()
+    {
+        if (_initializing) return;
+        ApplyNoiseGateSettings();
+        _ = _settingsService.UpdateAsync(settings =>
+        {
+            settings.NoiseGateEnabled = NoiseGateEnabled;
+            settings.NoiseGateThresholdDb = NoiseGateThresholdDb;
+            settings.NoiseGateAttackMilliseconds = NoiseGateAttackMilliseconds;
+            settings.NoiseGateReleaseMilliseconds = NoiseGateReleaseMilliseconds;
+        });
+    }
+
+    private void ApplyNoiseGateSettings()
+        => _audioRouter.ConfigureNoiseGate(
+            NoiseGateEnabled,
+            NoiseGateThresholdDb,
+            NoiseGateAttackMilliseconds,
+            NoiseGateReleaseMilliseconds);
+
+    [RelayCommand]
+    private async Task CalibrateNoiseGateAsync()
+    {
+        if (IsCalibratingNoiseGate) return;
+
+        IsCalibratingNoiseGate = true;
+        var highestAmbientLevel = -80f;
+        try
+        {
+            for (var sample = 0; sample < 40; sample++)
+            {
+                highestAmbientLevel = Math.Max(highestAmbientLevel, _audioRouter.MicrophoneInputLevelDb);
+                await Task.Delay(50);
+            }
+
+            NoiseGateThresholdDb = Math.Clamp(highestAmbientLevel + 6f, -75f, -10f);
+        }
+        finally
+        {
+            IsCalibratingNoiseGate = false;
+        }
     }
 
     partial void OnEnableOscChatboxChanged(bool value)
@@ -217,6 +341,8 @@ public sealed partial class MainViewModel : ViewModelBase
             : value;
         LocalizationService.Instance.SetLanguage(lang);
         Texts.RaiseAll();
+        if (_statusShowsDetectedApps)
+            UpdateDetectedAppsStatus();
         if (!_initializing)
             _ = _settingsService.UpdateAsync(s => s.Language = lang);
     }
@@ -248,7 +374,6 @@ public sealed partial class MainViewModel : ViewModelBase
         foreach (var d in _deviceService.GetOutputDevices()) VbCableDevices.Add(d);
 
         InputDevices.Clear();
-        InputDevices.Add(new AudioDeviceInfo { Id = "none", Name = Texts.MicrophoneNoneLabel });
         foreach (var d in _deviceService.GetInputDevices()) InputDevices.Add(d);
 
         SelectedOutputDevice = OutputDevices.FirstOrDefault(d => d.Id == currentOutputId)
@@ -259,6 +384,15 @@ public sealed partial class MainViewModel : ViewModelBase
                                    ?? InputDevices.FirstOrDefault(d => d.IsDefault);
 
         _isRefreshing = false;
+
+        if (!_initializing && SelectedMicrophoneDevice is not null &&
+            SelectedMicrophoneDevice.Id != currentMicId)
+        {
+            var selectedMicrophoneId = SelectedMicrophoneDevice.Id;
+            _ = _settingsService.UpdateAsync(s => s.MicrophoneDeviceId = selectedMicrophoneId);
+            if (MicrophoneEnabled)
+                _ = ChangeMicrophoneDeviceAsync(selectedMicrophoneId);
+        }
     }
 
     [RelayCommand]
@@ -292,8 +426,16 @@ public sealed partial class MainViewModel : ViewModelBase
         }
 
         if (!anyCaptureFailed)
-            StatusMessage = $"{RunningApps.Count} aplicación(es) con audio detectada(s).";
+        {
+            _statusShowsDetectedApps = true;
+            UpdateDetectedAppsStatus();
+        }
     }
+
+    private void UpdateDetectedAppsStatus()
+        => StatusMessage = RunningApps.Count == 1
+            ? Texts.AppsDetectedOne
+            : string.Format(Texts.AppsDetectedMany, RunningApps.Count);
 
     private void OnAppIncludedChanged(AppAudioItemViewModel app, bool included)
         => _ = OnAppIncludedChangedAsync(app, included);
@@ -319,6 +461,7 @@ public sealed partial class MainViewModel : ViewModelBase
         {
             var fullError = $"No se pudo capturar el proceso {processId}: {ex.Message}";
             _logger.LogError(ex, "No se pudo capturar el proceso {ProcessId}", processId);
+            _statusShowsDetectedApps = false;
             StatusMessage = fullError;
             return false;
         }

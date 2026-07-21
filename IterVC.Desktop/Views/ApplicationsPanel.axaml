@@ -1,0 +1,69 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:vm="using:IterVC.Desktop.ViewModels"
+    x:Class="IterVC.Desktop.Views.ApplicationsPanel"
+    x:DataType="vm:MainViewModel">
+	<UserControl.Styles>
+		<Style Selector="ItemsControl > ContentPresenter">
+			<Setter Property="HorizontalContentAlignment" Value="Stretch" />
+		</Style>
+	</UserControl.Styles>
+				<Border Background="#111116" BorderBrush="#1C1C28"
+					BorderThickness="1" CornerRadius="8" Padding="16">
+					<Grid RowDefinitions="Auto,*,Auto">
+						<StackPanel Grid.Row="0" Margin="0,0,0,12">
+							<TextBlock Text="{Binding Texts.CardAppsTitle}" FontWeight="Bold"
+								FontSize="12" Foreground="#8F8FA8" Margin="0,0,0,2" />
+							<TextBlock Text="{Binding Texts.CardAppsHelp}" Foreground="#5F5F7A"
+								FontSize="11" TextWrapping="Wrap" />
+						</StackPanel>
+
+						<!-- Listado de Apps -->
+						<ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+							<ItemsControl ItemsSource="{Binding RunningApps}" Margin="3,0">
+								<ItemsControl.ItemTemplate>
+									<DataTemplate x:DataType="vm:AppAudioItemViewModel">
+										<Border Background="#15151F" BorderBrush="#1F1F2E"
+											BorderThickness="1" Padding="12,10" CornerRadius="6"
+											Margin="1,2" HorizontalAlignment="Stretch" Cursor="Hand"
+											PointerPressed="OnAppRowPointerPressed">
+											<Grid ColumnDefinitions="Auto,*,Auto">
+												<CheckBox
+													IsChecked="{Binding IsIncludedInMix}"
+													IsHitTestVisible="False" Focusable="False"
+													Margin="0,0,12,0" VerticalAlignment="Center" />
+												<StackPanel Grid.Column="1"
+													VerticalAlignment="Center" Spacing="1">
+													<TextBlock Text="{Binding DisplayName}"
+														FontWeight="Bold" FontSize="13"
+														Foreground="#FFFFFF" />
+													<StackPanel Orientation="Horizontal" Spacing="6">
+														<TextBlock Text="{Binding ProcessName}"
+															FontSize="10.5" Foreground="#5F5F7A" />
+														<TextBlock Text="•" FontSize="10.5"
+															Foreground="#3F3F54" />
+														<TextBlock Text="PID" FontSize="10"
+															Foreground="#4A4A63" />
+														<TextBlock Text="{Binding ProcessId}"
+															FontSize="10" Foreground="#4A4A63" />
+													</StackPanel>
+												</StackPanel>
+												<Ellipse Grid.Column="2" Width="6" Height="6"
+													Fill="#5B5BF0" VerticalAlignment="Center"
+													IsVisible="{Binding IsIncludedInMix}" />
+											</Grid>
+										</Border>
+									</DataTemplate>
+								</ItemsControl.ItemTemplate>
+							</ItemsControl>
+						</ScrollViewer>
+
+						<!-- Consola de estado integrada abajo si se activa -->
+						<TextBox Grid.Row="3" Classes="status" Text="{Binding StatusMessage}"
+							IsReadOnly="True" TextWrapping="Wrap" AcceptsReturn="True"
+							MaxHeight="55" Margin="0,12,0,0"
+							IsVisible="{Binding StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+					</Grid>
+				</Border>
+
+</UserControl>

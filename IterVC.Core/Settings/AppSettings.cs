@@ -1,26 +1,29 @@
 namespace IterVC.Core.Settings;
 
 /// <summary>
-/// Configuraci\u00f3n persistida de la aplicaci\u00f3n (settings.json).
+/// Configuración persistida de la aplicación (settings.json).
 /// </summary>
 public sealed class AppSettings
 {
-    /// <summary>Versi\u00f3n del esquema, para permitir migraciones futuras.</summary>
+    /// <summary>Versión del esquema, para permitir migraciones futuras.</summary>
     public int SchemaVersion { get; set; } = 2;
 
     /// <summary>Id del dispositivo de salida principal (altavoces/auriculares) desde el que se hace loopback.</summary>
     public string? OutputDeviceId { get; set; }
 
-    /// <summary>Id del dispositivo virtual VB-Cable donde se enviar\u00e1 la mezcla final.</summary>
+    /// <summary>Id del dispositivo virtual VB-Cable donde se enviará la mezcla final.</summary>
     public string? VbCableDeviceId { get; set; }
 
-    /// <summary>Id del micr\u00f3fono f\u00edsico de entrada.</summary>
+    /// <summary>Id del micrófono físico de entrada.</summary>
     public string? MicrophoneDeviceId { get; set; }
+
+    /// <summary>Whether capture from the selected physical microphone is enabled.</summary>
+    public bool MicrophoneEnabled { get; set; } = true;
 
     /// <summary>Volumen conjunto de las apps capturadas en la mezcla (0.0 - 1.0).</summary>
     public float AppsVolume { get; set; } = 1.0f;
 
-    /// <summary>Volumen del micr\u00f3fono en la mezcla (0.0 - 1.0).</summary>
+    /// <summary>Volumen del micrófono en la mezcla (0.0 - 1.0).</summary>
     public float MicrophoneVolume { get; set; } = 1.0f;
 
     /// <summary>
@@ -29,8 +32,20 @@ public sealed class AppSettings
     /// </summary>
     public float MicrophoneBoost { get; set; } = 1.0f;
 
-    /// <summary>Si true, el micr\u00f3fono tambi\u00e9n se escucha por el dispositivo principal (auto-monitorizaci\u00f3n).</summary>
+    /// <summary>Si true, el micrófono también se escucha por el dispositivo principal (auto-monitorización).</summary>
     public bool MonitorMicrophone { get; set; }
+
+    /// <summary>Whether the microphone noise gate is enabled.</summary>
+    public bool NoiseGateEnabled { get; set; }
+
+    /// <summary>Input level in dB required to open the noise gate.</summary>
+    public float NoiseGateThresholdDb { get; set; } = -45f;
+
+    /// <summary>Time in milliseconds for the gate gain to rise from muted to fully open.</summary>
+    public float NoiseGateAttackMilliseconds { get; set; } = 10f;
+
+    /// <summary>Time in milliseconds for the gate gain to fall from fully open to muted.</summary>
+    public float NoiseGateReleaseMilliseconds { get; set; } = 150f;
 
     /// <summary>
     /// Nombres de proceso (p. ej. "spotify") que el usuario ha marcado como incluidos en la mezcla.
@@ -42,6 +57,7 @@ public sealed class AppSettings
     // Campos nuevos (schemaversion 2): preferencias de UI y OSC.
     // ----------------------------------------------------------------
 
+    /// <summary>Language selected for localized UI strings.</summary>
     public string Language { get; set; } = "Español";
 
     /// <summary>Plantilla del mensaje OSC. Default: "{title} - {status}".</summary>
