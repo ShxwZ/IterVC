@@ -5,10 +5,14 @@
 	x:Class="IterVC.Desktop.Views.MainWindow"
 	x:DataType="vm:MainViewModel"
 	Title="{Binding Texts.AppTitle}"
-	Width="940" Height="580"
+	Width="1025" Height="580"
 	MinWidth="900" MinHeight="550"
 	Icon="/Assets/logo_ivc3.png"
 	Background="#0A0A0D">
+	<Window.Resources>
+		<StreamGeometry x:Key="MicrophoneOnIcon">M12,2A4,4 0 0,0 8,6V12A4,4 0 0,0 16,12V6A4,4 0 0,0 12,2M5,11V12A7,7 0 0,0 11,18.92V22H8V24H16V22H13V18.92A7,7 0 0,0 19,12V11H17V12A5,5 0 0,1 12,17A5,5 0 0,1 7,12V11H5Z</StreamGeometry>
+		<StreamGeometry x:Key="MicrophoneOffIcon">M12,2 A4,4 0 0,0 8,6 V12 A4,4 0 0,0 16,12 V6 A4,4 0 0,0 12,2 M5,11 V12 A7,7 0 0,0 11,18.92 V22 H8 V24 H16 V22 H13 V18.92 A7,7 0 0,0 19,12 V11 H17 V12 A5,5 0 0,1 12,17 A5,5 0 0,1 7,12 V11 Z M2.2,3.6 L3.6,2.2 L21.8,20.4 L20.4,21.8 Z</StreamGeometry>
+	</Window.Resources>
 
 	<Window.Styles>
 		<!-- Estilos Base de Texto -->
@@ -93,6 +97,23 @@
 		<Style Selector="Button.secondary:pointerover /template/ ContentPresenter">
 			<Setter Property="Background" Value="#202030" />
 		</Style>
+		<Style Selector="Button.status-pill">
+			<Setter Property="Width" Value="184" />
+			<Setter Property="Height" Value="30" />
+			<Setter Property="CornerRadius" Value="15" />
+			<Setter Property="Padding" Value="10,0" />
+			<Setter Property="Cursor" Value="Hand" />
+		</Style>
+		<Style Selector="Button.status-pill:pointerover /template/ ContentPresenter">
+			<Setter Property="Background" Value="#202030" />
+		</Style>
+		<Style Selector="Button.status-pill:focus-visible">
+			<Setter Property="BorderBrush" Value="#7777D8" />
+			<Setter Property="BorderThickness" Value="2" />
+		</Style>
+		<Style Selector="Button.status-pill:disabled">
+			<Setter Property="Opacity" Value="0.45" />
+		</Style>
 
 		<!-- Estilo Plano y Moderno para Pestañas (TabControl) -->
 		<Style Selector="TabControl">
@@ -143,30 +164,46 @@
 
 			<!-- PANEL SUPERIOR (HEADER) -->
 			<DockPanel Grid.Row="0" LastChildFill="False" Margin="0,0,0,16">
-				<StackPanel DockPanel.Dock="Left" Orientation="Horizontal" Spacing="16"
+				<StackPanel DockPanel.Dock="Left" Orientation="Horizontal" Spacing="10"
 					VerticalAlignment="Center">
 					<TextBlock Text="{Binding Texts.AppTitle}" FontSize="20" FontWeight="Bold"
 						Foreground="#FFFFFF" LetterSpacing="0.5" />
 
-					<!-- Badge de estado activo -->
-					<Border CornerRadius="20" Padding="10,3" Background="#112418"
-						BorderBrush="#183B24" BorderThickness="1" IsVisible="{Binding IsRouting}">
-						<StackPanel Orientation="Horizontal" Spacing="6">
+					<Button Classes="status-pill" Background="#112418" BorderBrush="#183B24" BorderThickness="1"
+						Command="{Binding ToggleRoutingCommand}" IsVisible="{Binding IsRouting}" ToolTip.Tip="{Binding Texts.HotkeyStopRouting}">
+						<StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
 							<Ellipse Width="6" Height="6" Fill="#4ADE80" VerticalAlignment="Center" />
 							<TextBlock Text="{Binding Texts.StatusRouting}" FontSize="10.5"
 								FontWeight="Bold" Foreground="#4ADE80" VerticalAlignment="Center" />
 						</StackPanel>
-					</Border>
+					</Button>
 
-					<!-- Badge de estado inactivo -->
-					<Border CornerRadius="20" Padding="10,3" Background="#14141F"
-						BorderBrush="#202030" BorderThickness="1" IsVisible="{Binding !IsRouting}">
-						<StackPanel Orientation="Horizontal" Spacing="6">
+					<Button Classes="status-pill" Background="#181820" BorderBrush="#30303D" BorderThickness="1"
+						Command="{Binding ToggleRoutingCommand}" IsVisible="{Binding !IsRouting}" ToolTip.Tip="{Binding Texts.HotkeyStartRouting}">
+						<StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
 							<Ellipse Width="6" Height="6" Fill="#5F5F7A" VerticalAlignment="Center" />
 							<TextBlock Text="{Binding Texts.StatusInactive}" FontSize="10.5"
 								FontWeight="Bold" Foreground="#7B7B9A" VerticalAlignment="Center" />
 						</StackPanel>
-					</Border>
+					</Button>
+
+					<Button Classes="status-pill" Background="#112418" BorderBrush="#183B24" BorderThickness="1"
+						Command="{Binding ToggleMicrophoneCommand}" IsVisible="{Binding MicrophoneEnabled}"
+						ToolTip.Tip="{Binding Texts.MicrophoneDisable}">
+						<StackPanel Orientation="Horizontal" Spacing="7" HorizontalAlignment="Center">
+							<PathIcon Data="{StaticResource MicrophoneOnIcon}" Width="13" Height="13" Foreground="#4ADE80" />
+							<TextBlock Text="{Binding Texts.StatusMicrophoneActive}" FontSize="10" FontWeight="Bold" Foreground="#4ADE80" VerticalAlignment="Center" />
+						</StackPanel>
+					</Button>
+
+					<Button Classes="status-pill" Background="#181820" BorderBrush="#30303D" BorderThickness="1"
+						Command="{Binding ToggleMicrophoneCommand}" IsVisible="{Binding !MicrophoneEnabled}"
+						ToolTip.Tip="{Binding Texts.MicrophoneEnable}">
+						<StackPanel Orientation="Horizontal" Spacing="7" HorizontalAlignment="Center">
+							<PathIcon Data="{StaticResource MicrophoneOffIcon}" Width="13" Height="13" Foreground="#858597" />
+							<TextBlock Text="{Binding Texts.StatusMicrophoneInactive}" FontSize="10" FontWeight="SemiBold" Foreground="#9999AA" VerticalAlignment="Center" />
+						</StackPanel>
+					</Button>
 				</StackPanel>
 
 				<!-- Botones de Acción + Selector de Idioma -->

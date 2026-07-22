@@ -80,4 +80,13 @@ public sealed class AppSettings
 
     /// <summary>Release version whose notification the user explicitly dismissed.</summary>
     public string? DismissedUpdateVersion { get; set; }
+
+    public bool ToggleRoutingHotkeyEnabled { get; set; } = true;
+    public string ToggleRoutingHotkeyGesture { get; set; } = "Ctrl+Shift+R";
+    public bool StartRoutingHotkeyEnabled { get; set; }
+    public string StartRoutingHotkeyGesture { get; set; } = "";
+    public bool StopRoutingHotkeyEnabled { get; set; }
+    public string StopRoutingHotkeyGesture { get; set; } = "";
+    public bool ToggleMicrophoneHotkeyEnabled { get; set; }
+    public string ToggleMicrophoneHotkeyGesture { get; set; } = "";
 }

@@ -13,6 +13,8 @@ public sealed class TextsViewModel : ObservableObject
     private string _appFooter = FormatAppFooter();
     private string _statusRouting = G(LK.StatusRouting);
     private string _statusInactive = G(LK.StatusInactive);
+    private string _statusMicrophoneActive = G(LK.StatusMicrophoneActive);
+    private string _statusMicrophoneInactive = G(LK.StatusMicrophoneInactive);
     private string _buttonStart = G(LK.ButtonStart);
     private string _buttonStop = G(LK.ButtonStop);
     private string _buttonRefreshApps = G(LK.ButtonRefreshApps);
@@ -67,11 +69,29 @@ public sealed class TextsViewModel : ObservableObject
     private string _updateCheckNow = G(LK.UpdateCheckNow);
     private string _settingsTitle = G(LK.SettingsTitle);
     private string _updateDismiss = G(LK.UpdateDismiss);
+    private string _hotkeyTitle = G(LK.HotkeyTitle);
+    private string _hotkeyHelp = G(LK.HotkeyHelp);
+    private string _hotkeyToggleRouting = G(LK.HotkeyToggleRouting);
+    private string _hotkeyStartRouting = G(LK.HotkeyStartRouting);
+    private string _hotkeyStopRouting = G(LK.HotkeyStopRouting);
+    private string _hotkeyToggleMicrophone = G(LK.HotkeyToggleMicrophone);
+    private string _hotkeyNotAssigned = G(LK.HotkeyNotAssigned);
+    private string _hotkeyClear = G(LK.HotkeyClear);
+    private string _hotkeyAssign = G(LK.HotkeyAssign);
+    private string _hotkeyChange = G(LK.HotkeyChange);
+    private string _hotkeyRecordingKeystrokes = G(LK.HotkeyRecordingKeystrokes);
+    private string _hotkeyEscapeToCancel = G(LK.HotkeyEscapeToCancel);
+    private string _hotkeyRoutingGroup = G(LK.HotkeyRoutingGroup);
+    private string _hotkeyMicrophoneGroup = G(LK.HotkeyMicrophoneGroup);
+    private string _microphoneEnable = G(LK.MicrophoneEnable);
+    private string _microphoneDisable = G(LK.MicrophoneDisable);
 
     public string AppTitle { get => _appTitle; set => SetProperty(ref _appTitle, value); }
     public string AppFooter { get => _appFooter; set => SetProperty(ref _appFooter, value); }
     public string StatusRouting { get => _statusRouting; set => SetProperty(ref _statusRouting, value); }
     public string StatusInactive { get => _statusInactive; set => SetProperty(ref _statusInactive, value); }
+    public string StatusMicrophoneActive { get => _statusMicrophoneActive; set => SetProperty(ref _statusMicrophoneActive, value); }
+    public string StatusMicrophoneInactive { get => _statusMicrophoneInactive; set => SetProperty(ref _statusMicrophoneInactive, value); }
     public string ButtonStart { get => _buttonStart; set => SetProperty(ref _buttonStart, value); }
     public string ButtonStop { get => _buttonStop; set => SetProperty(ref _buttonStop, value); }
     public string ButtonRefreshApps { get => _buttonRefreshApps; set => SetProperty(ref _buttonRefreshApps, value); }
@@ -126,6 +146,25 @@ public sealed class TextsViewModel : ObservableObject
     public string UpdateCheckNow { get => _updateCheckNow; set => SetProperty(ref _updateCheckNow, value); }
     public string SettingsTitle { get => _settingsTitle; set => SetProperty(ref _settingsTitle, value); }
     public string UpdateDismiss { get => _updateDismiss; set => SetProperty(ref _updateDismiss, value); }
+    public string HotkeyTitle { get => _hotkeyTitle; set => SetProperty(ref _hotkeyTitle, value); }
+    public string HotkeyHelp { get => _hotkeyHelp; set => SetProperty(ref _hotkeyHelp, value); }
+    public string HotkeyToggleRouting { get => _hotkeyToggleRouting; set => SetProperty(ref _hotkeyToggleRouting, value); }
+    public string HotkeyStartRouting { get => _hotkeyStartRouting; set => SetProperty(ref _hotkeyStartRouting, value); }
+    public string HotkeyStopRouting { get => _hotkeyStopRouting; set => SetProperty(ref _hotkeyStopRouting, value); }
+    public string HotkeyToggleMicrophone { get => _hotkeyToggleMicrophone; set => SetProperty(ref _hotkeyToggleMicrophone, value); }
+    public string HotkeyNotAssigned { get => _hotkeyNotAssigned; set => SetProperty(ref _hotkeyNotAssigned, value); }
+    public string HotkeyClear { get => _hotkeyClear; set => SetProperty(ref _hotkeyClear, value); }
+    public string HotkeyAssign { get => _hotkeyAssign; set => SetProperty(ref _hotkeyAssign, value); }
+    public string HotkeyChange { get => _hotkeyChange; set => SetProperty(ref _hotkeyChange, value); }
+    public string HotkeyRecordingKeystrokes { get => _hotkeyRecordingKeystrokes; set => SetProperty(ref _hotkeyRecordingKeystrokes, value); }
+    public string HotkeyEscapeToCancel { get => _hotkeyEscapeToCancel; set => SetProperty(ref _hotkeyEscapeToCancel, value); }
+    public string HotkeyRoutingGroup { get => _hotkeyRoutingGroup; set => SetProperty(ref _hotkeyRoutingGroup, value); }
+    public string HotkeyMicrophoneGroup { get => _hotkeyMicrophoneGroup; set => SetProperty(ref _hotkeyMicrophoneGroup, value); }
+    public string MicrophoneEnable { get => _microphoneEnable; set => SetProperty(ref _microphoneEnable, value); }
+    public string MicrophoneDisable { get => _microphoneDisable; set => SetProperty(ref _microphoneDisable, value); }
+    public string HotkeyConflict => G(LK.HotkeyConflict);
+    public string HotkeyCancel => G(LK.HotkeyCancel);
+    public string HotkeyRegistrationFailed => G(LK.HotkeyRegistrationFailed);
     public string UpdateChecking => G(LK.UpdateChecking);
     public string UpdateCurrent => G(LK.UpdateCurrent);
     public string UpdateCheckFailed => G(LK.UpdateCheckFailed);
@@ -144,6 +183,8 @@ public sealed class TextsViewModel : ObservableObject
         AppFooter = FormatAppFooter();
         StatusRouting = G(LK.StatusRouting);
         StatusInactive = G(LK.StatusInactive);
+        StatusMicrophoneActive = G(LK.StatusMicrophoneActive);
+        StatusMicrophoneInactive = G(LK.StatusMicrophoneInactive);
         ButtonStart = G(LK.ButtonStart);
         ButtonStop = G(LK.ButtonStop);
         ButtonRefreshApps = G(LK.ButtonRefreshApps);
@@ -198,6 +239,25 @@ public sealed class TextsViewModel : ObservableObject
         UpdateCheckNow = G(LK.UpdateCheckNow);
         SettingsTitle = G(LK.SettingsTitle);
         UpdateDismiss = G(LK.UpdateDismiss);
+        HotkeyTitle = G(LK.HotkeyTitle);
+        HotkeyHelp = G(LK.HotkeyHelp);
+        HotkeyToggleRouting = G(LK.HotkeyToggleRouting);
+        HotkeyStartRouting = G(LK.HotkeyStartRouting);
+        HotkeyStopRouting = G(LK.HotkeyStopRouting);
+        HotkeyToggleMicrophone = G(LK.HotkeyToggleMicrophone);
+        HotkeyNotAssigned = G(LK.HotkeyNotAssigned);
+        HotkeyClear = G(LK.HotkeyClear);
+        HotkeyAssign = G(LK.HotkeyAssign);
+        HotkeyChange = G(LK.HotkeyChange);
+        HotkeyRecordingKeystrokes = G(LK.HotkeyRecordingKeystrokes);
+        HotkeyEscapeToCancel = G(LK.HotkeyEscapeToCancel);
+        HotkeyRoutingGroup = G(LK.HotkeyRoutingGroup);
+        HotkeyMicrophoneGroup = G(LK.HotkeyMicrophoneGroup);
+        MicrophoneEnable = G(LK.MicrophoneEnable);
+        MicrophoneDisable = G(LK.MicrophoneDisable);
+        OnPropertyChanged(nameof(HotkeyConflict));
+        OnPropertyChanged(nameof(HotkeyCancel));
+        OnPropertyChanged(nameof(HotkeyRegistrationFailed));
         OnPropertyChanged(nameof(UpdateChecking));
         OnPropertyChanged(nameof(UpdateCurrent));
         OnPropertyChanged(nameof(UpdateCheckFailed));
@@ -213,6 +273,8 @@ public sealed class TextsViewModel : ObservableObject
         internal const string AppFooter = LocalizationService.Keys.AppFooter;
         internal const string StatusRouting = LocalizationService.Keys.StatusRouting; 
         internal const string StatusInactive = LocalizationService.Keys.StatusInactive; 
+        internal const string StatusMicrophoneActive = LocalizationService.Keys.StatusMicrophoneActive;
+        internal const string StatusMicrophoneInactive = LocalizationService.Keys.StatusMicrophoneInactive;
         internal const string ButtonStart = LocalizationService.Keys.ButtonStart; 
         internal const string ButtonStop = LocalizationService.Keys.ButtonStop; 
         internal const string ButtonRefreshApps = LocalizationService.Keys.ButtonRefreshApps; 
@@ -271,6 +333,25 @@ public sealed class TextsViewModel : ObservableObject
         internal const string UpdateOpenFailed = LocalizationService.Keys.UpdateOpenFailed;
         internal const string SettingsTitle = LocalizationService.Keys.SettingsTitle;
         internal const string UpdateDismiss = LocalizationService.Keys.UpdateDismiss;
+        internal const string HotkeyTitle = LocalizationService.Keys.HotkeyTitle;
+        internal const string HotkeyHelp = LocalizationService.Keys.HotkeyHelp;
+        internal const string HotkeyToggleRouting = LocalizationService.Keys.HotkeyToggleRouting;
+        internal const string HotkeyStartRouting = LocalizationService.Keys.HotkeyStartRouting;
+        internal const string HotkeyStopRouting = LocalizationService.Keys.HotkeyStopRouting;
+        internal const string HotkeyToggleMicrophone = LocalizationService.Keys.HotkeyToggleMicrophone;
+        internal const string HotkeyRegistrationFailed = LocalizationService.Keys.HotkeyRegistrationFailed;
+        internal const string HotkeyNotAssigned = LocalizationService.Keys.HotkeyNotAssigned;
+        internal const string HotkeyClear = LocalizationService.Keys.HotkeyClear;
+        internal const string HotkeyCancel = LocalizationService.Keys.HotkeyCancel;
+        internal const string HotkeyAssign = LocalizationService.Keys.HotkeyAssign;
+        internal const string HotkeyChange = LocalizationService.Keys.HotkeyChange;
+        internal const string HotkeyRecordingKeystrokes = LocalizationService.Keys.HotkeyRecordingKeystrokes;
+        internal const string HotkeyEscapeToCancel = LocalizationService.Keys.HotkeyEscapeToCancel;
+        internal const string HotkeyConflict = LocalizationService.Keys.HotkeyConflict;
+        internal const string HotkeyRoutingGroup = LocalizationService.Keys.HotkeyRoutingGroup;
+        internal const string HotkeyMicrophoneGroup = LocalizationService.Keys.HotkeyMicrophoneGroup;
+        internal const string MicrophoneEnable = LocalizationService.Keys.MicrophoneEnable;
+        internal const string MicrophoneDisable = LocalizationService.Keys.MicrophoneDisable;
     }
 }
 

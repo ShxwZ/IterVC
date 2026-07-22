@@ -18,6 +18,8 @@ public sealed class LocalizationService : ILocalizationService
         public const string AppFooter          = "app.footer";
         public const string StatusRouting      = "status.routing";
         public const string StatusInactive     = "status.inactive";
+        public const string StatusMicrophoneActive = "status.microphone_active";
+        public const string StatusMicrophoneInactive = "status.microphone_inactive";
         public const string ButtonStart        = "button.start";
         public const string ButtonStop         = "button.stop";
         public const string ButtonRefreshApps  = "button.refresh_apps";
@@ -79,14 +81,35 @@ public sealed class LocalizationService : ILocalizationService
         public const string UpdateOpenFailed = "update.open_failed";
         public const string SettingsTitle = "settings.title";
         public const string UpdateDismiss = "update.dismiss";
+        public const string HotkeyTitle = "hotkey.title";
+        public const string HotkeyToggleRouting = "hotkey.toggle_routing";
+        public const string HotkeyStartRouting = "hotkey.start_routing";
+        public const string HotkeyStopRouting = "hotkey.stop_routing";
+        public const string HotkeyToggleMicrophone = "hotkey.toggle_microphone";
+        public const string HotkeyHelp = "hotkey.help";
+        public const string HotkeyRegistrationFailed = "hotkey.registration_failed";
+        public const string HotkeyNotAssigned = "hotkey.not_assigned";
+        public const string HotkeyClear = "hotkey.clear";
+        public const string HotkeyCancel = "hotkey.cancel";
+        public const string HotkeyAssign = "hotkey.assign";
+        public const string HotkeyChange = "hotkey.change";
+        public const string HotkeyRecordingKeystrokes = "hotkey.recording_keystrokes";
+        public const string HotkeyEscapeToCancel = "hotkey.escape_to_cancel";
+        public const string HotkeyConflict = "hotkey.conflict";
+        public const string HotkeyRoutingGroup = "hotkey.routing_group";
+        public const string HotkeyMicrophoneGroup = "hotkey.microphone_group";
+        public const string MicrophoneEnable = "microphone.enable";
+        public const string MicrophoneDisable = "microphone.disable";
     }
 
     private readonly Dictionary<string, string> _es = new()
     {
         [Keys.AppTitle]             = "IterVC",
         [Keys.AppFooter]            = "IterVC - {0}",
-        [Keys.StatusRouting]        = "ENRUTANDO",
-        [Keys.StatusInactive]       = "INACTIVO",
+        [Keys.StatusRouting]        = "ENRUTAMIENTO ACTIVO",
+        [Keys.StatusInactive]       = "ENRUTAMIENTO DETENIDO",
+        [Keys.StatusMicrophoneActive] = "MICRÓFONO ACTIVO",
+        [Keys.StatusMicrophoneInactive] = "MICRÓFONO SILENCIADO",
         [Keys.ButtonStart]          = "Iniciar",
         [Keys.ButtonStop]           = "Detener",
         [Keys.ButtonRefreshApps]    = "Actualizar apps",
@@ -148,14 +171,35 @@ public sealed class LocalizationService : ILocalizationService
         [Keys.UpdateOpenFailed]     = "No se pudo abrir la página de la versión.",
         [Keys.SettingsTitle]        = "CONFIGURACIÓN",
         [Keys.UpdateDismiss]        = "Descartar",
+        [Keys.HotkeyTitle]          = "ATAJOS GLOBALES",
+        [Keys.HotkeyToggleRouting]  = "Alternar enrutamiento",
+        [Keys.HotkeyStartRouting]   = "Iniciar enrutamiento",
+        [Keys.HotkeyStopRouting]    = "Detener enrutamiento",
+        [Keys.HotkeyToggleMicrophone] = "Alternar micrófono",
+        [Keys.HotkeyHelp]           = "Los atajos funcionan aunque la aplicaci\u00f3n no tenga el foco y no bloquean su uso en otras aplicaciones.",
+        [Keys.HotkeyRegistrationFailed] = "No se pudieron aplicar los atajos observados: {0}",
+        [Keys.HotkeyNotAssigned]    = "Sin asignar",
+        [Keys.HotkeyClear]          = "Borrar",
+        [Keys.HotkeyCancel]           = "Cancelar",
+        [Keys.HotkeyAssign]           = "Asignar",
+        [Keys.HotkeyChange]           = "Cambiar",
+        [Keys.HotkeyRecordingKeystrokes] = "Grabando pulsaciones…",
+        [Keys.HotkeyEscapeToCancel]   = "Esc para cancelar",
+        [Keys.HotkeyConflict]         = "Esta combinación ya está asignada a {0}.",
+        [Keys.HotkeyRoutingGroup]     = "ENRUTAMIENTO",
+        [Keys.HotkeyMicrophoneGroup]  = "MICRÓFONO",
+        [Keys.MicrophoneEnable]       = "Activar micrófono",
+        [Keys.MicrophoneDisable]      = "Silenciar micrófono",
     };
 
     private readonly Dictionary<string, string> _en = new()
     {
         [Keys.AppTitle]             = "IterVC",
         [Keys.AppFooter]            = "IterVC - {0}",
-        [Keys.StatusRouting]        = "ROUTING",
-        [Keys.StatusInactive]       = "IDLE",
+        [Keys.StatusRouting]        = "ROUTING ACTIVE",
+        [Keys.StatusInactive]       = "ROUTING STOPPED",
+        [Keys.StatusMicrophoneActive] = "MICROPHONE ON",
+        [Keys.StatusMicrophoneInactive] = "MICROPHONE MUTED",
         [Keys.ButtonStart]          = "Start",
         [Keys.ButtonStop]           = "Stop",
         [Keys.ButtonRefreshApps]    = "Refresh apps",
@@ -217,6 +261,25 @@ public sealed class LocalizationService : ILocalizationService
         [Keys.UpdateOpenFailed]     = "Could not open the release page.",
         [Keys.SettingsTitle]        = "SETTINGS",
         [Keys.UpdateDismiss]        = "Dismiss",
+        [Keys.HotkeyTitle]          = "GLOBAL HOTKEYS",
+        [Keys.HotkeyToggleRouting]  = "Toggle routing",
+        [Keys.HotkeyStartRouting]   = "Start routing",
+        [Keys.HotkeyStopRouting]    = "Stop routing",
+        [Keys.HotkeyToggleMicrophone] = "Toggle microphone",
+        [Keys.HotkeyHelp]           = "Shortcuts work while the app is unfocused without blocking their use in other applications.",
+        [Keys.HotkeyRegistrationFailed] = "Could not apply observed shortcuts: {0}",
+        [Keys.HotkeyNotAssigned]    = "Not assigned",
+        [Keys.HotkeyClear]          = "Clear",
+        [Keys.HotkeyCancel]           = "Cancel",
+        [Keys.HotkeyAssign]           = "Assign",
+        [Keys.HotkeyChange]           = "Change",
+        [Keys.HotkeyRecordingKeystrokes] = "Recording keystrokes…",
+        [Keys.HotkeyEscapeToCancel]   = "Esc to cancel",
+        [Keys.HotkeyConflict]         = "This shortcut is already assigned to {0}.",
+        [Keys.HotkeyRoutingGroup]     = "ROUTING",
+        [Keys.HotkeyMicrophoneGroup]  = "MICROPHONE",
+        [Keys.MicrophoneEnable]       = "Enable microphone",
+        [Keys.MicrophoneDisable]      = "Mute microphone",
     };
 
     public string CurrentLanguage { get; private set; } = SupportedLanguages.Spanish;
