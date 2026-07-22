@@ -149,6 +149,34 @@ public sealed class SettingsServiceTests : IDisposable
     }
 
     [TestMethod]
+    public async Task UpdateAsync_RoundTripsGlobalHotkeySettings()
+    {
+        var service = CreateService();
+        await service.LoadAsync();
+        await service.UpdateAsync(settings =>
+        {
+            settings.ToggleRoutingHotkeyEnabled = false;
+            settings.ToggleRoutingHotkeyGesture = "Alt+PageUp";
+            settings.StartRoutingHotkeyEnabled = true;
+            settings.StartRoutingHotkeyGesture = "Ctrl+F8";
+            settings.StopRoutingHotkeyEnabled = true;
+            settings.StopRoutingHotkeyGesture = "Shift+F9";
+            settings.ToggleMicrophoneHotkeyEnabled = true;
+            settings.ToggleMicrophoneHotkeyGesture = "Win+M";
+        });
+
+        var loaded = await CreateService().LoadAsync();
+        Assert.IsFalse(loaded.ToggleRoutingHotkeyEnabled);
+        Assert.AreEqual("Alt+PageUp", loaded.ToggleRoutingHotkeyGesture);
+        Assert.IsTrue(loaded.StartRoutingHotkeyEnabled);
+        Assert.AreEqual("Ctrl+F8", loaded.StartRoutingHotkeyGesture);
+        Assert.IsTrue(loaded.StopRoutingHotkeyEnabled);
+        Assert.AreEqual("Shift+F9", loaded.StopRoutingHotkeyGesture);
+        Assert.IsTrue(loaded.ToggleMicrophoneHotkeyEnabled);
+        Assert.AreEqual("Win+M", loaded.ToggleMicrophoneHotkeyGesture);
+    }
+
+    [TestMethod]
     public async Task LoadAsync_MigratesPreviousSchema()
     {
         await File.WriteAllTextAsync(Path.Combine(_tempDir, "settings.json"), "{\"SchemaVersion\":2}");

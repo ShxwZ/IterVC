@@ -1,5 +1,6 @@
-IterVC License
-(based on the MIT License with an additional attribution condition)
+MIT License
+
+(IterVC License based on the MIT License with an additional attribution condition)
 
 Copyright (c) 2026 Gabriel García
 

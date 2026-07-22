@@ -59,6 +59,19 @@ public sealed partial class MainViewModel : ViewModelBase
     [ObservableProperty] private string? _availableUpdateVersion;
     [ObservableProperty] private string? _availableUpdateUrl;
     [ObservableProperty] private string? _updateCheckStatus;
+    [ObservableProperty] private bool _toggleRoutingHotkeyEnabled = true;
+    [ObservableProperty] private string _toggleRoutingHotkeyGesture = "Ctrl+Shift+R";
+    [ObservableProperty] private bool _startRoutingHotkeyEnabled;
+    [ObservableProperty] private string _startRoutingHotkeyGesture = "";
+    [ObservableProperty] private bool _stopRoutingHotkeyEnabled;
+    [ObservableProperty] private string _stopRoutingHotkeyGesture = "";
+    [ObservableProperty] private bool _toggleMicrophoneHotkeyEnabled;
+    [ObservableProperty] private string _toggleMicrophoneHotkeyGesture = "";
+    [ObservableProperty] private string? _globalHotkeyStatus;
+    [ObservableProperty] private string? _recordingShortcutAction;
+    [ObservableProperty] private string? _shortcutCaptureError;
+    private Task _microphoneCaptureChangeTask = Task.CompletedTask;
+    internal Func<string, string, string?>? TryConfigureCapturedHotkey { get; set; }
 
     public IReadOnlyList<string> AvailableLanguages { get; } = SupportedLanguages.All;
     public TextsViewModel Texts { get; } = new();
@@ -159,6 +172,14 @@ public sealed partial class MainViewModel : ViewModelBase
             EnableOscChatbox = settings.EnableOscChatbox;
             IsUpdateConsentVisible = settings.CheckForUpdates is null;
             CheckForUpdatesEnabled = settings.CheckForUpdates == true;
+            ToggleRoutingHotkeyEnabled = settings.ToggleRoutingHotkeyEnabled;
+            ToggleRoutingHotkeyGesture = settings.ToggleRoutingHotkeyGesture?.Trim() ?? "";
+            StartRoutingHotkeyEnabled = settings.StartRoutingHotkeyEnabled;
+            StartRoutingHotkeyGesture = settings.StartRoutingHotkeyGesture?.Trim() ?? "";
+            StopRoutingHotkeyEnabled = settings.StopRoutingHotkeyEnabled;
+            StopRoutingHotkeyGesture = settings.StopRoutingHotkeyGesture?.Trim() ?? "";
+            ToggleMicrophoneHotkeyEnabled = settings.ToggleMicrophoneHotkeyEnabled;
+            ToggleMicrophoneHotkeyGesture = settings.ToggleMicrophoneHotkeyGesture?.Trim() ?? "";
 
             MicrophoneBoost = settings.MicrophoneBoost;
             _audioRouter.SetMicrophoneBoost(MicrophoneBoost);
@@ -246,6 +267,155 @@ public sealed partial class MainViewModel : ViewModelBase
         if (_initializing || IsUpdateConsentVisible) return;
         _ = _settingsService.UpdateAsync(s => s.CheckForUpdates = value);
     }
+
+    partial void OnToggleRoutingHotkeyEnabledChanged(bool value) { NotifyHotkeyRow("ToggleRouting"); PersistHotkeys(); }
+    partial void OnToggleRoutingHotkeyGestureChanged(string value) { NotifyHotkeyRow("ToggleRouting"); PersistHotkeys(); }
+    partial void OnStartRoutingHotkeyEnabledChanged(bool value) { NotifyHotkeyRow("StartRouting"); PersistHotkeys(); }
+    partial void OnStartRoutingHotkeyGestureChanged(string value) { NotifyHotkeyRow("StartRouting"); PersistHotkeys(); }
+    partial void OnStopRoutingHotkeyEnabledChanged(bool value) { NotifyHotkeyRow("StopRouting"); PersistHotkeys(); }
+    partial void OnStopRoutingHotkeyGestureChanged(string value) { NotifyHotkeyRow("StopRouting"); PersistHotkeys(); }
+    partial void OnToggleMicrophoneHotkeyEnabledChanged(bool value) { NotifyHotkeyRow("ToggleMicrophone"); PersistHotkeys(); }
+    partial void OnToggleMicrophoneHotkeyGestureChanged(string value) { NotifyHotkeyRow("ToggleMicrophone"); PersistHotkeys(); }
+
+    partial void OnRecordingShortcutActionChanged(string? value)
+    {
+        OnPropertyChanged(nameof(IsRecordingToggleRouting));
+        OnPropertyChanged(nameof(IsRecordingStartRouting));
+        OnPropertyChanged(nameof(IsRecordingStopRouting));
+        OnPropertyChanged(nameof(IsRecordingToggleMicrophone));
+    }
+
+    public bool IsRecordingToggleRouting => RecordingShortcutAction == "ToggleRouting";
+    public bool IsRecordingStartRouting => RecordingShortcutAction == "StartRouting";
+    public bool IsRecordingStopRouting => RecordingShortcutAction == "StopRouting";
+    public bool IsRecordingToggleMicrophone => RecordingShortcutAction == "ToggleMicrophone";
+    public bool ToggleRoutingHotkeyAssigned => IsHotkeyAssigned(ToggleRoutingHotkeyEnabled, ToggleRoutingHotkeyGesture);
+    public bool StartRoutingHotkeyAssigned => IsHotkeyAssigned(StartRoutingHotkeyEnabled, StartRoutingHotkeyGesture);
+    public bool StopRoutingHotkeyAssigned => IsHotkeyAssigned(StopRoutingHotkeyEnabled, StopRoutingHotkeyGesture);
+    public bool ToggleMicrophoneHotkeyAssigned => IsHotkeyAssigned(ToggleMicrophoneHotkeyEnabled, ToggleMicrophoneHotkeyGesture);
+    public IReadOnlyList<string> ToggleRoutingHotkeyParts => SplitHotkey(ToggleRoutingHotkeyGesture);
+    public IReadOnlyList<string> StartRoutingHotkeyParts => SplitHotkey(StartRoutingHotkeyGesture);
+    public IReadOnlyList<string> StopRoutingHotkeyParts => SplitHotkey(StopRoutingHotkeyGesture);
+    public IReadOnlyList<string> ToggleMicrophoneHotkeyParts => SplitHotkey(ToggleMicrophoneHotkeyGesture);
+
+    private void PersistHotkeys()
+    {
+        if (_initializing) return;
+        _ = _settingsService.UpdateAsync(s =>
+        {
+            s.ToggleRoutingHotkeyEnabled = ToggleRoutingHotkeyEnabled;
+            s.ToggleRoutingHotkeyGesture = ToggleRoutingHotkeyGesture.Trim();
+            s.StartRoutingHotkeyEnabled = StartRoutingHotkeyEnabled;
+            s.StartRoutingHotkeyGesture = StartRoutingHotkeyGesture.Trim();
+            s.StopRoutingHotkeyEnabled = StopRoutingHotkeyEnabled;
+            s.StopRoutingHotkeyGesture = StopRoutingHotkeyGesture.Trim();
+            s.ToggleMicrophoneHotkeyEnabled = ToggleMicrophoneHotkeyEnabled;
+            s.ToggleMicrophoneHotkeyGesture = ToggleMicrophoneHotkeyGesture.Trim();
+        });
+    }
+
+    internal void SetGlobalHotkeyStatus(string? status) => GlobalHotkeyStatus = status;
+
+    internal void BeginShortcutCapture(string action)
+    {
+        RecordingShortcutAction = action;
+        ShortcutCaptureError = null;
+        GlobalHotkeyStatus = null;
+    }
+
+    internal void CancelShortcutCapture()
+    {
+        RecordingShortcutAction = null;
+        ShortcutCaptureError = null;
+    }
+
+    internal void RejectShortcutCapture(string error) => ShortcutCaptureError = error;
+
+    internal bool CompleteShortcutCapture(string gesture)
+    {
+        if (RecordingShortcutAction is not { } action) return false;
+        if (string.Equals(GetHotkeyGesture(action), gesture.Trim(), StringComparison.OrdinalIgnoreCase))
+        {
+            CancelShortcutCapture();
+            return true;
+        }
+        var conflict = GetEnabledHotkeys().FirstOrDefault(x => x.Action != action
+            && string.Equals(x.Gesture.Trim(), gesture.Trim(), StringComparison.OrdinalIgnoreCase));
+        if (conflict.Action is not null)
+        {
+            ShortcutCaptureError = string.Format(Texts.HotkeyConflict, GetHotkeyActionLabel(conflict.Action));
+            return false;
+        }
+
+        var registrationError = TryConfigureCapturedHotkey?.Invoke(action, gesture);
+        if (registrationError is not null)
+        {
+            ShortcutCaptureError = registrationError;
+            return false;
+        }
+        AssignHotkey(action, gesture);
+        RecordingShortcutAction = null;
+        ShortcutCaptureError = null;
+        GlobalHotkeyStatus = null;
+        return true;
+    }
+
+    private string GetHotkeyGesture(string action) => action switch
+    {
+        "ToggleRouting" => ToggleRoutingHotkeyGesture, "StartRouting" => StartRoutingHotkeyGesture,
+        "StopRouting" => StopRoutingHotkeyGesture, "ToggleMicrophone" => ToggleMicrophoneHotkeyGesture,
+        _ => ""
+    };
+
+    internal void AssignHotkey(string action, string gesture)
+    {
+        switch (action)
+        {
+            case "ToggleRouting": ToggleRoutingHotkeyGesture = gesture; ToggleRoutingHotkeyEnabled = true; break;
+            case "StartRouting": StartRoutingHotkeyGesture = gesture; StartRoutingHotkeyEnabled = true; break;
+            case "StopRouting": StopRoutingHotkeyGesture = gesture; StopRoutingHotkeyEnabled = true; break;
+            case "ToggleMicrophone": ToggleMicrophoneHotkeyGesture = gesture; ToggleMicrophoneHotkeyEnabled = true; break;
+        }
+    }
+
+    internal void ClearHotkey(string action)
+    {
+        if (RecordingShortcutAction == action) CancelShortcutCapture();
+        switch (action)
+        {
+            case "ToggleRouting": ToggleRoutingHotkeyEnabled = false; ToggleRoutingHotkeyGesture = ""; break;
+            case "StartRouting": StartRoutingHotkeyEnabled = false; StartRoutingHotkeyGesture = ""; break;
+            case "StopRouting": StopRoutingHotkeyEnabled = false; StopRoutingHotkeyGesture = ""; break;
+            case "ToggleMicrophone": ToggleMicrophoneHotkeyEnabled = false; ToggleMicrophoneHotkeyGesture = ""; break;
+        }
+    }
+
+    private IEnumerable<(string Action, string Gesture)> GetEnabledHotkeys()
+    {
+        if (ToggleRoutingHotkeyAssigned) yield return ("ToggleRouting", ToggleRoutingHotkeyGesture);
+        if (StartRoutingHotkeyAssigned) yield return ("StartRouting", StartRoutingHotkeyGesture);
+        if (StopRoutingHotkeyAssigned) yield return ("StopRouting", StopRoutingHotkeyGesture);
+        if (ToggleMicrophoneHotkeyAssigned) yield return ("ToggleMicrophone", ToggleMicrophoneHotkeyGesture);
+    }
+
+    private string GetHotkeyActionLabel(string action) => action switch
+    {
+        "ToggleRouting" => Texts.HotkeyToggleRouting,
+        "StartRouting" => Texts.HotkeyStartRouting,
+        "StopRouting" => Texts.HotkeyStopRouting,
+        _ => Texts.HotkeyToggleMicrophone
+    };
+
+    private void NotifyHotkeyRow(string action)
+    {
+        OnPropertyChanged($"{action}HotkeyAssigned");
+        OnPropertyChanged($"{action}HotkeyParts");
+    }
+
+    private static bool IsHotkeyAssigned(bool enabled, string gesture) => enabled && !string.IsNullOrWhiteSpace(gesture);
+    private static IReadOnlyList<string> SplitHotkey(string gesture) => string.IsNullOrWhiteSpace(gesture)
+        ? Array.Empty<string>()
+        : gesture.Split('+', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
     [RelayCommand]
     private Task CheckForUpdatesNowAsync() => CheckForUpdatesAsync(isManual: true);
@@ -364,7 +534,7 @@ public sealed partial class MainViewModel : ViewModelBase
     {
         if (_initializing) return;
 
-        _ = SetMicrophoneCaptureEnabledAsync(value, SelectedMicrophoneDevice?.Id);
+        _microphoneCaptureChangeTask = SetMicrophoneCaptureEnabledAsync(value, SelectedMicrophoneDevice?.Id);
 
         _ = _settingsService.UpdateAsync(s => s.MicrophoneEnabled = value);
     }
@@ -616,6 +786,33 @@ public sealed partial class MainViewModel : ViewModelBase
             await _audioRouter.StartAsync(SelectedVbCableDevice.Id);
             IsRouting = true;
         }
+    }
+
+    internal Task ToggleRoutingFromHotkeyAsync() => ToggleRoutingAsync();
+
+    internal async Task StartRoutingFromHotkeyAsync()
+    {
+        if (!IsRouting && SelectedVbCableDevice is not null)
+        {
+            await _audioRouter.StartAsync(SelectedVbCableDevice.Id);
+            IsRouting = true;
+        }
+    }
+
+    internal async Task StopRoutingFromHotkeyAsync()
+    {
+        if (!IsRouting) return;
+        await _audioRouter.StopAsync();
+        IsRouting = false;
+    }
+
+    [RelayCommand]
+    private void ToggleMicrophone() => MicrophoneEnabled = !MicrophoneEnabled;
+
+    internal async Task ToggleMicrophoneFromHotkeyAsync()
+    {
+        MicrophoneEnabled = !MicrophoneEnabled;
+        await _microphoneCaptureChangeTask;
     }
 
     private async Task OscLoop(CancellationToken ct)
