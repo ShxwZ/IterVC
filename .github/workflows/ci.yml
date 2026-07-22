@@ -24,3 +24,6 @@ jobs:
 
     - name: Verificar Compilación
       run: dotnet build --configuration Release --no-restore
+
+    - name: Ejecutar Tests
+      run: dotnet test IterVC.Tests/IterVC.Tests.csproj --configuration Release --no-build --no-restore
