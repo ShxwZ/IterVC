@@ -28,7 +28,7 @@
     <img src="https://img.shields.io/github/issues/ShxwZ/IterVC?style=for-the-badge" alt="Issues">
   </a>
 
-  <a href="LICENSE">
+  <a href="./LICENSE.md">
     <img src="https://img.shields.io/badge/License-IterVC%20Custom-orange?style=for-the-badge"
          alt="IterVC Custom License">
   </a>
