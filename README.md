@@ -8,24 +8,35 @@
   <a href="https://github.com/ShxwZ/IterVC/releases/latest">
     <img src="https://img.shields.io/github/v/release/ShxwZ/IterVC?style=for-the-badge&label=Download%20Latest%20Release" alt="Latest Release">
   </a>
+    <a href="https://github.com/ShxwZ/IterVC/releases">
+    <img src="https://img.shields.io/github/downloads/ShxwZ/IterVC/total?style=for-the-badge&label=Total%20Downloads&logo=github&color=blue"
+         alt="Total Downloads">
+  </a>
 </p>
 
+<p align="center">
 <p align="center">
   <a href="https://github.com/ShxwZ/IterVC/stargazers"> 
     <img src="https://img.shields.io/github/stars/ShxwZ/IterVC?style=for-the-badge" alt="Stars">
   </a>
+
   <a href="https://github.com/ShxwZ/IterVC/network/members">
     <img src="https://img.shields.io/github/forks/ShxwZ/IterVC?style=for-the-badge" alt="Forks">
   </a>
+
   <a href="https://github.com/ShxwZ/IterVC/issues">
     <img src="https://img.shields.io/github/issues/ShxwZ/IterVC?style=for-the-badge" alt="Issues">
   </a>
+
   <a href="LICENSE">
-    <img src="https://img.shields.io/github/license/ShxwZ/IterVC?style=for-the-badge" alt="License">
+    <img src="https://img.shields.io/badge/License-IterVC%20Custom-orange?style=for-the-badge"
+         alt="IterVC Custom License">
   </a>
+
   <a href="https://ko-fi.com/shawz">
     <img src="https://img.shields.io/badge/Ko--fi-Support-ff5f5f?style=for-the-badge&logo=ko-fi&logoColor=white" alt="Ko-fi">
   </a>
+</p>
 </p>
 
 <p align="center">
