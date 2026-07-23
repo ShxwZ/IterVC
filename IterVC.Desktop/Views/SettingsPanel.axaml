@@ -1,10 +1,10 @@
 <UserControl xmlns="https://github.com/avaloniaui"
 			 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 			 xmlns:vm="using:IterVC.Desktop.ViewModels"
+			 xmlns:views="using:IterVC.Desktop.Views"
 			 x:Class="IterVC.Desktop.Views.SettingsPanel"
 			 x:DataType="vm:MainViewModel">
 	<UserControl.Resources>
-		<StreamGeometry x:Key="RecordShortcutIcon">M12,2A4,4 0 0,0 8,6V12A4,4 0 0,0 16,12V6A4,4 0 0,0 12,2M5,11V12A7,7 0 0,0 11,18.92V22H8V24H16V22H13V18.92A7,7 0 0,0 19,12V11H17V12A5,5 0 0,1 12,17A5,5 0 0,1 7,12V11H5Z</StreamGeometry>
 		<StreamGeometry x:Key="ClearShortcutIcon">M9,3V4H4V6H5V21A2,2 0 0,0 7,23H17A2,2 0 0,0 19,21V6H20V4H15V3H9M7,6H17V21H7V6M9,8V19H11V8H9M13,8V19H15V8H13Z</StreamGeometry>
 	</UserControl.Resources>
 	<UserControl.Styles>
@@ -74,7 +74,7 @@
 	</UserControl.Styles>
 	<Border Background="#111116" BorderBrush="#1C1C28"
 			BorderThickness="1" CornerRadius="8" Padding="16">
-		<TabControl SelectionChanged="CancelCaptureOutsideSettingsTab">
+		<TabControl x:Name="SettingsTabs">
 
 			<!-- PESTAÑA 1: Dispositivos de Audio -->
 			<TabItem Header="{Binding Texts.CardDevicesTitle}">
@@ -83,24 +83,24 @@
 						<StackPanel Spacing="4">
 							<TextBlock Text="{Binding Texts.DeviceReference}"
 									   Classes="label" />
-							<ComboBox ItemsSource="{Binding OutputDevices}"
-									  SelectedItem="{Binding SelectedOutputDevice}" />
+							<ComboBox ItemsSource="{Binding Audio.OutputDevices}"
+									  SelectedItem="{Binding Audio.SelectedOutputDevice}" />
 						</StackPanel>
 
 						<StackPanel Spacing="4">
 							<TextBlock Text="{Binding Texts.DeviceVbCable}" Classes="label" />
-							<ComboBox ItemsSource="{Binding VbCableDevices}"
-									  SelectedItem="{Binding SelectedVbCableDevice}" />
+							<ComboBox ItemsSource="{Binding Audio.VbCableDevices}"
+									  SelectedItem="{Binding Audio.SelectedVbCableDevice}" />
 						</StackPanel>
 
 						<StackPanel Spacing="4">
 							<TextBlock Text="{Binding Texts.DeviceMicrophone}"
 									   Classes="label" />
-							<ComboBox ItemsSource="{Binding InputDevices}"
-									  SelectedItem="{Binding SelectedMicrophoneDevice}"
-									  IsEnabled="{Binding MicrophoneEnabled}" />
+							<ComboBox ItemsSource="{Binding Audio.Microphone.InputDevices}"
+									  SelectedItem="{Binding Audio.Microphone.SelectedDevice}"
+									  IsEnabled="{Binding Audio.Microphone.IsEnabled}" />
 							<CheckBox Content="{Binding Texts.DeviceMicrophoneEnable}"
-									  IsChecked="{Binding MicrophoneEnabled}" />
+									  IsChecked="{Binding Audio.Microphone.IsEnabled}" />
 						</StackPanel>
 
 						<!-- Nota Informativa de Audio Espacial -->
@@ -130,17 +130,17 @@
 								<Border Grid.Column="1" Background="#15151F"
 										CornerRadius="4" Padding="6,2">
 									<TextBlock
-										Text="{Binding AppsVolume, StringFormat={}{0:P0}}"
+										Text="{Binding Audio.AppsVolume, StringFormat={}{0:P0}}"
 										FontSize="11" FontWeight="Bold" Foreground="#5B5BF0" />
 								</Border>
 							</Grid>
-							<Slider Minimum="0" Maximum="3" Value="{Binding AppsVolume}"
+							<Slider Minimum="0" Maximum="3" Value="{Binding Audio.AppsVolume}"
 									TickFrequency="0.05" IsSnapToTickEnabled="True" />
 							<TextBlock Text="{Binding Texts.MixAppsGainHelp}" FontSize="10"
 									   Foreground="#5F5F7A" />
 						</StackPanel>
 
-						<!-- Slider MicrÃ³fono -->
+						<!-- Slider Micrófono -->
 						<StackPanel Spacing="4">
 							<Grid ColumnDefinitions="*,Auto">
 								<TextBlock Text="{Binding Texts.MixAppsBoost}"
@@ -148,12 +148,12 @@
 								<Border Grid.Column="1" Background="#15151F"
 										CornerRadius="4" Padding="6,2">
 									<TextBlock
-										Text="{Binding MicrophoneBoost, StringFormat={}{0:F2}x}"
+										Text="{Binding Audio.Microphone.Boost, StringFormat={}{0:F2}x}"
 										FontSize="11" FontWeight="Bold" Foreground="#5B5BF0" />
 								</Border>
 							</Grid>
 							<Slider Minimum="0.5" Maximum="3"
-									Value="{Binding MicrophoneBoost}" TickFrequency="0.05"
+									Value="{Binding Audio.Microphone.Boost}" TickFrequency="0.05"
 									IsSnapToTickEnabled="True" />
 							<TextBlock Text="{Binding Texts.MixAppsBoostHelp}" FontSize="10"
 									   Foreground="#5F5F7A" />
@@ -161,7 +161,7 @@
 
 						<Separator Height="1" Background="#1C1C28" Margin="0,4" />
 						<CheckBox Content="{Binding Texts.MixMonitorMic}"
-								  IsChecked="{Binding MonitorMicrophone}" />
+								  IsChecked="{Binding Audio.Microphone.Monitor}" />
 					</StackPanel>
 				</ScrollViewer>
 			</TabItem>
@@ -170,7 +170,7 @@
 				<ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
 					<StackPanel Spacing="12" Margin="0,4,8,8">
 						<CheckBox Content="{Binding Texts.NoiseGateEnable}"
-								  IsChecked="{Binding NoiseGateEnabled}" />
+								  IsChecked="{Binding Audio.NoiseGate.IsEnabled}" />
 
 						<TextBlock Text="{Binding Texts.NoiseGateHelp}" FontSize="10"
 								   Foreground="#7B7B9A" TextWrapping="Wrap" />
@@ -181,19 +181,19 @@
 								<Grid ColumnDefinitions="*,Auto">
 									<TextBlock Text="{Binding Texts.NoiseGateOutput}" Classes="label" />
 									<TextBlock Grid.Column="1"
-											   Text="{Binding NoiseGateOutputLevelDb, StringFormat={}{0:F0} dB}"
+											   Text="{Binding Audio.NoiseGate.OutputLevelDb, StringFormat={}{0:F0} dB}"
 											   FontSize="11" FontWeight="Bold" />
 								</Grid>
 								<StackPanel Spacing="4">
-									<ProgressBar Minimum="-80" Maximum="0" Value="{Binding NoiseGateThresholdDb}"
+									<ProgressBar Minimum="-80" Maximum="0" Value="{Binding Audio.NoiseGate.ThresholdDb}"
 												 Height="3" Foreground="#A1A1AA" Background="#27272F" />
 									<Grid Height="16" Background="#09090E">
-										<ProgressBar Minimum="-80" Maximum="0" Value="{Binding NoiseGateOutputLevelDb}"
+										<ProgressBar Minimum="-80" Maximum="0" Value="{Binding Audio.NoiseGate.OutputLevelDb}"
 													 Height="10" Margin="3" Foreground="#F59E0B" Background="Transparent"
-													 IsVisible="{Binding !IsNoiseGateOpen}" />
-										<ProgressBar Minimum="-80" Maximum="0" Value="{Binding NoiseGateOutputLevelDb}"
+													 IsVisible="{Binding !Audio.NoiseGate.IsOpen}" />
+										<ProgressBar Minimum="-80" Maximum="0" Value="{Binding Audio.NoiseGate.OutputLevelDb}"
 													 Height="10" Margin="3" Foreground="#4ADE80" Background="Transparent"
-													 IsVisible="{Binding IsNoiseGateOpen}" />
+													 IsVisible="{Binding Audio.NoiseGate.IsOpen}" />
 									</Grid>
 								</StackPanel>
 								<Grid ColumnDefinitions="Auto,*,Auto">
@@ -202,13 +202,13 @@
 								</Grid>
 								<Border Background="#153522" BorderBrush="#245B38" BorderThickness="1"
 										CornerRadius="10" Padding="8,3" HorizontalAlignment="Left"
-										IsVisible="{Binding IsNoiseGateOpen}">
+										IsVisible="{Binding Audio.NoiseGate.IsOpen}">
 									<TextBlock Text="{Binding Texts.NoiseGateOpen}" Foreground="#4ADE80"
 											   FontSize="10" FontWeight="Bold" />
 								</Border>
 								<Border Background="#3A2A12" BorderBrush="#6B4915" BorderThickness="1"
 										CornerRadius="10" Padding="8,3" HorizontalAlignment="Left"
-										IsVisible="{Binding !IsNoiseGateOpen}">
+										IsVisible="{Binding !Audio.NoiseGate.IsOpen}">
 									<TextBlock Text="{Binding Texts.NoiseGateClosed}" Foreground="#FBBF24"
 											   FontSize="10" FontWeight="Bold" />
 								</Border>
@@ -216,24 +216,24 @@
 						</Border>
 
 						<Border Background="#15151F" CornerRadius="6" Padding="10,8"
-								IsEnabled="{Binding NoiseGateEnabled}">
+								IsEnabled="{Binding Audio.NoiseGate.IsEnabled}">
 							<StackPanel Spacing="5">
 								<Grid ColumnDefinitions="*,Auto">
 									<TextBlock Text="{Binding Texts.NoiseGateThreshold}" Classes="label" />
-									<TextBlock Grid.Column="1" Text="{Binding NoiseGateThresholdDb, StringFormat={}{0:F0} dB}" FontSize="11" />
+									<TextBlock Grid.Column="1" Text="{Binding Audio.NoiseGate.ThresholdDb, StringFormat={}{0:F0} dB}" FontSize="11" />
 								</Grid>
-								<Slider Minimum="-80" Maximum="0" Value="{Binding NoiseGateThresholdDb}"
+								<Slider Minimum="-80" Maximum="0" Value="{Binding Audio.NoiseGate.ThresholdDb}"
 										TickFrequency="1" IsSnapToTickEnabled="True" />
 								<TextBlock Text="{Binding Texts.NoiseGateThresholdHelp}" FontSize="9.5"
 										   Foreground="#6F6F8A" TextWrapping="Wrap" />
 							</StackPanel>
 						</Border>
 
-						<Button Classes="secondary" Command="{Binding CalibrateNoiseGateCommand}"
+						<Button Classes="secondary" Command="{Binding Audio.NoiseGate.CalibrateCommand}"
 								Content="{Binding Texts.NoiseGateCalibrate}"
-								IsEnabled="{Binding !IsCalibratingNoiseGate}" />
+								IsEnabled="{Binding !Audio.NoiseGate.IsCalibrating}" />
 						<TextBlock Text="{Binding Texts.NoiseGateCalibrating}" FontSize="10"
-								   Foreground="#5B5BF0" IsVisible="{Binding IsCalibratingNoiseGate}" />
+								   Foreground="#5B5BF0" IsVisible="{Binding Audio.NoiseGate.IsCalibrating}" />
 
 						<!-- Opciones Avanzadas -->
 						<Expander HorizontalAlignment="Stretch"
@@ -251,20 +251,20 @@
 										   VerticalAlignment="Center" />
 							</Expander.Header>
 
-							<StackPanel Spacing="12" Margin="0,10,0,4" IsEnabled="{Binding NoiseGateEnabled}">
+							<StackPanel Spacing="12" Margin="0,10,0,4" IsEnabled="{Binding Audio.NoiseGate.IsEnabled}">
 
 								<!-- Control: Attack -->
 								<StackPanel Spacing="4">
 									<Grid ColumnDefinitions="*,Auto">
 										<TextBlock Text="{Binding Texts.NoiseGateAttack}" Classes="label" />
 										<TextBlock Grid.Column="1"
-												   Text="{Binding NoiseGateAttackMilliseconds, StringFormat={}{0:F0} ms}"
+												   Text="{Binding Audio.NoiseGate.AttackMilliseconds, StringFormat={}{0:F0} ms}"
 												   FontSize="11"
 												   FontWeight="Medium"
 												   Foreground="#D1D1E0" />
 									</Grid>
 									<Slider Minimum="0" Maximum="250"
-											Value="{Binding NoiseGateAttackMilliseconds}"
+											Value="{Binding Audio.NoiseGate.AttackMilliseconds}"
 											TickFrequency="5" />
 									<TextBlock Text="{Binding Texts.NoiseGateAttackHelp}"
 											   FontSize="9.5"
@@ -272,7 +272,7 @@
 											   TextWrapping="Wrap" />
 								</StackPanel>
 
-								<!-- LÃ­nea divisora sutil -->
+								<!-- Lí­nea divisora sutil -->
 								<Rectangle Height="1" Fill="#222232" Margin="0,2" />
 
 								<!-- Control: Release -->
@@ -280,13 +280,13 @@
 									<Grid ColumnDefinitions="*,Auto">
 										<TextBlock Text="{Binding Texts.NoiseGateRelease}" Classes="label" />
 										<TextBlock Grid.Column="1"
-												   Text="{Binding NoiseGateReleaseMilliseconds, StringFormat={}{0:F0} ms}"
+												   Text="{Binding Audio.NoiseGate.ReleaseMilliseconds, StringFormat={}{0:F0} ms}"
 												   FontSize="11"
 												   FontWeight="Medium"
 												   Foreground="#D1D1E0" />
 									</Grid>
 									<Slider Minimum="0" Maximum="1000"
-											Value="{Binding NoiseGateReleaseMilliseconds}"
+											Value="{Binding Audio.NoiseGate.ReleaseMilliseconds}"
 											TickFrequency="10" />
 									<TextBlock Text="{Binding Texts.NoiseGateReleaseHelp}"
 											   FontSize="9.5"
@@ -305,12 +305,12 @@
 				<ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
 					<StackPanel Spacing="10" Margin="0,4,8,8">
 						<CheckBox Content="{Binding Texts.OscEnableChatbox}"
-								  IsChecked="{Binding EnableOscChatbox}" />
+								  IsChecked="{Binding OscChatbox.IsEnabled}" />
 
-						<StackPanel Spacing="6" IsEnabled="{Binding EnableOscChatbox}">
+						<StackPanel Spacing="6" IsEnabled="{Binding OscChatbox.IsEnabled}">
 							<TextBlock Text="{Binding Texts.OscTemplateLabel}"
 									   Classes="label" />
-							<TextBox Text="{Binding OscTemplate}"
+							<TextBox Text="{Binding OscChatbox.Template}"
 									 Watermark="{Binding Texts.OscTemplateWatermark}"
 									 Height="75"
 									 TextWrapping="Wrap"
@@ -324,153 +324,63 @@
 				</ScrollViewer>
 			</TabItem>
 
-			<TabItem x:Name="ShortcutsSettingsTab" Header="{Binding Texts.SettingsTitle}">
+			<TabItem x:Name="SettingsTab" Header="{Binding Texts.SettingsTitle}">
 				<ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
 					<StackPanel Spacing="12" Margin="0,4,8,8">
+						<views:HotkeyCaptureControl x:Name="ShortcutCapture" Hotkeys="{Binding Settings.Hotkeys}" IsVisible="False" />
 						<StackPanel Spacing="3">
 							<TextBlock Text="{Binding Texts.HotkeyTitle}" FontWeight="Bold" Foreground="#A9A9C3" FontSize="11" />
 							<TextBlock Text="{Binding Texts.HotkeyHelp}" TextWrapping="Wrap" FontSize="10" Foreground="#6F6F8A" />
 						</StackPanel>
-						<TextBlock Text="{Binding Texts.HotkeyRoutingGroup}" FontSize="10" FontWeight="Bold" Foreground="#6F6F8A" Margin="2,2,0,0" />
-
-						<Border Classes="hotkey-card" Classes.recording="{Binding IsRecordingToggleRouting}" Background="#15151F" BorderBrush="#29293B" BorderThickness="1" CornerRadius="8" Padding="12">
-							<Grid>
-								<Grid IsVisible="{Binding !IsRecordingToggleRouting}" ColumnDefinitions="190,*,Auto,Auto">
-									<TextBlock Text="{Binding Texts.HotkeyToggleRouting}" FontWeight="SemiBold" VerticalAlignment="Center" />
-									<Border Grid.Column="1" Classes="keycap">
-										<Panel HorizontalAlignment="Center" VerticalAlignment="Center">
-											<TextBlock Text="{Binding ToggleRoutingHotkeyGesture}" IsVisible="{Binding ToggleRoutingHotkeyAssigned}" FontSize="11" Foreground="#D6D6E4" HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center" />
-											<TextBlock Text="{Binding Texts.HotkeyNotAssigned}" IsVisible="{Binding !ToggleRoutingHotkeyAssigned}" FontSize="10" Foreground="#858597" HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center" />
-										</Panel>
-									</Border>
-									<Button Grid.Column="2" Classes="secondary hotkey-record" Classes.assign="{Binding !ToggleRoutingHotkeyAssigned}" Tag="ToggleRouting" Click="RecordShortcut">
-										<Panel HorizontalAlignment="Center" VerticalAlignment="Center">
-											<TextBlock Text="{Binding Texts.HotkeyAssign}" IsVisible="{Binding !ToggleRoutingHotkeyAssigned}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-											<TextBlock Text="{Binding Texts.HotkeyChange}" IsVisible="{Binding ToggleRoutingHotkeyAssigned}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-										</Panel>
-									</Button>
-									<Button Grid.Column="3" Margin="8,0,0,0" Classes="secondary hotkey-clear" Tag="ToggleRouting" Click="ClearShortcut" IsVisible="{Binding ToggleRoutingHotkeyAssigned}" ToolTip.Tip="{Binding Texts.HotkeyClear}">
-										<PathIcon Data="{StaticResource ClearShortcutIcon}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-									</Button>
-								</Grid>
-								<Grid IsVisible="{Binding IsRecordingToggleRouting}" ColumnDefinitions="Auto,*,Auto">
-									<Ellipse Width="8" Height="8" Fill="#F15B64" VerticalAlignment="Center" Margin="1,0,10,0" />
-									<StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
-										<TextBlock Text="{Binding Texts.HotkeyRecordingKeystrokes}" FontWeight="SemiBold" Foreground="#FFF1F2" />
-										<TextBlock Text="{Binding Texts.HotkeyEscapeToCancel}" FontSize="10" Foreground="#D48E94" />
-										<TextBlock Text="{Binding ShortcutCaptureError}" FontSize="10" Foreground="#FF7B84" TextWrapping="Wrap" IsVisible="{Binding ShortcutCaptureError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+						<ItemsControl ItemsSource="{Binding Settings.Hotkeys.Rows}">
+							<ItemsControl.ItemTemplate>
+								<DataTemplate x:DataType="vm:HotkeyBindingViewModel">
+									<StackPanel Spacing="12" Margin="2,8,0,0">
+										<TextBlock Text="{Binding RoutingGroupText}" IsVisible="{Binding ShowRoutingGroupHeader}" FontSize="10" FontWeight="Bold" Foreground="#6F6F8A" Margin="2,2,0,0" />
+										<TextBlock Text="{Binding MicrophoneGroupText}" IsVisible="{Binding ShowMicrophoneGroupHeader}" FontSize="10" FontWeight="Bold" Foreground="#6F6F8A" Margin="2,6,0,0" />
+										<Border Classes="hotkey-card" Classes.recording="{Binding IsRecording}" Background="#15151F" BorderBrush="#29293B" BorderThickness="1" CornerRadius="8" Padding="12">
+											<Grid>
+												<Grid IsVisible="{Binding !IsRecording}" ColumnDefinitions="190,*,Auto,Auto">
+													<TextBlock Text="{Binding Label}" FontWeight="SemiBold" VerticalAlignment="Center" />
+													<Border Grid.Column="1" Classes="keycap">
+														<Panel HorizontalAlignment="Center" VerticalAlignment="Center">
+															<TextBlock Text="{Binding Gesture}" IsVisible="{Binding IsAssigned}" FontSize="11" Foreground="#D6D6E4" HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center" />
+															<TextBlock Text="{Binding NotAssignedText}" IsVisible="{Binding !IsAssigned}" FontSize="10" Foreground="#858597" HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center" />
+														</Panel>
+													</Border>
+													<Button Grid.Column="2" Classes="secondary hotkey-record" Classes.assign="{Binding !IsAssigned}" Command="{Binding BeginCaptureCommand}">
+														<Panel HorizontalAlignment="Center" VerticalAlignment="Center">
+															<TextBlock Text="{Binding AssignText}" IsVisible="{Binding !IsAssigned}" />
+															<TextBlock Text="{Binding ChangeText}" IsVisible="{Binding IsAssigned}" />
+														</Panel>
+													</Button>
+													<Button Grid.Column="3" Margin="8,0,0,0" Classes="secondary hotkey-clear" Command="{Binding ClearCommand}" IsVisible="{Binding IsAssigned}" ToolTip.Tip="{Binding ClearText}">
+														<PathIcon Data="{StaticResource ClearShortcutIcon}" />
+													</Button>
+												</Grid>
+												<Grid IsVisible="{Binding IsRecording}" ColumnDefinitions="Auto,*,Auto">
+													<Ellipse Width="8" Height="8" Fill="#F15B64" VerticalAlignment="Center" Margin="1,0,10,0" />
+													<StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
+														<TextBlock Text="{Binding RecordingText}" FontWeight="SemiBold" Foreground="#FFF1F2" />
+														<TextBlock Text="{Binding EscapeToCancelText}" FontSize="10" Foreground="#D48E94" />
+														<TextBlock Text="{Binding CaptureError}" FontSize="10" Foreground="#FF7B84" TextWrapping="Wrap" IsVisible="{Binding CaptureError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+													</StackPanel>
+													<Button Grid.Column="2" Width="120" Classes="secondary hotkey-record" Content="{Binding CancelText}" Command="{Binding CancelCaptureCommand}" />
+												</Grid>
+											</Grid>
+										</Border>
 									</StackPanel>
-									<Button Grid.Column="2" Width="120" Classes="secondary hotkey-record" Content="{Binding Texts.HotkeyCancel}" Click="CancelShortcut" />
-								</Grid>
-							</Grid>
-						</Border>
-
-						<Border Classes="hotkey-card" Classes.recording="{Binding IsRecordingStartRouting}" Background="#15151F" BorderBrush="#29293B" BorderThickness="1" CornerRadius="8" Padding="12">
-							<Grid>
-								<Grid IsVisible="{Binding !IsRecordingStartRouting}" ColumnDefinitions="190,*,Auto,Auto">
-									<TextBlock Text="{Binding Texts.HotkeyStartRouting}" FontWeight="SemiBold" VerticalAlignment="Center" />
-									<Border Grid.Column="1" Classes="keycap">
-										<Panel HorizontalAlignment="Center" VerticalAlignment="Center">
-											<TextBlock Text="{Binding StartRoutingHotkeyGesture}" IsVisible="{Binding StartRoutingHotkeyAssigned}" FontSize="11" Foreground="#D6D6E4" HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center" />
-											<TextBlock Text="{Binding Texts.HotkeyNotAssigned}" IsVisible="{Binding !StartRoutingHotkeyAssigned}" FontSize="10" Foreground="#858597" HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center" />
-										</Panel>
-									</Border>
-									<Button Grid.Column="2" Classes="secondary hotkey-record" Classes.assign="{Binding !StartRoutingHotkeyAssigned}" Tag="StartRouting" Click="RecordShortcut">
-										<Panel HorizontalAlignment="Center" VerticalAlignment="Center">
-											<TextBlock Text="{Binding Texts.HotkeyAssign}" IsVisible="{Binding !StartRoutingHotkeyAssigned}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-											<TextBlock Text="{Binding Texts.HotkeyChange}" IsVisible="{Binding StartRoutingHotkeyAssigned}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-										</Panel>
-									</Button>
-									<Button Grid.Column="3" Margin="8,0,0,0" Classes="secondary hotkey-clear" Tag="StartRouting" Click="ClearShortcut" IsVisible="{Binding StartRoutingHotkeyAssigned}" ToolTip.Tip="{Binding Texts.HotkeyClear}">
-										<PathIcon Data="{StaticResource ClearShortcutIcon}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-									</Button>
-								</Grid>
-								<Grid IsVisible="{Binding IsRecordingStartRouting}" ColumnDefinitions="Auto,*,Auto">
-									<Ellipse Width="8" Height="8" Fill="#F15B64" VerticalAlignment="Center" Margin="1,0,10,0" />
-									<StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
-										<TextBlock Text="{Binding Texts.HotkeyRecordingKeystrokes}" FontWeight="SemiBold" Foreground="#FFF1F2" />
-										<TextBlock Text="{Binding Texts.HotkeyEscapeToCancel}" FontSize="10" Foreground="#D48E94" />
-										<TextBlock Text="{Binding ShortcutCaptureError}" FontSize="10" Foreground="#FF7B84" TextWrapping="Wrap" IsVisible="{Binding ShortcutCaptureError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-									</StackPanel>
-									<Button Grid.Column="2" Width="120" Classes="secondary hotkey-record" Content="{Binding Texts.HotkeyCancel}" Click="CancelShortcut" />
-								</Grid>
-							</Grid>
-						</Border>
-
-						<Border Classes="hotkey-card" Classes.recording="{Binding IsRecordingStopRouting}" Background="#15151F" BorderBrush="#29293B" BorderThickness="1" CornerRadius="8" Padding="12">
-							<Grid>
-								<Grid IsVisible="{Binding !IsRecordingStopRouting}" ColumnDefinitions="190,*,Auto,Auto">
-									<TextBlock Text="{Binding Texts.HotkeyStopRouting}" FontWeight="SemiBold" VerticalAlignment="Center" />
-									<Border Grid.Column="1" Classes="keycap">
-										<Panel HorizontalAlignment="Center" VerticalAlignment="Center">
-											<TextBlock Text="{Binding StopRoutingHotkeyGesture}" IsVisible="{Binding StopRoutingHotkeyAssigned}" FontSize="11" Foreground="#D6D6E4" HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center" />
-											<TextBlock Text="{Binding Texts.HotkeyNotAssigned}" IsVisible="{Binding !StopRoutingHotkeyAssigned}" FontSize="10" Foreground="#858597" HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center" />
-										</Panel>
-									</Border>
-									<Button Grid.Column="2" Classes="secondary hotkey-record" Classes.assign="{Binding !StopRoutingHotkeyAssigned}" Tag="StopRouting" Click="RecordShortcut">
-										<Panel HorizontalAlignment="Center" VerticalAlignment="Center">
-											<TextBlock Text="{Binding Texts.HotkeyAssign}" IsVisible="{Binding !StopRoutingHotkeyAssigned}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-											<TextBlock Text="{Binding Texts.HotkeyChange}" IsVisible="{Binding StopRoutingHotkeyAssigned}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-										</Panel>
-									</Button>
-									<Button Grid.Column="3" Margin="8,0,0,0" Classes="secondary hotkey-clear" Tag="StopRouting" Click="ClearShortcut" IsVisible="{Binding StopRoutingHotkeyAssigned}" ToolTip.Tip="{Binding Texts.HotkeyClear}">
-										<PathIcon Data="{StaticResource ClearShortcutIcon}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-									</Button>
-								</Grid>
-								<Grid IsVisible="{Binding IsRecordingStopRouting}" ColumnDefinitions="Auto,*,Auto">
-									<Ellipse Width="8" Height="8" Fill="#F15B64" VerticalAlignment="Center" Margin="1,0,10,0" />
-									<StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
-										<TextBlock Text="{Binding Texts.HotkeyRecordingKeystrokes}" FontWeight="SemiBold" Foreground="#FFF1F2" />
-										<TextBlock Text="{Binding Texts.HotkeyEscapeToCancel}" FontSize="10" Foreground="#D48E94" />
-										<TextBlock Text="{Binding ShortcutCaptureError}" FontSize="10" Foreground="#FF7B84" TextWrapping="Wrap" IsVisible="{Binding ShortcutCaptureError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-									</StackPanel>
-									<Button Grid.Column="2" Width="120" Classes="secondary hotkey-record" Content="{Binding Texts.HotkeyCancel}" Click="CancelShortcut" />
-								</Grid>
-							</Grid>
-						</Border>
-
-						<TextBlock Text="{Binding Texts.HotkeyMicrophoneGroup}" FontSize="10" FontWeight="Bold" Foreground="#6F6F8A" Margin="2,6,0,0" />
-
-						<Border Classes="hotkey-card" Classes.recording="{Binding IsRecordingToggleMicrophone}" Background="#15151F" BorderBrush="#29293B" BorderThickness="1" CornerRadius="8" Padding="12">
-							<Grid>
-								<Grid IsVisible="{Binding !IsRecordingToggleMicrophone}" ColumnDefinitions="190,*,Auto,Auto">
-									<TextBlock Text="{Binding Texts.HotkeyToggleMicrophone}" FontWeight="SemiBold" VerticalAlignment="Center" />
-									<Border Grid.Column="1" Classes="keycap">
-										<Panel HorizontalAlignment="Center" VerticalAlignment="Center">
-											<TextBlock Text="{Binding ToggleMicrophoneHotkeyGesture}" IsVisible="{Binding ToggleMicrophoneHotkeyAssigned}" FontSize="11" Foreground="#D6D6E4" HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center" />
-											<TextBlock Text="{Binding Texts.HotkeyNotAssigned}" IsVisible="{Binding !ToggleMicrophoneHotkeyAssigned}" FontSize="10" Foreground="#858597" HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center" />
-										</Panel>
-									</Border>
-									<Button Grid.Column="2" Classes="secondary hotkey-record" Classes.assign="{Binding !ToggleMicrophoneHotkeyAssigned}" Tag="ToggleMicrophone" Click="RecordShortcut">
-										<Panel HorizontalAlignment="Center" VerticalAlignment="Center">
-											<TextBlock Text="{Binding Texts.HotkeyAssign}" IsVisible="{Binding !ToggleMicrophoneHotkeyAssigned}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-											<TextBlock Text="{Binding Texts.HotkeyChange}" IsVisible="{Binding ToggleMicrophoneHotkeyAssigned}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-										</Panel>
-									</Button>
-									<Button Grid.Column="3" Margin="8,0,0,0" Classes="secondary hotkey-clear" Tag="ToggleMicrophone" Click="ClearShortcut" IsVisible="{Binding ToggleMicrophoneHotkeyAssigned}" ToolTip.Tip="{Binding Texts.HotkeyClear}">
-										<PathIcon Data="{StaticResource ClearShortcutIcon}" HorizontalAlignment="Center" VerticalAlignment="Center" />
-									</Button>
-								</Grid>
-								<Grid IsVisible="{Binding IsRecordingToggleMicrophone}" ColumnDefinitions="Auto,*,Auto">
-									<Ellipse Width="8" Height="8" Fill="#F15B64" VerticalAlignment="Center" Margin="1,0,10,0" />
-									<StackPanel Grid.Column="1" Spacing="2" VerticalAlignment="Center">
-										<TextBlock Text="{Binding Texts.HotkeyRecordingKeystrokes}" FontWeight="SemiBold" Foreground="#FFF1F2" />
-										<TextBlock Text="{Binding Texts.HotkeyEscapeToCancel}" FontSize="10" Foreground="#D48E94" />
-										<TextBlock Text="{Binding ShortcutCaptureError}" FontSize="10" Foreground="#FF7B84" TextWrapping="Wrap" IsVisible="{Binding ShortcutCaptureError, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-									</StackPanel>
-									<Button Grid.Column="2" Width="120" Classes="secondary hotkey-record" Content="{Binding Texts.HotkeyCancel}" Click="CancelShortcut" />
-								</Grid>
-							</Grid>
-						</Border>
-
-						<Border Background="#241D10" BorderBrush="#5A4218" BorderThickness="1" CornerRadius="6" Padding="10,7" IsVisible="{Binding GlobalHotkeyStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
-							<TextBlock Text="{Binding GlobalHotkeyStatus}" TextWrapping="Wrap" FontSize="10" Foreground="#FBBF24" />
+								</DataTemplate>
+							</ItemsControl.ItemTemplate>
+						</ItemsControl>
+						<Border Background="#241D10" BorderBrush="#5A4218" BorderThickness="1" CornerRadius="6" Padding="10,7" IsVisible="{Binding Settings.Hotkeys.RegistrationStatus, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+							<TextBlock Text="{Binding Settings.Hotkeys.RegistrationStatus}" TextWrapping="Wrap" FontSize="10" Foreground="#FBBF24" />
 						</Border>
 						<Separator Height="1" Background="#1C1C28" Margin="0,4" />
 						<TextBlock Text="{Binding Texts.UpdateSettingsTitle}" FontWeight="Bold" Foreground="#A9A9C3" FontSize="11" />
-						<CheckBox Content="{Binding Texts.UpdateEnabled}" IsChecked="{Binding CheckForUpdatesEnabled}" />
-						<Button Classes="secondary" Content="{Binding Texts.UpdateCheckNow}" Command="{Binding CheckForUpdatesNowCommand}" IsEnabled="{Binding !IsCheckingForUpdates}" />
-						<TextBlock Text="{Binding UpdateCheckStatus}" TextWrapping="Wrap" FontSize="10" Foreground="#7B7B9A" />
+						<CheckBox Content="{Binding Texts.UpdateEnabled}" IsChecked="{Binding Settings.Updates.IsEnabled}" />
+						<Button Classes="secondary" Content="{Binding Texts.UpdateCheckNow}" Command="{Binding Settings.Updates.CheckNowCommand}" IsEnabled="{Binding !Settings.Updates.IsChecking}" />
+						<TextBlock Text="{Binding Settings.Updates.Status}" TextWrapping="Wrap" FontSize="10" Foreground="#7B7B9A" />
 					</StackPanel>
 				</ScrollViewer>
 			</TabItem>

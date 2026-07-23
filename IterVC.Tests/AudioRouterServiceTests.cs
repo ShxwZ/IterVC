@@ -1,4 +1,5 @@
 using IterVC.Audio;
+using IterVC.Core.Interfaces;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
@@ -110,9 +111,10 @@ public sealed class AudioRouterServiceTests
         Assert.AreEqual(-20f, router.MicrophoneOutputLevelDb, 0.02f);
     }
 
-    private static AudioRouterService CreateRouter() => new(NullLogger<AudioRouterService>.Instance);
+    private static IAudioRouterService CreateRouter() =>
+        new AudioRouterService(NullLogger<AudioRouterService>.Instance);
 
-    private static void Feed(AudioRouterService router, float sample)
+    private static void Feed(IAudioRouterService router, float sample)
     {
         var bytes = ToBytes(Enumerable.Repeat(sample, 960).ToArray());
         router.FeedMicrophoneSamples(bytes, bytes.Length);

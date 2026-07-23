@@ -27,6 +27,7 @@ public sealed class LocalizationService : ILocalizationService
         public const string CardAppsHelp       = "card.apps.help";
         public const string AppsDetectedOne    = "apps.detected_one";
         public const string AppsDetectedMany   = "apps.detected_many";
+        public const string AppCaptureError    = "apps.capture_error";
         public const string CardDevicesTitle   = "card.devices.title";
         public const string DeviceReference    = "device.reference";
         public const string DeviceVbCable      = "device.vbcable";
@@ -117,6 +118,7 @@ public sealed class LocalizationService : ILocalizationService
         [Keys.CardAppsHelp]         = "Marca las apps que quieres mezclar en el micrófono virtual.",
         [Keys.AppsDetectedOne]      = "1 aplicación con audio detectada.",
         [Keys.AppsDetectedMany]     = "{0} aplicaciones con audio detectadas.",
+        [Keys.AppCaptureError]      = "No se pudo capturar el proceso {0}: {1}",
         [Keys.CardDevicesTitle]     = "DISPOSITIVOS",
         [Keys.DeviceReference]      = "Referencia (detectar apps)",
         [Keys.DeviceVbCable]        = "Micrófono virtual (VB-Cable)",
@@ -207,6 +209,7 @@ public sealed class LocalizationService : ILocalizationService
         [Keys.CardAppsHelp]         = "Check the apps you want to mix into the virtual microphone.",
         [Keys.AppsDetectedOne]      = "1 application with audio detected.",
         [Keys.AppsDetectedMany]     = "{0} applications with audio detected.",
+        [Keys.AppCaptureError]      = "Could not capture process {0}: {1}",
         [Keys.CardDevicesTitle]     = "DEVICES",
         [Keys.DeviceReference]      = "Reference (detect apps)",
         [Keys.DeviceVbCable]        = "Virtual microphone (VB-Cable)",

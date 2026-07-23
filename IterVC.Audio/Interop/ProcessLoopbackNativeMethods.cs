@@ -12,31 +12,23 @@ internal static class ProcessLoopbackNativeMethods
     public const string VirtualAudioDeviceProcessLoopback = @"VAD\Process_Loopback";
 
     public const int AUDCLNT_SHAREMODE_SHARED = 0;
-    public const int AUDCLNT_STREAMFLAGS_LOOPBACK = 0x00020000;
-    public const int AUDCLNT_STREAMFLAGS_EVENTCALLBACK = 0x00040000;
-    /// <summary>
-    /// Pide el stream en modo RAW: el audio llega ANTES de los efectos del sistema
-    /// (LFX/GFX APOs, Dolby Atmos, Windows Sonic, DTS, etc.). Definido en
-    /// audioclient.h. Requiere Win10 19041+ y un endpoint que lo soporte;
-    /// si no, Initialize devuelve AUDCLNT_E_RAW_STREAM_CONFIG_NOT_SUPPORTED
-    /// (0x88890004). Ver <see cref="AUDCLNT_E_RAW_STREAM_CONFIG_NOT_SUPPORTED"/>.
-    /// </summary>
-    public const int AUDCLNT_STREAMFLAGS_RAW = 0x00000080;
+    public const uint AUDCLNT_STREAMFLAGS_LOOPBACK = 0x00020000;
+    public const uint AUDCLNT_STREAMFLAGS_EVENTCALLBACK = 0x00040000;
+    public const uint AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY = 0x08000000;
+    public const uint AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM = 0x80000000;
     public const uint AUDCLNT_BUFFERFLAGS_SILENT = 0x2;
 
-    /// <summary>
-    /// HRESULT devuelto por IAudioClient::Initialize cuando el endpoint de audio
-    /// (o el device mix) no admite AUDCLNT_STREAMFLAGS_RAW. Con Dolby Atmos,
-    /// Windows Sonic o ciertos APOs instalados, este codigo es habitual y debemos
-    /// hacer fallback transparente al modo no-RAW.
-    /// </summary>
-    public const int AUDCLNT_E_RAW_STREAM_CONFIG_NOT_SUPPORTED = unchecked((int)0x88890004);
-
     public const ushort WAVE_FORMAT_IEEE_FLOAT = 3;
+    public const ushort WAVE_FORMAT_EXTENSIBLE = 0xFFFE;
     public const ushort VT_BLOB = 65;
+
+    public const uint KSAUDIO_SPEAKER_STEREO = 0x00000003;
+    public const uint KSAUDIO_SPEAKER_5POINT1_SURROUND = 0x0000060F;
+    public const uint KSAUDIO_SPEAKER_7POINT1_SURROUND = 0x0000063F;
 
     public static readonly Guid IID_IAudioClient = new("1CB9AD4C-DBFA-4C32-B178-C2F568A703B2");
     public static readonly Guid IID_IAudioCaptureClient = new("C8ADBD64-E71E-48A0-A4DE-185C395CD317");
+    public static readonly Guid KSDATAFORMAT_SUBTYPE_IEEE_FLOAT = new("00000003-0000-0010-8000-00AA00389B71");
 
     [DllImport("Mmdevapi.dll", ExactSpelling = true, PreserveSig = true)]
     public static extern int ActivateAudioInterfaceAsync(
@@ -93,6 +85,15 @@ internal struct WAVEFORMATEX
     public ushort cbSize;
 }
 
+[StructLayout(LayoutKind.Sequential, Pack = 1)]
+internal struct WAVEFORMATEXTENSIBLE
+{
+    public WAVEFORMATEX Format;
+    public ushort wValidBitsPerSample;
+    public uint dwChannelMask;
+    public Guid SubFormat;
+}
+
 [ComImport]
 [Guid("94EA2B94-E9CC-49E0-C0FF-EE64CA8F5B90")]
 [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
@@ -111,11 +112,11 @@ internal interface IActivateAudioInterfaceCompletionHandler
 [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
 internal interface IAudioClient
 {
-    [PreserveSig] int Initialize(int shareMode, int streamFlags, long hnsBufferDuration, long hnsPeriodicity, ref WAVEFORMATEX format, IntPtr audioSessionGuid);
+    [PreserveSig] int Initialize(int shareMode, uint streamFlags, long hnsBufferDuration, long hnsPeriodicity, IntPtr format, IntPtr audioSessionGuid);
     [PreserveSig] int GetBufferSize(out uint numBufferFrames);
     [PreserveSig] int GetStreamLatency(out long latency);
     [PreserveSig] int GetCurrentPadding(out uint numPaddingFrames);
-    [PreserveSig] int IsFormatSupported(int shareMode, ref WAVEFORMATEX format, out IntPtr closestMatch);
+    [PreserveSig] int IsFormatSupported(int shareMode, IntPtr format, out IntPtr closestMatch);
     [PreserveSig] int GetMixFormat(out IntPtr deviceFormatPtr);
     [PreserveSig] int GetDevicePeriod(out long defaultDevicePeriod, out long minimumDevicePeriod);
     [PreserveSig] int Start();

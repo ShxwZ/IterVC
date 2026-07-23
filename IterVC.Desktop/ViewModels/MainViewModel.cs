@@ -1,893 +1,126 @@
-using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
-using IterVC.Audio;
 using IterVC.Core.Interfaces;
-using IterVC.Core.Localization;
-using IterVC.Core.Models;
-using System.Collections.ObjectModel;
-using System.Diagnostics;
-using Windows.Media.Control;
-using Avalonia.Threading;
-using IterVC.Desktop.Services;
 
 namespace IterVC.Desktop.ViewModels;
 
-public sealed partial class MainViewModel : ViewModelBase
+public sealed class MainViewModel : ViewModelBase, IAsyncDisposable
 {
-    private readonly IAudioRouterService _audioRouter;
-    private readonly IMicrophoneService _microphoneService;
     private readonly IDeviceService _deviceService;
-    private readonly IApplicationAudioService _applicationAudioService;
     private readonly ISettingsService _settingsService;
     private readonly ILogger<MainViewModel> _logger;
-    private readonly IOscMediaService _oscMediaService;
-    private readonly GitHubUpdateService _updateService;
 
-    public ObservableCollection<AppAudioItemViewModel> RunningApps { get; } = new();
-    public ObservableCollection<AudioDeviceInfo> OutputDevices { get; } = new();
-    public ObservableCollection<AudioDeviceInfo> VbCableDevices { get; } = new();
-    public ObservableCollection<AudioDeviceInfo> InputDevices { get; } = new();
+    private string? _statusMessage;
+    public string? StatusMessage
+    {
+        get => _statusMessage;
+        set => SetProperty(ref _statusMessage, value);
+    }
+    public TextsViewModel Texts => Settings.Language.Texts;
+    public AudioRoutingViewModel Audio { get; }
+    public OscChatboxViewModel OscChatbox { get; }
+    public SettingsViewModel Settings { get; }
+    public ApplicationsViewModel Applications => Audio.Applications;
 
-    [ObservableProperty] private AudioDeviceInfo? _selectedOutputDevice;
-    [ObservableProperty] private AudioDeviceInfo? _selectedVbCableDevice;
-    [ObservableProperty] private AudioDeviceInfo? _selectedMicrophoneDevice;
-    [ObservableProperty] private bool _microphoneEnabled = true;
-    [ObservableProperty] private bool _monitorMicrophone;
-    [ObservableProperty] private bool _isRouting;
-    [ObservableProperty] private string? _statusMessage;
-
-    [ObservableProperty] private float _appsVolume = 1.0f;
-
-    [ObservableProperty] private bool _enableOscChatbox;
-    [ObservableProperty] private string _oscTemplate = "{title} - [{time}]";
-
-    [ObservableProperty] private float _microphoneBoost = 1.0f;
-    [ObservableProperty] private bool _noiseGateEnabled;
-    [ObservableProperty] private float _noiseGateThresholdDb = -45f;
-    [ObservableProperty] private float _noiseGateAttackMilliseconds = 10f;
-    [ObservableProperty] private float _noiseGateReleaseMilliseconds = 150f;
-    [ObservableProperty] private float _noiseGateOutputLevelDb = -80f;
-    [ObservableProperty] private bool _isNoiseGateOpen;
-    [ObservableProperty] private bool _isCalibratingNoiseGate;
-
-    [ObservableProperty] private string _selectedLanguage = LocalizationService.Instance.CurrentLanguage;
-    [ObservableProperty] private bool _isUpdateConsentVisible;
-    [ObservableProperty] private bool _checkForUpdatesEnabled;
-    [ObservableProperty] private bool _isCheckingForUpdates;
-    [ObservableProperty] private bool _isUpdateAvailable;
-    [ObservableProperty] private string? _availableUpdateVersion;
-    [ObservableProperty] private string? _availableUpdateUrl;
-    [ObservableProperty] private string? _updateCheckStatus;
-    [ObservableProperty] private bool _toggleRoutingHotkeyEnabled = true;
-    [ObservableProperty] private string _toggleRoutingHotkeyGesture = "Ctrl+Shift+R";
-    [ObservableProperty] private bool _startRoutingHotkeyEnabled;
-    [ObservableProperty] private string _startRoutingHotkeyGesture = "";
-    [ObservableProperty] private bool _stopRoutingHotkeyEnabled;
-    [ObservableProperty] private string _stopRoutingHotkeyGesture = "";
-    [ObservableProperty] private bool _toggleMicrophoneHotkeyEnabled;
-    [ObservableProperty] private string _toggleMicrophoneHotkeyGesture = "";
-    [ObservableProperty] private string? _globalHotkeyStatus;
-    [ObservableProperty] private string? _recordingShortcutAction;
-    [ObservableProperty] private string? _shortcutCaptureError;
-    private Task _microphoneCaptureChangeTask = Task.CompletedTask;
-    internal Func<string, string, string?>? TryConfigureCapturedHotkey { get; set; }
-
-    public IReadOnlyList<string> AvailableLanguages { get; } = SupportedLanguages.All;
-    public TextsViewModel Texts { get; } = new();
-
-    private bool _isRefreshing;
-    private bool _initializing;
-    private bool _statusShowsDetectedApps;
-    private List<string>? _pendingIncludedProcessNames;
-    private GlobalSystemMediaTransportControlsSessionManager? _mediaSessionManager;
-    private readonly DispatcherTimer _noiseGateMeterTimer;
-    private float _smoothedMicrophoneLevelDb = -80f;
+    private readonly CancellationTokenSource _lifetimeCancellation = new();
+    private readonly object _initializationLock = new();
+    private Task? _initializationTask;
+    private bool _deviceEventsSubscribed;
+    private int _resourceCleanupStarted;
+    private int _disposed;
 
     public MainViewModel(
-        IAudioRouterService audioRouter,
-        IMicrophoneService microphoneService,
         IDeviceService deviceService,
-        IApplicationAudioService applicationAudioService,
+        AudioRoutingViewModel audio,
         ISettingsService settingsService,
-        IOscMediaService oscMediaService,
-        ILogger<MainViewModel> logger)
-        : this(audioRouter, microphoneService, deviceService, applicationAudioService, settingsService,
-            oscMediaService, logger, new GitHubUpdateService(new HttpClient { Timeout = TimeSpan.FromSeconds(10) }))
-    {
-    }
-
-    internal MainViewModel(
-        IAudioRouterService audioRouter,
-        IMicrophoneService microphoneService,
-        IDeviceService deviceService,
-        IApplicationAudioService applicationAudioService,
-        ISettingsService settingsService,
-        IOscMediaService oscMediaService,
         ILogger<MainViewModel> logger,
-        GitHubUpdateService updateService)
+        OscChatboxViewModel oscChatbox,
+        SettingsViewModel settings)
     {
-        _audioRouter = audioRouter;
-        _microphoneService = microphoneService;
         _deviceService = deviceService;
-        _applicationAudioService = applicationAudioService;
         _settingsService = settingsService;
-        _oscMediaService = oscMediaService;
         _logger = logger;
-        _updateService = updateService;
+        Audio = audio;
+        OscChatbox = oscChatbox;
+        Settings = settings;
 
-        _microphoneService.DataAvailable += (_, data) =>
-        {
-            if (!MicrophoneEnabled) return;
-            if (_audioRouter is AudioRouterService concreteRouter)
-                concreteRouter.FeedMicrophoneSamples(data, data.Length);
-        };
-
-        _deviceService.DevicesChanged += (_, _) =>
-            Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => RefreshDevices());
-
-        var thread = new Thread(() =>
-        {
-            OscLoop(CancellationToken.None).GetAwaiter().GetResult();
-        })
-        { IsBackground = true };
-        thread.SetApartmentState(ApartmentState.STA);
-        thread.Start();
-
-        LocalizationService.Instance.Changed += (_, _) =>
-            Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => Texts.RaiseAll());
-
-        _noiseGateMeterTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(50) };
-        _noiseGateMeterTimer.Tick += (_, _) =>
-        {
-            var targetLevelDb = _audioRouter.MicrophoneOutputLevelDb;
-            var smoothing = targetLevelDb > _smoothedMicrophoneLevelDb ? 0.55f : 0.18f;
-            _smoothedMicrophoneLevelDb += (targetLevelDb - _smoothedMicrophoneLevelDb) * smoothing;
-            NoiseGateOutputLevelDb = Math.Clamp(_smoothedMicrophoneLevelDb, -80f, 0f);
-            IsNoiseGateOpen = _audioRouter.IsNoiseGateOpen;
-        };
-        _noiseGateMeterTimer.Start();
     }
 
-    public async Task InitializeAsync()
+    private bool IsDisposed => Volatile.Read(ref _disposed) != 0;
+
+    private void OnDevicesChanged(object? sender, EventArgs e) =>
+        Avalonia.Threading.Dispatcher.UIThread.Post(() => { if (!IsDisposed) RefreshDevices(); });
+
+    public Task InitializeAsync()
     {
-        _initializing = true;
+        lock (_initializationLock)
+        {
+            ObjectDisposedException.ThrowIf(IsDisposed, this);
+            return _initializationTask ??= InitializeCoreAsync(_lifetimeCancellation.Token);
+        }
+    }
+
+    private async Task InitializeCoreAsync(CancellationToken cancellationToken)
+    {
         try
         {
-            var settings = await _settingsService.LoadAsync();
-            await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(RefreshDevices);
+            var settings = await _settingsService.LoadAsync(cancellationToken);
+            _deviceService.DevicesChanged += OnDevicesChanged;
+            _deviceEventsSubscribed = true;
 
-            var usedLegacyDisabledMicrophone = settings.MicrophoneDeviceId == "none";
-            MicrophoneEnabled = settings.MicrophoneEnabled && !usedLegacyDisabledMicrophone;
-            MonitorMicrophone = settings.MonitorMicrophone;
-            _pendingIncludedProcessNames = settings.IncludedProcessNames;
-            AppsVolume = settings.AppsVolume;
+            Settings.Language.Hydrate(settings);
+            Settings.Hotkeys.Hydrate(settings);
 
-            LocalizationService.Instance.SetLanguage(
-                string.IsNullOrEmpty(settings.Language) ? SupportedLanguages.Spanish : settings.Language);
-            SelectedLanguage = LocalizationService.Instance.CurrentLanguage;
-            Texts.RaiseAll();
+            await Audio.HydrateAsync(settings, cancellationToken);
+            await Audio.Microphone.HydrateAsync(settings, cancellationToken);
+            Audio.NoiseGate.Hydrate(settings);
+            await OscChatbox.HydrateAsync(settings, cancellationToken);
+            await Settings.Updates.HydrateAsync(settings, cancellationToken);
 
-            OscTemplate = settings.OscTemplate;
-            EnableOscChatbox = settings.EnableOscChatbox;
-            IsUpdateConsentVisible = settings.CheckForUpdates is null;
-            CheckForUpdatesEnabled = settings.CheckForUpdates == true;
-            ToggleRoutingHotkeyEnabled = settings.ToggleRoutingHotkeyEnabled;
-            ToggleRoutingHotkeyGesture = settings.ToggleRoutingHotkeyGesture?.Trim() ?? "";
-            StartRoutingHotkeyEnabled = settings.StartRoutingHotkeyEnabled;
-            StartRoutingHotkeyGesture = settings.StartRoutingHotkeyGesture?.Trim() ?? "";
-            StopRoutingHotkeyEnabled = settings.StopRoutingHotkeyEnabled;
-            StopRoutingHotkeyGesture = settings.StopRoutingHotkeyGesture?.Trim() ?? "";
-            ToggleMicrophoneHotkeyEnabled = settings.ToggleMicrophoneHotkeyEnabled;
-            ToggleMicrophoneHotkeyGesture = settings.ToggleMicrophoneHotkeyGesture?.Trim() ?? "";
-
-            MicrophoneBoost = settings.MicrophoneBoost;
-            _audioRouter.SetMicrophoneBoost(MicrophoneBoost);
-
-            NoiseGateEnabled = settings.NoiseGateEnabled;
-            NoiseGateThresholdDb = settings.NoiseGateThresholdDb;
-            NoiseGateAttackMilliseconds = settings.NoiseGateAttackMilliseconds;
-            NoiseGateReleaseMilliseconds = settings.NoiseGateReleaseMilliseconds;
-            ApplyNoiseGateSettings();
-
-            _audioRouter.SetAppsVolume(AppsVolume);
-            _audioRouter.SetMicrophoneVolume(settings.MicrophoneVolume);
-            _audioRouter.SetMonitorMicrophone(settings.MonitorMicrophone);
-
-            await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
-            {
-                SelectedVbCableDevice = VbCableDevices.FirstOrDefault(d => d.Id == settings.VbCableDeviceId)
-                    ?? _deviceService.FindVbCableDevice();
-                SelectedMicrophoneDevice = InputDevices.FirstOrDefault(d => d.Id == settings.MicrophoneDeviceId)
-                    ?? InputDevices.FirstOrDefault(d => d.IsDefault);
-            });
-
-            if (SelectedVbCableDevice is not null)
-            {
-                await _audioRouter.StartAsync(SelectedVbCableDevice.Id);
-                await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => IsRouting = true);
-            }
-
-            if (MicrophoneEnabled && SelectedMicrophoneDevice is not null)
-                await _microphoneService.StartAsync(SelectedMicrophoneDevice.Id);
-
-            if (usedLegacyDisabledMicrophone && SelectedMicrophoneDevice is not null)
-            {
-                await _settingsService.UpdateAsync(s =>
-                {
-                    s.MicrophoneEnabled = false;
-                    s.MicrophoneDeviceId = SelectedMicrophoneDevice.Id;
-                });
-            }
-
-            await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
-            {
-                SelectedOutputDevice = OutputDevices.FirstOrDefault(d => d.Id == settings.OutputDeviceId)
-                    ?? OutputDevices.FirstOrDefault(d => d.IsDefault);
-            });
+            cancellationToken.ThrowIfCancellationRequested();
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error durante la inicializaci\u00f3n");
-            _initializing = false;
+            if (ex is not OperationCanceledException || !IsDisposed)
+                _logger.LogError(ex, "Error durante la inicializaci\u00f3n");
+            await CleanupStartedResourcesAsync();
             throw;
         }
-
-        _initializing = false;
-
-        if (SelectedOutputDevice is not null)
-        {
-            _applicationAudioService.UseDevice(SelectedOutputDevice.Id);
-            await RefreshRunningAppsAsync();
-        }
-
-        if (CheckForUpdatesEnabled)
-            _ = CheckForUpdatesAsync(isManual: false);
-    }
-
-    [RelayCommand]
-    private async Task AcceptUpdateChecksAsync()
-    {
-        IsUpdateConsentVisible = false;
-        CheckForUpdatesEnabled = true;
-        await _settingsService.UpdateAsync(s => s.CheckForUpdates = true);
-        await CheckForUpdatesAsync(isManual: false);
-    }
-
-    [RelayCommand]
-    private Task DeclineUpdateChecksAsync()
-    {
-        IsUpdateConsentVisible = false;
-        CheckForUpdatesEnabled = false;
-        return _settingsService.UpdateAsync(s => s.CheckForUpdates = false);
-    }
-
-    partial void OnCheckForUpdatesEnabledChanged(bool value)
-    {
-        if (_initializing || IsUpdateConsentVisible) return;
-        _ = _settingsService.UpdateAsync(s => s.CheckForUpdates = value);
-    }
-
-    partial void OnToggleRoutingHotkeyEnabledChanged(bool value) { NotifyHotkeyRow("ToggleRouting"); PersistHotkeys(); }
-    partial void OnToggleRoutingHotkeyGestureChanged(string value) { NotifyHotkeyRow("ToggleRouting"); PersistHotkeys(); }
-    partial void OnStartRoutingHotkeyEnabledChanged(bool value) { NotifyHotkeyRow("StartRouting"); PersistHotkeys(); }
-    partial void OnStartRoutingHotkeyGestureChanged(string value) { NotifyHotkeyRow("StartRouting"); PersistHotkeys(); }
-    partial void OnStopRoutingHotkeyEnabledChanged(bool value) { NotifyHotkeyRow("StopRouting"); PersistHotkeys(); }
-    partial void OnStopRoutingHotkeyGestureChanged(string value) { NotifyHotkeyRow("StopRouting"); PersistHotkeys(); }
-    partial void OnToggleMicrophoneHotkeyEnabledChanged(bool value) { NotifyHotkeyRow("ToggleMicrophone"); PersistHotkeys(); }
-    partial void OnToggleMicrophoneHotkeyGestureChanged(string value) { NotifyHotkeyRow("ToggleMicrophone"); PersistHotkeys(); }
-
-    partial void OnRecordingShortcutActionChanged(string? value)
-    {
-        OnPropertyChanged(nameof(IsRecordingToggleRouting));
-        OnPropertyChanged(nameof(IsRecordingStartRouting));
-        OnPropertyChanged(nameof(IsRecordingStopRouting));
-        OnPropertyChanged(nameof(IsRecordingToggleMicrophone));
-    }
-
-    public bool IsRecordingToggleRouting => RecordingShortcutAction == "ToggleRouting";
-    public bool IsRecordingStartRouting => RecordingShortcutAction == "StartRouting";
-    public bool IsRecordingStopRouting => RecordingShortcutAction == "StopRouting";
-    public bool IsRecordingToggleMicrophone => RecordingShortcutAction == "ToggleMicrophone";
-    public bool ToggleRoutingHotkeyAssigned => IsHotkeyAssigned(ToggleRoutingHotkeyEnabled, ToggleRoutingHotkeyGesture);
-    public bool StartRoutingHotkeyAssigned => IsHotkeyAssigned(StartRoutingHotkeyEnabled, StartRoutingHotkeyGesture);
-    public bool StopRoutingHotkeyAssigned => IsHotkeyAssigned(StopRoutingHotkeyEnabled, StopRoutingHotkeyGesture);
-    public bool ToggleMicrophoneHotkeyAssigned => IsHotkeyAssigned(ToggleMicrophoneHotkeyEnabled, ToggleMicrophoneHotkeyGesture);
-    public IReadOnlyList<string> ToggleRoutingHotkeyParts => SplitHotkey(ToggleRoutingHotkeyGesture);
-    public IReadOnlyList<string> StartRoutingHotkeyParts => SplitHotkey(StartRoutingHotkeyGesture);
-    public IReadOnlyList<string> StopRoutingHotkeyParts => SplitHotkey(StopRoutingHotkeyGesture);
-    public IReadOnlyList<string> ToggleMicrophoneHotkeyParts => SplitHotkey(ToggleMicrophoneHotkeyGesture);
-
-    private void PersistHotkeys()
-    {
-        if (_initializing) return;
-        _ = _settingsService.UpdateAsync(s =>
-        {
-            s.ToggleRoutingHotkeyEnabled = ToggleRoutingHotkeyEnabled;
-            s.ToggleRoutingHotkeyGesture = ToggleRoutingHotkeyGesture.Trim();
-            s.StartRoutingHotkeyEnabled = StartRoutingHotkeyEnabled;
-            s.StartRoutingHotkeyGesture = StartRoutingHotkeyGesture.Trim();
-            s.StopRoutingHotkeyEnabled = StopRoutingHotkeyEnabled;
-            s.StopRoutingHotkeyGesture = StopRoutingHotkeyGesture.Trim();
-            s.ToggleMicrophoneHotkeyEnabled = ToggleMicrophoneHotkeyEnabled;
-            s.ToggleMicrophoneHotkeyGesture = ToggleMicrophoneHotkeyGesture.Trim();
-        });
-    }
-
-    internal void SetGlobalHotkeyStatus(string? status) => GlobalHotkeyStatus = status;
-
-    internal void BeginShortcutCapture(string action)
-    {
-        RecordingShortcutAction = action;
-        ShortcutCaptureError = null;
-        GlobalHotkeyStatus = null;
-    }
-
-    internal void CancelShortcutCapture()
-    {
-        RecordingShortcutAction = null;
-        ShortcutCaptureError = null;
-    }
-
-    internal void RejectShortcutCapture(string error) => ShortcutCaptureError = error;
-
-    internal bool CompleteShortcutCapture(string gesture)
-    {
-        if (RecordingShortcutAction is not { } action) return false;
-        if (string.Equals(GetHotkeyGesture(action), gesture.Trim(), StringComparison.OrdinalIgnoreCase))
-        {
-            CancelShortcutCapture();
-            return true;
-        }
-        var conflict = GetEnabledHotkeys().FirstOrDefault(x => x.Action != action
-            && string.Equals(x.Gesture.Trim(), gesture.Trim(), StringComparison.OrdinalIgnoreCase));
-        if (conflict.Action is not null)
-        {
-            ShortcutCaptureError = string.Format(Texts.HotkeyConflict, GetHotkeyActionLabel(conflict.Action));
-            return false;
-        }
-
-        var registrationError = TryConfigureCapturedHotkey?.Invoke(action, gesture);
-        if (registrationError is not null)
-        {
-            ShortcutCaptureError = registrationError;
-            return false;
-        }
-        AssignHotkey(action, gesture);
-        RecordingShortcutAction = null;
-        ShortcutCaptureError = null;
-        GlobalHotkeyStatus = null;
-        return true;
-    }
-
-    private string GetHotkeyGesture(string action) => action switch
-    {
-        "ToggleRouting" => ToggleRoutingHotkeyGesture, "StartRouting" => StartRoutingHotkeyGesture,
-        "StopRouting" => StopRoutingHotkeyGesture, "ToggleMicrophone" => ToggleMicrophoneHotkeyGesture,
-        _ => ""
-    };
-
-    internal void AssignHotkey(string action, string gesture)
-    {
-        switch (action)
-        {
-            case "ToggleRouting": ToggleRoutingHotkeyGesture = gesture; ToggleRoutingHotkeyEnabled = true; break;
-            case "StartRouting": StartRoutingHotkeyGesture = gesture; StartRoutingHotkeyEnabled = true; break;
-            case "StopRouting": StopRoutingHotkeyGesture = gesture; StopRoutingHotkeyEnabled = true; break;
-            case "ToggleMicrophone": ToggleMicrophoneHotkeyGesture = gesture; ToggleMicrophoneHotkeyEnabled = true; break;
-        }
-    }
-
-    internal void ClearHotkey(string action)
-    {
-        if (RecordingShortcutAction == action) CancelShortcutCapture();
-        switch (action)
-        {
-            case "ToggleRouting": ToggleRoutingHotkeyEnabled = false; ToggleRoutingHotkeyGesture = ""; break;
-            case "StartRouting": StartRoutingHotkeyEnabled = false; StartRoutingHotkeyGesture = ""; break;
-            case "StopRouting": StopRoutingHotkeyEnabled = false; StopRoutingHotkeyGesture = ""; break;
-            case "ToggleMicrophone": ToggleMicrophoneHotkeyEnabled = false; ToggleMicrophoneHotkeyGesture = ""; break;
-        }
-    }
-
-    private IEnumerable<(string Action, string Gesture)> GetEnabledHotkeys()
-    {
-        if (ToggleRoutingHotkeyAssigned) yield return ("ToggleRouting", ToggleRoutingHotkeyGesture);
-        if (StartRoutingHotkeyAssigned) yield return ("StartRouting", StartRoutingHotkeyGesture);
-        if (StopRoutingHotkeyAssigned) yield return ("StopRouting", StopRoutingHotkeyGesture);
-        if (ToggleMicrophoneHotkeyAssigned) yield return ("ToggleMicrophone", ToggleMicrophoneHotkeyGesture);
-    }
-
-    private string GetHotkeyActionLabel(string action) => action switch
-    {
-        "ToggleRouting" => Texts.HotkeyToggleRouting,
-        "StartRouting" => Texts.HotkeyStartRouting,
-        "StopRouting" => Texts.HotkeyStopRouting,
-        _ => Texts.HotkeyToggleMicrophone
-    };
-
-    private void NotifyHotkeyRow(string action)
-    {
-        OnPropertyChanged($"{action}HotkeyAssigned");
-        OnPropertyChanged($"{action}HotkeyParts");
-    }
-
-    private static bool IsHotkeyAssigned(bool enabled, string gesture) => enabled && !string.IsNullOrWhiteSpace(gesture);
-    private static IReadOnlyList<string> SplitHotkey(string gesture) => string.IsNullOrWhiteSpace(gesture)
-        ? Array.Empty<string>()
-        : gesture.Split('+', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-
-    [RelayCommand]
-    private Task CheckForUpdatesNowAsync() => CheckForUpdatesAsync(isManual: true);
-
-    [RelayCommand]
-    private void OpenUpdatePage()
-    {
-        if (!GitHubUpdateService.TryValidateReleaseUrl(AvailableUpdateUrl, out var url)) return;
-        try
-        {
-            Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Could not open the update release page");
-            UpdateCheckStatus = Texts.UpdateOpenFailed;
-        }
-    }
-
-    [RelayCommand]
-    private Task DismissUpdateAsync()
-    {
-        var dismissedVersion = AvailableUpdateVersion;
-        IsUpdateAvailable = false;
-        AvailableUpdateVersion = null;
-        AvailableUpdateUrl = null;
-        return dismissedVersion is null
-            ? Task.CompletedTask
-            : _settingsService.UpdateAsync(s => s.DismissedUpdateVersion = dismissedVersion);
-    }
-
-    private async Task CheckForUpdatesAsync(bool isManual)
-    {
-        if (IsCheckingForUpdates) return;
-        IsCheckingForUpdates = true;
-        if (isManual) UpdateCheckStatus = Texts.UpdateChecking;
-        try
-        {
-            var settings = _settingsService.Current;
-            UpdateCheckResult result;
-            var cacheIsFresh = !isManual && settings.LastSuccessfulUpdateCheckUtc is { } checkedAt &&
-                DateTimeOffset.UtcNow - checkedAt < TimeSpan.FromHours(24) &&
-                AppVersion.NormalizeSemantic(settings.CachedLatestVersion) is not null &&
-                GitHubUpdateService.TryValidateReleaseUrl(settings.CachedReleaseUrl, out _);
-
-            if (cacheIsFresh)
-            {
-                result = new UpdateCheckResult(true, settings.CachedLatestVersion, settings.CachedReleaseUrl);
-            }
-            else
-            {
-                result = await _updateService.CheckAsync();
-                if (result.Success)
-                {
-                    await _settingsService.UpdateAsync(s =>
-                    {
-                        s.LastSuccessfulUpdateCheckUtc = DateTimeOffset.UtcNow;
-                        s.CachedLatestVersion = result.Version;
-                        s.CachedReleaseUrl = result.ReleaseUrl;
-                    });
-                }
-            }
-
-            if (!result.Success)
-            {
-                if (isManual) UpdateCheckStatus = Texts.UpdateCheckFailed;
-                return;
-            }
-
-            var current = AppVersion.CurrentSemanticVersion;
-            var isNewer = current is not null && result.Version is not null &&
-                AppVersion.IsNewer(result.Version, current);
-            IsUpdateAvailable = isNewer && result.Version is not null &&
-                AppVersion.ShouldNotify(result.Version, current!, settings.DismissedUpdateVersion, isManual);
-            AvailableUpdateVersion = IsUpdateAvailable ? result.Version : null;
-            AvailableUpdateUrl = IsUpdateAvailable ? result.ReleaseUrl : null;
-            if (isManual)
-                UpdateCheckStatus = IsUpdateAvailable ? Texts.UpdateAvailable : Texts.UpdateCurrent;
-        }
-        finally
-        {
-            IsCheckingForUpdates = false;
-        }
-    }
-
-    private Task PersistIncludedAppsAsync()
-    {
-        var names = RunningApps.Where(a => a.IsIncludedInMix).Select(a => a.ProcessName).Distinct().ToList();
-        return _settingsService.UpdateAsync(s => s.IncludedProcessNames = names);
-    }
-
-    partial void OnSelectedOutputDeviceChanged(AudioDeviceInfo? value)
-    {
-        if (_initializing || _isRefreshing || value is null) return;
-        _applicationAudioService.UseDevice(value.Id);
-        _ = _settingsService.UpdateAsync(s => s.OutputDeviceId = value.Id);
-        _ = RefreshRunningAppsAsync();
-    }
-
-    partial void OnSelectedVbCableDeviceChanged(AudioDeviceInfo? value)
-    {
-        if (_initializing || _isRefreshing || value is null) return;
-        _ = _audioRouter.SetTargetDeviceAsync(value.Id);
-        _ = _settingsService.UpdateAsync(s => s.VbCableDeviceId = value.Id);
-    }
-
-    partial void OnSelectedMicrophoneDeviceChanged(AudioDeviceInfo? value)
-    {
-        if (_initializing || _isRefreshing || value is null) return;
-        if (MicrophoneEnabled)
-            _ = ChangeMicrophoneDeviceAsync(value.Id);
-        _ = _settingsService.UpdateAsync(s => s.MicrophoneDeviceId = value.Id);
-    }
-
-    partial void OnMicrophoneEnabledChanged(bool value)
-    {
-        if (_initializing) return;
-
-        _microphoneCaptureChangeTask = SetMicrophoneCaptureEnabledAsync(value, SelectedMicrophoneDevice?.Id);
-
-        _ = _settingsService.UpdateAsync(s => s.MicrophoneEnabled = value);
-    }
-
-    private async Task ChangeMicrophoneDeviceAsync(string deviceId)
-    {
-        try
-        {
-            await _microphoneService.SetDeviceAsync(deviceId);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Could not switch microphone capture to device '{DeviceId}'", deviceId);
-        }
-    }
-
-    private async Task SetMicrophoneCaptureEnabledAsync(bool enabled, string? deviceId)
-    {
-        try
-        {
-            if (enabled && deviceId is not null)
-                await _microphoneService.StartAsync(deviceId);
-            else
-                await _microphoneService.StopAsync();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Could not {Action} microphone capture", enabled ? "start" : "stop");
-        }
-    }
-
-    partial void OnMonitorMicrophoneChanged(bool value)
-    {
-        if (_initializing) return;
-        _audioRouter.SetMonitorMicrophone(value);
-        _ = _settingsService.UpdateAsync(s => s.MonitorMicrophone = value);
-    }
-
-    partial void OnMicrophoneBoostChanged(float value)
-    {
-        if (_initializing) return;
-        _audioRouter.SetMicrophoneBoost(value);
-        _ = _settingsService.UpdateAsync(s => s.MicrophoneBoost = value);
-    }
-
-    partial void OnNoiseGateEnabledChanged(bool value) => UpdateNoiseGateSettings();
-    partial void OnNoiseGateThresholdDbChanged(float value) => UpdateNoiseGateSettings();
-    partial void OnNoiseGateAttackMillisecondsChanged(float value) => UpdateNoiseGateSettings();
-    partial void OnNoiseGateReleaseMillisecondsChanged(float value) => UpdateNoiseGateSettings();
-
-    private void UpdateNoiseGateSettings()
-    {
-        if (_initializing) return;
-        ApplyNoiseGateSettings();
-        _ = _settingsService.UpdateAsync(settings =>
-        {
-            settings.NoiseGateEnabled = NoiseGateEnabled;
-            settings.NoiseGateThresholdDb = NoiseGateThresholdDb;
-            settings.NoiseGateAttackMilliseconds = NoiseGateAttackMilliseconds;
-            settings.NoiseGateReleaseMilliseconds = NoiseGateReleaseMilliseconds;
-        });
-    }
-
-    private void ApplyNoiseGateSettings()
-        => _audioRouter.ConfigureNoiseGate(
-            NoiseGateEnabled,
-            NoiseGateThresholdDb,
-            NoiseGateAttackMilliseconds,
-            NoiseGateReleaseMilliseconds);
-
-    [RelayCommand]
-    private async Task CalibrateNoiseGateAsync()
-    {
-        if (IsCalibratingNoiseGate) return;
-
-        IsCalibratingNoiseGate = true;
-        var highestAmbientLevel = -80f;
-        try
-        {
-            for (var sample = 0; sample < 40; sample++)
-            {
-                highestAmbientLevel = Math.Max(highestAmbientLevel, _audioRouter.MicrophoneInputLevelDb);
-                await Task.Delay(50);
-            }
-
-            NoiseGateThresholdDb = Math.Clamp(highestAmbientLevel + 6f, -75f, -10f);
-        }
-        finally
-        {
-            IsCalibratingNoiseGate = false;
-        }
-    }
-
-    partial void OnEnableOscChatboxChanged(bool value)
-    {
-        if (_initializing) return;
-        _ = _settingsService.UpdateAsync(s => s.EnableOscChatbox = value);
-    }
-
-    partial void OnOscTemplateChanged(string value)
-    {
-        if (_initializing) return;
-        _ = _settingsService.UpdateAsync(s => s.OscTemplate = value);
-    }
-
-    partial void OnSelectedLanguageChanged(string value)
-    {
-        var lang = string.IsNullOrEmpty(value)
-            ? LocalizationService.Instance.CurrentLanguage
-            : value;
-        LocalizationService.Instance.SetLanguage(lang);
-        Texts.RaiseAll();
-        if (_statusShowsDetectedApps)
-            UpdateDetectedAppsStatus();
-        if (!_initializing)
-            _ = _settingsService.UpdateAsync(s => s.Language = lang);
-    }
-
-    partial void OnAppsVolumeChanged(float value)
-    {
-        if (_initializing) return;
-        _audioRouter.SetAppsVolume(value);
-        _ = _settingsService.UpdateAsync(s => s.AppsVolume = value);
     }
 
     private void RefreshDevices()
     {
         if (Avalonia.Application.Current == null) return;
-        _isRefreshing = true;
-
-        var currentOutputId = SelectedOutputDevice?.Id;
-        var currentVbId = SelectedVbCableDevice?.Id;
-        var currentMicId = SelectedMicrophoneDevice?.Id;
-
-        SelectedOutputDevice = null;
-        SelectedVbCableDevice = null;
-        SelectedMicrophoneDevice = null;
-
-        OutputDevices.Clear();
-        foreach (var d in _deviceService.GetOutputDevices()) OutputDevices.Add(d);
-
-        VbCableDevices.Clear();
-        foreach (var d in _deviceService.GetOutputDevices()) VbCableDevices.Add(d);
-
-        InputDevices.Clear();
-        foreach (var d in _deviceService.GetInputDevices()) InputDevices.Add(d);
-
-        SelectedOutputDevice = OutputDevices.FirstOrDefault(d => d.Id == currentOutputId)
-                               ?? OutputDevices.FirstOrDefault(d => d.IsDefault);
-        SelectedVbCableDevice = VbCableDevices.FirstOrDefault(d => d.Id == currentVbId)
-                                ?? _deviceService.FindVbCableDevice();
-        SelectedMicrophoneDevice = InputDevices.FirstOrDefault(d => d.Id == currentMicId)
-                                   ?? InputDevices.FirstOrDefault(d => d.IsDefault);
-
-        _isRefreshing = false;
-
-        if (!_initializing && SelectedMicrophoneDevice is not null &&
-            SelectedMicrophoneDevice.Id != currentMicId)
-        {
-            var selectedMicrophoneId = SelectedMicrophoneDevice.Id;
-            _ = _settingsService.UpdateAsync(s => s.MicrophoneDeviceId = selectedMicrophoneId);
-            if (MicrophoneEnabled)
-                _ = ChangeMicrophoneDeviceAsync(selectedMicrophoneId);
-        }
+        Audio.RefreshDevices();
+        Audio.Microphone.RefreshDevices();
     }
 
-    [RelayCommand]
-    private async Task RefreshRunningAppsAsync()
+    public async ValueTask DisposeAsync()
     {
-        var overrideNames = _pendingIncludedProcessNames;
-        _pendingIncludedProcessNames = null;
-        await RefreshRunningAppsAsync(overrideNames);
+        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+        _lifetimeCancellation.Cancel();
+        await CleanupStartedResourcesAsync();
+        _lifetimeCancellation.Dispose();
     }
 
-    private async Task RefreshRunningAppsAsync(IReadOnlyCollection<string>? includedProcessNamesOverride)
+    private async Task CleanupStartedResourcesAsync()
     {
-        var apps = _applicationAudioService.GetRunningAudioApps();
-        var currentlyCapturedIds = RunningApps.Where(a => a.IsIncludedInMix).Select(a => a.ProcessId).ToHashSet();
-
-        RunningApps.Clear();
-        var anyCaptureFailed = false;
-
-        foreach (var app in apps)
+        if (Interlocked.Exchange(ref _resourceCleanupStarted, 1) != 0) return;
+        if (_deviceEventsSubscribed)
         {
-            var included = includedProcessNamesOverride is not null
-                ? includedProcessNamesOverride.Contains(app.ProcessName, StringComparer.OrdinalIgnoreCase)
-                : currentlyCapturedIds.Contains(app.ProcessId);
-
-            if (included && !await TryAddAppSourceAsync(app.ProcessId))
-                anyCaptureFailed = true;
-
-            RunningApps.Add(new AppAudioItemViewModel(
-                app with { IsIncludedInMix = included },
-                OnAppIncludedChanged));
+            _deviceService.DevicesChanged -= OnDevicesChanged;
+            _deviceEventsSubscribed = false;
         }
-
-        if (!anyCaptureFailed)
-        {
-            _statusShowsDetectedApps = true;
-            UpdateDetectedAppsStatus();
-        }
+        await StopSafelyAsync(OscChatbox.StopAsync, "OSC chatbox worker");
+        await StopSafelyAsync(Settings.StopAsync, "settings");
+        await StopSafelyAsync(Audio.NoiseGate.StopAsync, "noise gate");
+        await StopSafelyAsync(Audio.Microphone.StopAsync, "microphone capture");
+        await StopSafelyAsync(Audio.StopAsync, "audio routing");
     }
 
-    private void UpdateDetectedAppsStatus()
-        => StatusMessage = RunningApps.Count == 1
-            ? Texts.AppsDetectedOne
-            : string.Format(Texts.AppsDetectedMany, RunningApps.Count);
-
-    private void OnAppIncludedChanged(AppAudioItemViewModel app, bool included)
-        => _ = OnAppIncludedChangedAsync(app, included);
-
-    private async Task OnAppIncludedChangedAsync(AppAudioItemViewModel app, bool included)
+    private async Task StopSafelyAsync(Func<Task> stop, string component)
     {
-        if (included)
-            await TryAddAppSourceAsync(app.ProcessId);
-        else
-            await _audioRouter.RemoveAppSourceAsync(app.ProcessId);
-
-        await PersistIncludedAppsAsync();
+        try { await stop(); }
+        catch (Exception exception) { _logger.LogError(exception, "Failed to stop {Component}", component); }
     }
 
-    private async Task<bool> TryAddAppSourceAsync(int processId)
-    {
-        try
-        {
-            await _audioRouter.AddAppSourceAsync(processId);
-            return true;
-        }
-        catch (Exception ex)
-        {
-            var fullError = $"No se pudo capturar el proceso {processId}: {ex.Message}";
-            _logger.LogError(ex, "No se pudo capturar el proceso {ProcessId}", processId);
-            _statusShowsDetectedApps = false;
-            StatusMessage = fullError;
-            return false;
-        }
-    }
-
-    [RelayCommand]
-    private async Task ToggleRoutingAsync()
-    {
-        if (IsRouting)
-        {
-            await _audioRouter.StopAsync();
-            IsRouting = false;
-        }
-        else if (SelectedVbCableDevice is not null)
-        {
-            await _audioRouter.StartAsync(SelectedVbCableDevice.Id);
-            IsRouting = true;
-        }
-    }
-
-    internal Task ToggleRoutingFromHotkeyAsync() => ToggleRoutingAsync();
-
-    internal async Task StartRoutingFromHotkeyAsync()
-    {
-        if (!IsRouting && SelectedVbCableDevice is not null)
-        {
-            await _audioRouter.StartAsync(SelectedVbCableDevice.Id);
-            IsRouting = true;
-        }
-    }
-
-    internal async Task StopRoutingFromHotkeyAsync()
-    {
-        if (!IsRouting) return;
-        await _audioRouter.StopAsync();
-        IsRouting = false;
-    }
-
-    [RelayCommand]
-    private void ToggleMicrophone() => MicrophoneEnabled = !MicrophoneEnabled;
-
-    internal async Task ToggleMicrophoneFromHotkeyAsync()
-    {
-        MicrophoneEnabled = !MicrophoneEnabled;
-        await _microphoneCaptureChangeTask;
-    }
-
-    private async Task OscLoop(CancellationToken ct)
-    {
-        while (!ct.IsCancellationRequested)
-        {
-            if (EnableOscChatbox)
-            {
-                var mediaInfo = await GetActiveMediaInfoAsync();
-                if (mediaInfo != null && !string.IsNullOrEmpty(mediaInfo.Title))
-                {
-                    string templateWithTime = OscTemplate
-                        .Replace("{title}", mediaInfo.Title)
-                        .Replace("{status}", mediaInfo.Status)
-                        .Replace("{time}", mediaInfo.TimeInfo);
-
-                    _oscMediaService.SendMediaInfo(mediaInfo.Title, mediaInfo.Status, templateWithTime);
-                }
-                await Task.Delay(1000, ct);
-            }
-            else
-            {
-                await Task.Delay(1000, ct);
-            }
-        }
-    }
-
-    public async Task<MediaInfo?> GetActiveMediaInfoAsync()
-    {
-        try
-        {
-            _mediaSessionManager ??= await GlobalSystemMediaTransportControlsSessionManager.RequestAsync();
-            var sessions = _mediaSessionManager.GetSessions();
-            if (sessions == null || sessions.Count == 0) return null;
-
-            var activeSession = sessions.FirstOrDefault(s =>
-                s.GetPlaybackInfo()?.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing);
-            if (activeSession == null) return null;
-
-            var props = await activeSession.TryGetMediaPropertiesAsync();
-            var timeline = activeSession.GetTimelineProperties();
-            if (props == null) return null;
-
-            string timeFormatted = "00:00 / 00:00";
-            if (timeline != null)
-            {
-                var pos = timeline.Position;
-                if (activeSession.GetPlaybackInfo()?.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing)
-                {
-                    var elapsedSinceUpdate = DateTime.UtcNow - timeline.LastUpdatedTime.UtcDateTime;
-                    if (elapsedSinceUpdate > TimeSpan.Zero)
-                    {
-                        var estimatedPos = pos.Add(elapsedSinceUpdate);
-                        if (estimatedPos > timeline.EndTime) estimatedPos = timeline.EndTime;
-                        pos = estimatedPos;
-                    }
-                }
-                var end = timeline.EndTime;
-                timeFormatted = $"{((int)pos.TotalMinutes):D2}:{pos.Seconds:D2} / {((int)end.TotalMinutes):D2}:{end.Seconds:D2}";
-            }
-
-            string displayTitle = !string.IsNullOrWhiteSpace(props.Artist)
-                ? $"{props.Artist} - {props.Title}"
-                : props.Title;
-
-            return new MediaInfo
-            {
-                Title = displayTitle,
-                Status = LocalizationService.Instance.Get(LocalizationService.Keys.MediaPlayingStatus),
-                TimeInfo = timeFormatted
-            };
-        }
-        catch
-        {
-            return null;
-        }
-    }
 }

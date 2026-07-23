@@ -170,7 +170,7 @@
 						Foreground="#FFFFFF" LetterSpacing="0.5" />
 
 					<Button Classes="status-pill" Background="#112418" BorderBrush="#183B24" BorderThickness="1"
-						Command="{Binding ToggleRoutingCommand}" IsVisible="{Binding IsRouting}" ToolTip.Tip="{Binding Texts.HotkeyStopRouting}">
+						Command="{Binding Audio.ToggleRoutingCommand}" IsVisible="{Binding Audio.IsRouting}" ToolTip.Tip="{Binding Texts.HotkeyStopRouting}">
 						<StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
 							<Ellipse Width="6" Height="6" Fill="#4ADE80" VerticalAlignment="Center" />
 							<TextBlock Text="{Binding Texts.StatusRouting}" FontSize="10.5"
@@ -179,7 +179,7 @@
 					</Button>
 
 					<Button Classes="status-pill" Background="#181820" BorderBrush="#30303D" BorderThickness="1"
-						Command="{Binding ToggleRoutingCommand}" IsVisible="{Binding !IsRouting}" ToolTip.Tip="{Binding Texts.HotkeyStartRouting}">
+						Command="{Binding Audio.ToggleRoutingCommand}" IsVisible="{Binding !Audio.IsRouting}" ToolTip.Tip="{Binding Texts.HotkeyStartRouting}">
 						<StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
 							<Ellipse Width="6" Height="6" Fill="#5F5F7A" VerticalAlignment="Center" />
 							<TextBlock Text="{Binding Texts.StatusInactive}" FontSize="10.5"
@@ -188,7 +188,7 @@
 					</Button>
 
 					<Button Classes="status-pill" Background="#112418" BorderBrush="#183B24" BorderThickness="1"
-						Command="{Binding ToggleMicrophoneCommand}" IsVisible="{Binding MicrophoneEnabled}"
+						Command="{Binding Audio.Microphone.ToggleCommand}" IsVisible="{Binding Audio.Microphone.IsEnabled}"
 						ToolTip.Tip="{Binding Texts.MicrophoneDisable}">
 						<StackPanel Orientation="Horizontal" Spacing="7" HorizontalAlignment="Center">
 							<PathIcon Data="{StaticResource MicrophoneOnIcon}" Width="13" Height="13" Foreground="#4ADE80" />
@@ -197,7 +197,7 @@
 					</Button>
 
 					<Button Classes="status-pill" Background="#181820" BorderBrush="#30303D" BorderThickness="1"
-						Command="{Binding ToggleMicrophoneCommand}" IsVisible="{Binding !MicrophoneEnabled}"
+						Command="{Binding Audio.Microphone.ToggleCommand}" IsVisible="{Binding !Audio.Microphone.IsEnabled}"
 						ToolTip.Tip="{Binding Texts.MicrophoneEnable}">
 						<StackPanel Orientation="Horizontal" Spacing="7" HorizontalAlignment="Center">
 							<PathIcon Data="{StaticResource MicrophoneOffIcon}" Width="13" Height="13" Foreground="#858597" />
@@ -210,15 +210,15 @@
 				<StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="10"
 					VerticalAlignment="Center">
 					<Button Classes="primary" Content="{Binding Texts.ButtonStart}"
-						Command="{Binding ToggleRoutingCommand}" IsVisible="{Binding !IsRouting}" />
+						Command="{Binding Audio.ToggleRoutingCommand}" IsVisible="{Binding !Audio.IsRouting}" />
 					<Button Classes="danger" Content="{Binding Texts.ButtonStop}"
-						Command="{Binding ToggleRoutingCommand}" IsVisible="{Binding IsRouting}" />
+						Command="{Binding Audio.ToggleRoutingCommand}" IsVisible="{Binding Audio.IsRouting}" />
 					<Button Classes="secondary" Content="{Binding Texts.ButtonRefreshApps}"
-						Command="{Binding RefreshRunningAppsCommand}" />
+						Command="{Binding Applications.RefreshCommand}" />
 
 					<Separator Width="1" Height="18" Background="#202030" Margin="4,0" />
-					<ComboBox ItemsSource="{Binding AvailableLanguages}"
-						SelectedItem="{Binding SelectedLanguage}"
+					<ComboBox ItemsSource="{Binding Settings.Language.AvailableLanguages}"
+						SelectedItem="{Binding Settings.Language.SelectedLanguage}"
 						Width="85" Height="30"
 						FontSize="11"
 						Padding="8,4"
@@ -229,27 +229,27 @@
 
 			<StackPanel Grid.Row="1" Spacing="8" Margin="0,0,0,12">
 				<Border Background="#17172A" BorderBrush="#39396B" BorderThickness="1"
-					CornerRadius="8" Padding="12" IsVisible="{Binding IsUpdateConsentVisible}">
+					CornerRadius="8" Padding="12" IsVisible="{Binding Settings.Updates.IsConsentVisible}">
 					<Grid ColumnDefinitions="*,Auto">
 						<StackPanel Spacing="3">
 							<TextBlock Text="{Binding Texts.UpdateConsentTitle}" FontWeight="Bold" Foreground="#A9A9FF" />
 							<TextBlock Text="{Binding Texts.UpdateConsentBody}" TextWrapping="Wrap" FontSize="11" />
 						</StackPanel>
 						<StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" Margin="16,0,0,0">
-							<Button Classes="secondary" Content="{Binding Texts.UpdateDecline}" Command="{Binding DeclineUpdateChecksCommand}" />
-							<Button Classes="primary" Content="{Binding Texts.UpdateAllow}" Command="{Binding AcceptUpdateChecksCommand}" />
+							<Button Classes="secondary" Content="{Binding Texts.UpdateDecline}" Command="{Binding Settings.Updates.DeclineCommand}" />
+							<Button Classes="primary" Content="{Binding Texts.UpdateAllow}" Command="{Binding Settings.Updates.AcceptCommand}" />
 						</StackPanel>
 					</Grid>
 				</Border>
 				<Border Background="#112418" BorderBrush="#245B38" BorderThickness="1"
-					CornerRadius="8" Padding="10" IsVisible="{Binding IsUpdateAvailable}">
+					CornerRadius="8" Padding="10" IsVisible="{Binding Settings.Updates.IsAvailable}">
 					<Grid ColumnDefinitions="*,Auto">
 						<TextBlock VerticalAlignment="Center">
-							<Run Text="{Binding Texts.UpdateAvailable}" /><Run Text=" " /><Run Text="{Binding AvailableUpdateVersion}" FontWeight="Bold" />
+							<Run Text="{Binding Texts.UpdateAvailable}" /><Run Text=" " /><Run Text="{Binding Settings.Updates.AvailableVersion}" FontWeight="Bold" />
 						</TextBlock>
 						<StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
-							<Button Classes="secondary" Content="{Binding Texts.UpdateDismiss}" Command="{Binding DismissUpdateCommand}" />
-							<Button Classes="secondary" Content="{Binding Texts.UpdateOpen}" Command="{Binding OpenUpdatePageCommand}" />
+							<Button Classes="secondary" Content="{Binding Texts.UpdateDismiss}" Command="{Binding Settings.Updates.DismissCommand}" />
+							<Button Classes="secondary" Content="{Binding Texts.UpdateOpen}" Command="{Binding Settings.Updates.OpenPageCommand}" />
 						</StackPanel>
 					</Grid>
 				</Border>
@@ -257,7 +257,7 @@
 
 			<!-- ESPACIO DE TRABAJO SIMÉTRICO (2 Tarjetas Principales del mismo alto) -->
 			<Grid Grid.Row="2" ColumnDefinitions="0.85*,1.15*">
-				<views:ApplicationsPanel Grid.Column="0" Margin="0,0,8,0" />
+				<views:ApplicationsPanel Grid.Column="0" Margin="0,0,8,0" DataContext="{Binding Applications}" />
 				<views:SettingsPanel Grid.Column="1" Margin="8,0,0,0" />
 			</Grid>
 

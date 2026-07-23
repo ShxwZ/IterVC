@@ -29,7 +29,9 @@ public sealed class GitHubUpdateServiceTests
     [DataRow("not-a-url", false)]
     public void TryValidateReleaseUrl_OnlyAllowsHttpsGitHub(string value, bool expected)
     {
-        Assert.AreEqual(expected, GitHubUpdateService.TryValidateReleaseUrl(value, out _));
+        using var client = new HttpClient(new StubHandler(HttpStatusCode.OK, "{}"));
+        IUpdateService service = new GitHubUpdateService(client);
+        Assert.AreEqual(expected, service.TryValidateReleaseUrl(value, out _));
     }
 
     [TestMethod]

@@ -49,6 +49,17 @@ public sealed class ApplicationAudioService : IApplicationAudioService, IDisposa
                 var pid = (int)session.GetProcessID;
                 if (pid == 0) continue;
 
+
+            var endpointFormat = _device.AudioClient.MixFormat;
+
+            _logger.LogInformation(
+                "Sesión {ProcessId} en '{Device}': formato endpoint {Format}, " +
+                "volumen sesión {SessionVolume:F2}, volumen endpoint {EndpointVolume:F2}",
+                pid,
+                _device.FriendlyName,
+                endpointFormat,
+                session.SimpleAudioVolume.Volume,
+                _device.AudioEndpointVolume.MasterVolumeLevelScalar);
                 Process process;
                 try
                 {

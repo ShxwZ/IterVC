@@ -136,22 +136,25 @@ public sealed class AudioRouterService : IAudioRouterService
         await StartAsync(vbCableDeviceId);
     }
 
-    public Task AddAppSourceAsync(int processId) => AddAppSourceAsync(processId, useRawAudio: true);
+    public Task AddAppSourceAsync(int processId) => AddAppSourceAsync(processId, useRawAudio: false);
 
     public async Task AddAppSourceAsync(int processId, bool useRawAudio)
     {
+        // Kept for public API compatibility. Process loopback is endpoint-independent
+        // and does not support the endpoint RAW stream option.
+        _ = useRawAudio;
+
         if (_appSources.ContainsKey(processId)) return;
 
         var capture = new ProcessLoopbackCapture();
 
         Debug.WriteLine($"[Router] AddAppSourceAsync {processId} — _mainMixer: {(_mainMixer == null ? "NULL" : "OK")}");
 
-        // Hilo STA.
-        // Audio nativo del proceso
+        // Process-loopback activation requires a dedicated STA thread.
         try
         {
-            await RunOnStaThread(() => capture.StartAsync(processId, includeProcessTree: true, useRawAudio, _logger));
-            Debug.WriteLine($"[Router] capture.StartAsync completado. Formato nativo detectado: {capture.WaveFormat}");
+            await RunOnStaThread(() => capture.StartAsync(processId, includeProcessTree: true, _logger));
+            Debug.WriteLine($"[Router] Process-loopback capture started with format: {capture.WaveFormat}");
         }
         catch (Exception ex)
         {
@@ -178,6 +181,13 @@ public sealed class AudioRouterService : IAudioRouterService
 
         // resamplear y downmixear de forma limpia
         var adapted = AdaptToMixFormat(buffer.ToSampleProvider());
+        if (capture.WaveFormat.Channels > Channels)
+        {
+            _logger.LogInformation(
+                "IterVC-controlled downmix enabled for process {ProcessId}: {SourceChannels} channels to stereo",
+                processId,
+                capture.WaveFormat.Channels);
+        }
         var volume = new VolumeSampleProvider(adapted) { Volume = _appsVolume };
 
         _appSources[processId] = new AppSource(capture, volume);
