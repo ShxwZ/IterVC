@@ -1,0 +1,87 @@
+name: PR Build
+
+on:
+  pull_request:
+    branches:
+      - master
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - ready_for_review
+
+permissions:
+  contents: read
+
+jobs:
+  build-pr:
+    name: Build IterVC PR
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore dependencies
+        run: >
+          dotnet restore
+          .\IterVC.Desktop\IterVC.Desktop.csproj
+
+      - name: Build
+        run: >
+          dotnet build
+          .\IterVC.Desktop\IterVC.Desktop.csproj
+          --configuration Release
+          --no-restore
+
+      - name: Publish PR test version
+        shell: pwsh
+        run: |
+          $PrNumber = "${{ github.event.pull_request.number }}"
+          $RunNumber = "${{ github.run_number }}"
+          $ShortSha = "${{ github.sha }}".Substring(0, 7)
+
+          $Version = "0.0.0-pr.$PrNumber.$RunNumber"
+          $InformationalVersion = "Development-PR-$PrNumber-$ShortSha"
+
+          Write-Host "Version: $Version"
+          Write-Host "Informational version: $InformationalVersion"
+
+          dotnet publish `
+            ".\IterVC.Desktop\IterVC.Desktop.csproj" `
+            --configuration Release `
+            --runtime win-x64 `
+            --self-contained true `
+            --no-build `
+            --output ".\artifacts\IterVC" `
+            -p:Version="$Version" `
+            -p:InformationalVersion="$InformationalVersion"
+
+      - name: Add development warning
+        shell: pwsh
+        run: |
+          @"
+          IterVC Pull Request Test Build
+
+          Pull Request: #${{ github.event.pull_request.number }}
+          Commit: ${{ github.sha }}
+          Workflow run: ${{ github.run_number }}
+
+          This is an unofficial development build.
+          It may be unstable and must not be redistributed as an official IterVC release.
+          "@ | Set-Content `
+            ".\artifacts\IterVC\DEVELOPMENT_BUILD.txt" `
+            -Encoding UTF8
+
+      - name: Upload PR artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: IterVC-PR-${{ github.event.pull_request.number }}-win-x64
+          path: .\artifacts\IterVC\
+          if-no-files-found: error
+          retention-days: 7
