@@ -22,10 +22,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: 8.0.x
+          dotnet-version: "8.0.x"
+
+      - name: Show .NET environment
+        shell: pwsh
+        run: |
+          dotnet --version
+          dotnet --info
 
       - name: Restore dependencies
         run: >
@@ -44,7 +50,7 @@ jobs:
         run: |
           $PrNumber = "${{ github.event.pull_request.number }}"
           $RunNumber = "${{ github.run_number }}"
-          $ShortSha = "${{ github.sha }}".Substring(0, 7)
+          $ShortSha = "${{ github.event.pull_request.head.sha }}".Substring(0, 7)
 
           $Version = "0.0.0-pr.$PrNumber.$RunNumber"
           $InformationalVersion = "Development-PR-$PrNumber-$ShortSha"
@@ -55,9 +61,9 @@ jobs:
           dotnet publish `
             ".\IterVC.Desktop\IterVC.Desktop.csproj" `
             --configuration Release `
+            --framework "net8.0-windows10.0.19041.0" `
             --runtime win-x64 `
             --self-contained true `
-            --no-build `
             --output ".\artifacts\IterVC" `
             -p:Version="$Version" `
             -p:InformationalVersion="$InformationalVersion"
@@ -69,7 +75,7 @@ jobs:
           IterVC Pull Request Test Build
 
           Pull Request: #${{ github.event.pull_request.number }}
-          Commit: ${{ github.sha }}
+          Commit: ${{ github.event.pull_request.head.sha }}
           Workflow run: ${{ github.run_number }}
 
           This is an unofficial development build.
