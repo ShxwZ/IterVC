@@ -1,10 +1,7 @@
 name: Publicación de Versión (Firma y Release)
 
 on:
-  push:
-    branches:
-      - master # Se activa automáticamente cada vez que subes algo a master
-  workflow_dispatch: # Mantiene el botón manual en la web por si acaso
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -12,34 +9,35 @@ permissions:
 jobs:
   build-and-release:
     runs-on: windows-latest
+
     env:
       RELEASE_VERSION: v1.0.${{ github.run_number }}
 
     steps:
-    - name: Descargar código
-      uses: actions/checkout@v4
+      - name: Descargar código
+        uses: actions/checkout@v4
 
-    - name: Configurar .NET
-      uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: '8.0.x'
+      - name: Configurar .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
 
-    - name: Compilar, Firmar y Empaquetar
-      shell: pwsh
-      env:
-        MY_GITHUB_SECRET_PASSWORD: ${{ secrets.CERT_PASSWORD }}
-      run: |
-        ./.deploys/BUILD_AND_SIGN.ps1
+      - name: Compilar, Firmar y Empaquetar
+        shell: pwsh
+        env:
+          MY_GITHUB_SECRET_PASSWORD: ${{ secrets.CERT_PASSWORD }}
+        run: |
+          ./.deploys/BUILD_AND_SIGN.ps1
 
-    - name: Crear GitHub Release
-      uses: softprops/action-gh-release@v2
-      with:
-        files: |
-          *-Windows.zip
-          *.zip
-        tag_name: ${{ env.RELEASE_VERSION }}
-        name: Release ${{ env.RELEASE_VERSION }}
-        draft: false
-        prerelease: false
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Crear GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            *-Windows.zip
+            *.zip
+          tag_name: ${{ env.RELEASE_VERSION }}
+          name: Release ${{ env.RELEASE_VERSION }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
