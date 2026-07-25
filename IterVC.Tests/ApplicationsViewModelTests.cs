@@ -28,11 +28,36 @@ public sealed class ApplicationsViewModelTests
     }
 
     [TestMethod]
+    public async Task RefreshAsync_WhenIncludedProcessChangesPid_ReplacesCaptureAndKeepsSelection()
+    {
+        var applicationService = new Mock<IApplicationAudioService>();
+        applicationService
+            .SetupSequence(service => service.GetRunningAudioApps())
+            .Returns([CreateApp(42)])
+            .Returns([CreateApp(84)]);
+
+        var router = new Mock<IAudioRouterService>();
+        var settings = CreateSettingsService();
+        var viewModel = CreateViewModel(applicationService, router, settings);
+        viewModel.HydrateIncludedProcessNames(["player"]);
+
+        await viewModel.InitializeOutputDeviceAsync("device");
+        await viewModel.RefreshCommand.ExecuteAsync(null);
+
+        Assert.AreEqual(84, viewModel.RunningApps.Single().ProcessId);
+        Assert.IsTrue(viewModel.RunningApps.Single().IsIncludedInMix);
+        router.Verify(service => service.RemoveAppSourceAsync(42), Times.Once);
+        router.Verify(service => service.AddAppSourceAsync(42, true), Times.Once);
+        router.Verify(service => service.AddAppSourceAsync(84, true), Times.Once);
+    }
+
+    [TestMethod]
     public async Task ToggleInclusion_WhenCaptureFails_PreservesSelectionAndSkipsPersistence()
     {
         var applicationService = CreateApplicationService();
         var router = new Mock<IAudioRouterService>();
-        router.Setup(service => service.AddAppSourceAsync(42, true)).ThrowsAsync(new InvalidOperationException("capture"));
+        router.Setup(service => service.AddAppSourceAsync(42, true))
+            .ThrowsAsync(new InvalidOperationException("capture"));
         var settings = CreateSettingsService();
         var viewModel = CreateViewModel(applicationService, router, settings);
         await viewModel.InitializeOutputDeviceAsync("device");
@@ -68,12 +93,16 @@ public sealed class ApplicationsViewModelTests
     private static Mock<IApplicationAudioService> CreateApplicationService()
     {
         var service = new Mock<IApplicationAudioService>();
-        service.Setup(x => x.GetRunningAudioApps()).Returns([new AudioAppInfo
-        {
-            ProcessId = 42, ProcessName = "player", DisplayName = "Player"
-        }]);
+        service.Setup(x => x.GetRunningAudioApps()).Returns([CreateApp(42)]);
         return service;
     }
+
+    private static AudioAppInfo CreateApp(int processId) => new()
+    {
+        ProcessId = processId,
+        ProcessName = "player",
+        DisplayName = "Player"
+    };
 
     private static Mock<ISettingsService> CreateSettingsService()
     {
