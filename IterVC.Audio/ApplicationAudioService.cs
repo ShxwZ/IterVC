@@ -1,132 +1,305 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
-using Microsoft.Extensions.Logging;
-using NAudio.CoreAudioApi;
 using IterVC.Core.Interfaces;
 using IterVC.Core.Models;
+using Microsoft.Extensions.Logging;
+using NAudio.CoreAudioApi;
+using NAudio.CoreAudioApi.Interfaces;
 
 namespace IterVC.Audio;
 
 public sealed class ApplicationAudioService : IApplicationAudioService, IDisposable
 {
-    private readonly ILogger<ApplicationAudioService> _logger;
-    private readonly MMDeviceEnumerator _enumerator = new();
-    private MMDevice? _device;
+    private static readonly TimeSpan BrowserPollInterval = TimeSpan.FromSeconds(1);
 
-    // Procesos de navegador conocidos — para estos buscamos el proceso raíz
     private static readonly HashSet<string> BrowserProcessNames = new(StringComparer.OrdinalIgnoreCase)
     {
-        "chrome", "brave", "msedge", "firefox", "opera", "vivaldi", "arc"
+        "chrome", "brave", "msedge", "firefox", "opera", "opera_gx", "vivaldi", "arc", "zen"
     };
+
+    private readonly ILogger<ApplicationAudioService> _logger;
+    private readonly MMDeviceEnumerator _enumerator = new();
+    private readonly object _sync = new();
+    private readonly Timer _browserWatcher;
+
+    private MMDevice? _device;
+    private AudioSessionManager? _sessionManager;
+    private HashSet<int> _knownBrowserProcessIds = [];
+    private bool _disposed;
 
     public ApplicationAudioService(ILogger<ApplicationAudioService> logger)
     {
         _logger = logger;
+        _browserWatcher = new Timer(
+            CheckForBrowserChanges,
+            null,
+            Timeout.InfiniteTimeSpan,
+            Timeout.InfiniteTimeSpan);
     }
+
+    public event EventHandler? ApplicationsChanged;
 
     public void UseDevice(string outputDeviceId)
     {
-        _device?.Dispose();
-        _device = _enumerator.GetDevice(outputDeviceId);
+        lock (_sync)
+        {
+            if (_disposed)
+                throw new ObjectDisposedException(nameof(ApplicationAudioService));
+
+            DetachSessionManager();
+            _device?.Dispose();
+
+            _device = _enumerator.GetDevice(outputDeviceId);
+            _sessionManager = _device.AudioSessionManager;
+
+            // NAudio conserva internamente la colección de sesiones. Hay que reconstruirla
+            // para incluir aplicaciones que hayan empezado a emitir audio posteriormente.
+            _sessionManager.RefreshSessions();
+            _sessionManager.OnSessionCreated += OnSessionCreated;
+
+            _knownBrowserProcessIds = GetRunningBrowsers()
+                .Select(browser => browser.ProcessId)
+                .ToHashSet();
+
+            _browserWatcher.Change(BrowserPollInterval, BrowserPollInterval);
+        }
     }
 
     public IReadOnlyList<AudioAppInfo> GetRunningAudioApps()
     {
         var result = new List<AudioAppInfo>();
 
-        if (_device is null)
+        lock (_sync)
         {
-            _logger.LogWarning("GetRunningAudioApps llamado sin dispositivo seleccionado");
-            return result;
-        }
-
-        try
-        {
-            var sessions = _device.AudioSessionManager.Sessions;
-            for (var i = 0; i < sessions.Count; i++)
+            if (_device is null || _sessionManager is null)
             {
-                var session = sessions[i];
-                var pid = (int)session.GetProcessID;
-                if (pid == 0) continue;
-
-                Process process;
-                try
-                {
-                    process = Process.GetProcessById(pid);
-                }
-                catch (ArgumentException)
-                {
-                    continue;
-                }
-
-                var processName = process.ProcessName;
-
-                // Para navegadores, subir al proceso raíz para que IncludeTargetProcessTree
-                // capture todas las pestañas (procesos hijos renderer/audio/utility)
-                int capturePid = pid;
-                if (BrowserProcessNames.Contains(processName))
-                {
-                    capturePid = GetRootProcessId(pid, processName);
-                    System.Diagnostics.Debug.WriteLine(
-                        $"[AppAudio] Navegador {processName} — PID sesión: {pid} → PID raíz: {capturePid}");
-                }
-
-                var displayName = string.IsNullOrWhiteSpace(session.DisplayName)
-                    ? processName
-                    : session.DisplayName;
-
-                result.Add(new AudioAppInfo
-                {
-                    ProcessId = capturePid,
-                    ProcessName = processName,
-                    DisplayName = displayName,
-                    IsIncludedInMix = false
-                });
+                _logger.LogWarning("GetRunningAudioApps llamado sin dispositivo seleccionado");
+                return result;
             }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error enumerando sesiones de audio");
+
+            try
+            {
+                _sessionManager.RefreshSessions();
+                var sessions = _sessionManager.Sessions;
+
+#pragma warning disable CS0618 // NAudio 2.2.1 expone AudioClient mediante esta propiedad.
+                using var endpointAudioClient = _device.AudioClient;
+#pragma warning restore CS0618
+                var endpointFormat = endpointAudioClient.MixFormat;
+
+                for (var index = 0; index < sessions.Count; index++)
+                {
+                    var session = sessions[index];
+                    var processId = (int)session.GetProcessID;
+                    if (processId == 0) continue;
+
+                    try
+                    {
+                        using var process = Process.GetProcessById(processId);
+                        var processName = process.ProcessName;
+                        var captureProcessId = BrowserProcessNames.Contains(processName)
+                            ? GetRootProcessId(processId, processName)
+                            : processId;
+
+                        if (captureProcessId != processId)
+                        {
+                            Debug.WriteLine(
+                                $"[AppAudio] Navegador {processName} — " +
+                                $"PID sesión: {processId} → PID raíz: {captureProcessId}");
+                        }
+
+                        _logger.LogInformation(
+                            "Sesión {ProcessId} en '{Device}': formato endpoint {Format}, " +
+                            "volumen sesión {SessionVolume:F2}, volumen endpoint {EndpointVolume:F2}",
+                            processId,
+                            _device.FriendlyName,
+                            endpointFormat,
+                            session.SimpleAudioVolume.Volume,
+                            _device.AudioEndpointVolume.MasterVolumeLevelScalar);
+
+                        result.Add(new AudioAppInfo
+                        {
+                            ProcessId = captureProcessId,
+                            ProcessName = processName,
+                            DisplayName = string.IsNullOrWhiteSpace(session.DisplayName)
+                                ? GetApplicationDisplayName(processName)
+                                : session.DisplayName,
+                            IsIncludedInMix = false
+                        });
+                    }
+                    catch (ArgumentException)
+                    {
+                        // El proceso terminó entre la enumeración de la sesión y esta consulta.
+                    }
+                    catch (InvalidOperationException)
+                    {
+                        // La sesión o el proceso dejó de estar disponible durante el refresco.
+                    }
+                }
+            }
+            catch (Exception exception)
+            {
+                _logger.LogError(exception, "Error enumerando sesiones de audio");
+            }
+
+            // Los navegadores se añaden también por proceso para que aparezcan aunque todavía
+            // no hayan creado ninguna sesión de audio en el dispositivo seleccionado.
+            var browsers = GetRunningBrowsers();
+            result.AddRange(browsers);
+            _knownBrowserProcessIds = browsers.Select(browser => browser.ProcessId).ToHashSet();
         }
 
-        // Un mismo proceso puede tener varias sesiones; se muestra una sola entrada por proceso.
+        // Las sesiones se añaden antes que los procesos silenciosos. Si existe una sesión real,
+        // se conserva su nombre para mostrar en lugar del nombre genérico del navegador.
         return result
-            .GroupBy(a => a.ProcessId)
-            .Select(g => g.First())
-            .OrderBy(a => a.DisplayName, StringComparer.OrdinalIgnoreCase)
+            .GroupBy(application => application.ProcessId)
+            .Select(group => group.First())
+            .OrderBy(application => application.DisplayName, StringComparer.OrdinalIgnoreCase)
             .ToList();
     }
 
-    /// <summary>
-    /// Sube por el árbol de procesos hasta encontrar el proceso raíz del mismo nombre.
-    /// Brave/Chrome lanzan muchos procesos hijos con el mismo nombre — el audio sale del hijo
-    /// pero hay que capturar desde el padre raíz con IncludeTargetProcessTree.
-    /// </summary>
-    private static int GetRootProcessId(int pid, string processName)
+    private void OnSessionCreated(
+    object _,
+    IAudioSessionControl __)
+    {
+        RaiseApplicationsChanged();
+    }
+
+    private void CheckForBrowserChanges(object? state)
+    {
+        bool changed;
+
+        try
+        {
+            var currentProcessIds = GetRunningBrowsers()
+                .Select(browser => browser.ProcessId)
+                .ToHashSet();
+
+            lock (_sync)
+            {
+                if (_disposed || _device is null) return;
+
+                changed = !_knownBrowserProcessIds.SetEquals(currentProcessIds);
+                if (changed)
+                    _knownBrowserProcessIds = currentProcessIds;
+            }
+        }
+        catch (Exception exception)
+        {
+            _logger.LogDebug(exception, "No se pudo comprobar si cambió la lista de navegadores");
+            return;
+        }
+
+        if (changed)
+            RaiseApplicationsChanged();
+    }
+
+    private void RaiseApplicationsChanged()
     {
         try
         {
-            var current = pid;
+            ApplicationsChanged?.Invoke(this, EventArgs.Empty);
+        }
+        catch (Exception exception)
+        {
+            _logger.LogError(exception, "Error notificando un cambio en las aplicaciones de audio");
+        }
+    }
+
+    private static List<AudioAppInfo> GetRunningBrowsers()
+    {
+        var browsers = new List<AudioAppInfo>();
+
+        foreach (var browserProcessName in BrowserProcessNames)
+        {
+            Process[] processes;
+            try
+            {
+                processes = Process.GetProcessesByName(browserProcessName);
+            }
+            catch
+            {
+                continue;
+            }
+
+            foreach (var process in processes)
+            {
+                using (process)
+                {
+                    try
+                    {
+                        var processName = process.ProcessName;
+                        browsers.Add(new AudioAppInfo
+                        {
+                            ProcessId = GetRootProcessId(process.Id, processName),
+                            ProcessName = processName,
+                            DisplayName = GetApplicationDisplayName(processName),
+                            IsIncludedInMix = false
+                        });
+                    }
+                    catch
+                    {
+                        // El proceso puede finalizar mientras se está enumerando.
+                    }
+                }
+            }
+        }
+
+        return browsers
+            .GroupBy(browser => browser.ProcessId)
+            .Select(group => group.First())
+            .ToList();
+    }
+
+    private static string GetApplicationDisplayName(string processName) => processName.ToLowerInvariant() switch
+    {
+        "chrome" => "Google Chrome",
+        "brave" => "Brave",
+        "msedge" => "Microsoft Edge",
+        "firefox" => "Mozilla Firefox",
+        "opera" => "Opera",
+        "opera_gx" => "Opera GX",
+        "vivaldi" => "Vivaldi",
+        "arc" => "Arc",
+        "zen" => "Zen Browser",
+        _ => processName
+    };
+
+    /// <summary>
+    /// Sube por el árbol de procesos hasta encontrar el proceso raíz con el mismo nombre.
+    /// Los navegadores crean procesos hijos para pestañas, renderizado y audio, mientras que
+    /// ProcessLoopbackCapture necesita el proceso raíz al usar IncludeTargetProcessTree.
+    /// </summary>
+    private static int GetRootProcessId(int processId, string processName)
+    {
+        try
+        {
+            var currentProcessId = processId;
+
             while (true)
             {
-                var parentId = GetParentProcessId(current);
-                if (parentId <= 0) break;
+                var parentProcessId = GetParentProcessId(currentProcessId);
+                if (parentProcessId <= 0) break;
 
-                Process parent;
-                try { parent = Process.GetProcessById(parentId); }
-                catch { break; }
-
-                // Subir solo mientras el padre sea el mismo proceso (mismo nombre)
-                if (!parent.ProcessName.Equals(processName, StringComparison.OrdinalIgnoreCase))
+                try
+                {
+                    using var parent = Process.GetProcessById(parentProcessId);
+                    if (!parent.ProcessName.Equals(processName, StringComparison.OrdinalIgnoreCase))
+                        break;
+                }
+                catch
+                {
                     break;
+                }
 
-                current = parentId;
+                currentProcessId = parentProcessId;
             }
-            return current;
+
+            return currentProcessId;
         }
         catch
         {
-            return pid;
+            return processId;
         }
     }
 
@@ -149,14 +322,22 @@ public sealed class ApplicationAudioService : IApplicationAudioService, IDisposa
         public IntPtr InheritedFromUniqueProcessId;
     }
 
-    private static int GetParentProcessId(int pid)
+    private static int GetParentProcessId(int processId)
     {
         try
         {
-            var handle = Process.GetProcessById(pid).Handle;
-            var info = new PROCESS_BASIC_INFORMATION();
-            NtQueryInformationProcess(handle, 0, ref info, Marshal.SizeOf(info), out _);
-            return info.InheritedFromUniqueProcessId.ToInt32();
+            using var process = Process.GetProcessById(processId);
+            var information = new PROCESS_BASIC_INFORMATION();
+            var status = NtQueryInformationProcess(
+                process.Handle,
+                0,
+                ref information,
+                Marshal.SizeOf<PROCESS_BASIC_INFORMATION>(),
+                out _);
+
+            return status == 0
+                ? information.InheritedFromUniqueProcessId.ToInt32()
+                : -1;
         }
         catch
         {
@@ -164,9 +345,28 @@ public sealed class ApplicationAudioService : IApplicationAudioService, IDisposa
         }
     }
 
+    private void DetachSessionManager()
+    {
+        if (_sessionManager is not null)
+            _sessionManager.OnSessionCreated -= OnSessionCreated;
+
+        _sessionManager = null;
+    }
+
     public void Dispose()
     {
-        _device?.Dispose();
-        _enumerator.Dispose();
+        lock (_sync)
+        {
+            if (_disposed) return;
+            _disposed = true;
+
+            _browserWatcher.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+            DetachSessionManager();
+            _device?.Dispose();
+            _device = null;
+            _enumerator.Dispose();
+        }
+
+        _browserWatcher.Dispose();
     }
 }

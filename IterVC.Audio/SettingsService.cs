@@ -66,13 +66,7 @@ public sealed class SettingsService : ISettingsService
         await _lock.WaitAsync(cancellationToken);
         try
         {
-            var tmpPath = _filePath + ".tmp";
-            await using (var stream = File.Create(tmpPath))
-            {
-                await JsonSerializer.SerializeAsync(stream, Current, JsonOptions, cancellationToken);
-            }
-            File.Copy(tmpPath, _filePath, overwrite: true);
-            File.Delete(tmpPath);
+            await SaveCoreAsync(cancellationToken);
         }
         catch (Exception ex)
         {
@@ -86,7 +80,30 @@ public sealed class SettingsService : ISettingsService
 
     public async Task UpdateAsync(Action<AppSettings> mutate, CancellationToken cancellationToken = default)
     {
-        mutate(Current);
-        await SaveAsync(cancellationToken);
+        await _lock.WaitAsync(cancellationToken);
+        try
+        {
+            mutate(Current);
+            await SaveCoreAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "No se pudo actualizar settings.json");
+        }
+        finally
+        {
+            _lock.Release();
+        }
+    }
+
+    private async Task SaveCoreAsync(CancellationToken cancellationToken)
+    {
+        var tmpPath = _filePath + ".tmp";
+        await using (var stream = File.Create(tmpPath))
+        {
+            await JsonSerializer.SerializeAsync(stream, Current, JsonOptions, cancellationToken);
+        }
+        File.Copy(tmpPath, _filePath, overwrite: true);
+        File.Delete(tmpPath);
     }
 }

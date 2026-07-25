@@ -102,6 +102,22 @@ public sealed class SettingsServiceTests : IDisposable
     }
 
     [TestMethod]
+    public async Task UpdateAsync_ConcurrentMutationsAreSerializedWithoutLostChanges()
+    {
+        var service = CreateService();
+        await service.LoadAsync();
+
+        var writes = Enumerable.Range(0, 25)
+            .Select(index => service.UpdateAsync(settings => settings.IncludedProcessNames.Add($"app-{index}")));
+        await Task.WhenAll(writes);
+
+        var reloaded = await CreateService().LoadAsync();
+        Assert.AreEqual(25, reloaded.IncludedProcessNames.Count);
+        CollectionAssert.AreEquivalent(Enumerable.Range(0, 25).Select(index => $"app-{index}").ToArray(),
+            reloaded.IncludedProcessNames);
+    }
+
+    [TestMethod]
     public async Task UpdateAsync_RoundTripsMicrophoneAndNoiseGateSettings()
     {
         var service = CreateService();

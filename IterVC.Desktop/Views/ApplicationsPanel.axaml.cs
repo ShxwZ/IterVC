@@ -11,11 +11,11 @@ public sealed partial class ApplicationsPanel : UserControl
         InitializeComponent();
     }
 
-    private void OnAppRowPointerPressed(object? sender, PointerPressedEventArgs e)
+    private async void OnAppRowPointerPressed(object? sender, PointerPressedEventArgs e)
     {
         if (sender is Border { DataContext: AppAudioItemViewModel app })
         {
-            app.IsIncludedInMix = !app.IsIncludedInMix;
+            await app.ToggleInclusionCommand.ExecuteAsync(null);
             e.Handled = true;
         }
     }

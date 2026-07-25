@@ -170,8 +170,7 @@ public sealed class TextsViewModel : ObservableObject
     public string UpdateCheckFailed => G(LK.UpdateCheckFailed);
     public string UpdateOpenFailed => G(LK.UpdateOpenFailed);
 
-    /// <summary>Prefijo del mensaje "No se pudo capturar el proceso N".</summary>
-    public string AppCaptureErrorPrefix => G(LK.ButtonStart) + ":";
+    public string AppCaptureError => G(LK.AppCaptureError);
 
     /// <summary>
     /// Llamado por el MainViewModel cuando cambia el idioma. Dispara PropertyChanged
@@ -262,7 +261,7 @@ public sealed class TextsViewModel : ObservableObject
         OnPropertyChanged(nameof(UpdateCurrent));
         OnPropertyChanged(nameof(UpdateCheckFailed));
         OnPropertyChanged(nameof(UpdateOpenFailed));
-        OnPropertyChanged(nameof(AppCaptureErrorPrefix));
+        OnPropertyChanged(nameof(AppCaptureError));
     }
 
     private static string G(string key) => LocalizationService.Instance.Get(key);
@@ -282,6 +281,7 @@ public sealed class TextsViewModel : ObservableObject
         internal const string CardAppsHelp = LocalizationService.Keys.CardAppsHelp; 
         internal const string AppsDetectedOne = LocalizationService.Keys.AppsDetectedOne;
         internal const string AppsDetectedMany = LocalizationService.Keys.AppsDetectedMany;
+        internal const string AppCaptureError = LocalizationService.Keys.AppCaptureError;
         internal const string CardDevicesTitle = LocalizationService.Keys.CardDevicesTitle; 
         internal const string DeviceReference = LocalizationService.Keys.DeviceReference; 
         internal const string DeviceVbCable = LocalizationService.Keys.DeviceVbCable; 

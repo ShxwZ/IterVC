@@ -3,7 +3,7 @@ using System.Text.Json;
 
 namespace IterVC.Desktop.Services;
 
-internal sealed class GitHubUpdateService
+internal sealed class GitHubUpdateService : IUpdateService
 {
     private static readonly Uri LatestReleaseApi = new("https://api.github.com/repos/ShxwZ/IterVC/releases/latest");
     private readonly HttpClient _httpClient;
@@ -15,7 +15,7 @@ internal sealed class GitHubUpdateService
             _httpClient.DefaultRequestHeaders.UserAgent.Add(new ProductInfoHeaderValue("IterVC", "1.0"));
     }
 
-    internal async Task<UpdateCheckResult> CheckAsync(CancellationToken cancellationToken = default)
+    public async Task<UpdateCheckResult> CheckAsync(CancellationToken cancellationToken = default)
     {
         try
         {
@@ -34,7 +34,7 @@ internal sealed class GitHubUpdateService
         }
     }
 
-    internal static bool TryValidateReleaseUrl(string? value, out string url)
+    public bool TryValidateReleaseUrl(string? value, out string url)
     {
         url = string.Empty;
         if (!Uri.TryCreate(value, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps ||
@@ -50,9 +50,4 @@ internal sealed class GitHubUpdateService
         [System.Text.Json.Serialization.JsonPropertyName("html_url")]
         public string? HtmlUrl { get; init; }
     }
-}
-
-internal readonly record struct UpdateCheckResult(bool Success, string? Version, string? ReleaseUrl)
-{
-    internal static UpdateCheckResult Failed => new(false, null, null);
 }

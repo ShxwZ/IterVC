@@ -13,6 +13,9 @@ public interface IAudioRouterService : IDisposable
     float NoiseGateGain { get; }
     bool IsNoiseGateOpen { get; }
 
+    /// <summary>Feeds interleaved IEEE float microphone samples into the routing pipeline.</summary>
+    void FeedMicrophoneSamples(byte[] pcmBytes, int count);
+
     /// <summary>
     /// Inicia el enrutado: abre el dispositivo VB-Cable de salida y comienza a mezclar
     /// las apps ya añadidas (<see cref="AddAppSourceAsync"/>) + el micrófono hacia él.
@@ -30,9 +33,8 @@ public interface IAudioRouterService : IDisposable
     /// </summary>
     /// <param name="processId">PID del proceso a capturar.</param>
     /// <param name="useRawAudio">
-    /// Si <c>true</c>, intenta capturar el audio en modo RAW (pre-APO: sin Dolby Atmos,
-    /// Windows Sonic, DTS ni otros efectos del sistema). Si el endpoint no soporta RAW,
-    /// se hace fallback transparente al modo normal. Por defecto <c>true</c>.
+    /// Retained for API compatibility and currently ignored. Process loopback uses an
+    /// endpoint-independent virtual capture device that does not expose endpoint RAW mode.
     /// </param>
     Task AddAppSourceAsync(int processId, bool useRawAudio = true);
 
@@ -54,4 +56,3 @@ public interface IAudioRouterService : IDisposable
     /// <summary>Configures the real-time microphone noise gate.</summary>
     void ConfigureNoiseGate(bool enabled, float thresholdDb, float attackMilliseconds, float releaseMilliseconds);
 }
-

@@ -3,16 +3,12 @@ using System.Runtime.InteropServices;
 
 namespace IterVC.Desktop.Services;
 
-internal enum HotkeyAction { ToggleRouting = 1, StartRouting, StopRouting, ToggleMicrophone }
-internal readonly record struct HotkeyBinding(HotkeyAction Action, bool Enabled, string Gesture);
-
 /// <summary>
 /// Observes keyboard input globally without consuming it. The foreground application still
 /// receives every key; IterVC only reacts to configured chords seen through Raw Input.
 /// </summary>
-internal sealed class GlobalHotkeyService : IDisposable
+internal sealed class GlobalHotkeyService : IGlobalHotkeyService
 {
-    internal const string WorkerUnavailableError = "hotkey-worker-unavailable";
     private const uint WmInput = 0x00FF;
     private const uint WmInputDeviceChange = 0x00FE;
     private const uint WmQuit = 0x0012;
@@ -49,7 +45,7 @@ internal sealed class GlobalHotkeyService : IDisposable
         _thread.Start();
         if (!_ready.WaitOne(TimeSpan.FromSeconds(2)))
         {
-            _initializationError = WorkerUnavailableError;
+            _initializationError = HotkeyErrors.WorkerUnavailable;
             _stopRequested = true;
             if (_threadId != 0) PostThreadMessage(_threadId, WmQuit, IntPtr.Zero, IntPtr.Zero);
             _thread.Join(TimeSpan.FromSeconds(2));
@@ -59,19 +55,19 @@ internal sealed class GlobalHotkeyService : IDisposable
     public event EventHandler<HotkeyAction>? Pressed;
     public event EventHandler<string>? Failed;
 
-    public IReadOnlyDictionary<HotkeyAction, string> Configure(IReadOnlyList<HotkeyBinding> bindings)
+    public HotkeyRegistrationResult Configure(IReadOnlyList<HotkeyBinding> bindings)
     {
         if (_initializationError is not null)
-            return bindings.ToDictionary(x => x.Action, _ => _initializationError);
+            return new(bindings.ToDictionary(x => x.Action, _ => _initializationError));
         if (_disposed || !_thread.IsAlive)
-            return bindings.ToDictionary(x => x.Action, _ => WorkerUnavailableError);
+            return new(bindings.ToDictionary(x => x.Action, _ => HotkeyErrors.WorkerUnavailable));
         lock (_sync) _pending = bindings.ToArray();
         _configured.WaitOne(0); // Discard a late signal from an earlier timed-out request.
         if (!PostThreadMessage(_threadId, WmAppConfigure, IntPtr.Zero, IntPtr.Zero))
-            return bindings.ToDictionary(x => x.Action, _ => new Win32Exception(Marshal.GetLastWin32Error()).Message);
+            return new(bindings.ToDictionary(x => x.Action, _ => new Win32Exception(Marshal.GetLastWin32Error()).Message));
         if (!_configured.WaitOne(TimeSpan.FromSeconds(2)))
-            return bindings.ToDictionary(x => x.Action, _ => WorkerUnavailableError);
-        lock (_sync) return new Dictionary<HotkeyAction, string>(_errors);
+            return new(bindings.ToDictionary(x => x.Action, _ => HotkeyErrors.WorkerUnavailable));
+        lock (_sync) return new(new Dictionary<HotkeyAction, string>(_errors));
     }
 
     private void MessageLoop()

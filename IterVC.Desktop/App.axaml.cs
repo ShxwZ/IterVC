@@ -1,4 +1,4 @@
-﻿using Avalonia;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
@@ -26,20 +26,13 @@ public sealed class App : Application
             Debug.WriteLine("5 - Creando ventana");
             var mainViewModel = Program.AppHost.Services.GetRequiredService<MainViewModel>();
             var mainWindow = new MainWindow { DataContext = mainViewModel };
-            var globalHotkey = new GlobalHotkeyService();
+            var globalHotkey = Program.AppHost.Services.GetRequiredService<IGlobalHotkeyService>();
             var hotkeyActionGate = new SemaphoreSlim(1, 1);
             var hotkeyActionsStopping = new CancellationTokenSource();
 
             void ConfigureHotkeys()
             {
-                var bindings = new[]
-                {
-                    new HotkeyBinding(HotkeyAction.ToggleRouting, mainViewModel.ToggleRoutingHotkeyEnabled, mainViewModel.ToggleRoutingHotkeyGesture),
-                    new HotkeyBinding(HotkeyAction.StartRouting, mainViewModel.StartRoutingHotkeyEnabled, mainViewModel.StartRoutingHotkeyGesture),
-                    new HotkeyBinding(HotkeyAction.StopRouting, mainViewModel.StopRoutingHotkeyEnabled, mainViewModel.StopRoutingHotkeyGesture),
-                    new HotkeyBinding(HotkeyAction.ToggleMicrophone, mainViewModel.ToggleMicrophoneHotkeyEnabled, mainViewModel.ToggleMicrophoneHotkeyGesture)
-                };
-                var errors = globalHotkey.Configure(bindings);
+                var errors = globalHotkey.Configure(mainViewModel.Settings.Hotkeys.BuildBindings()).Errors;
                 string ActionLabel(HotkeyAction action) => action switch
                 {
                     HotkeyAction.ToggleRouting => mainViewModel.Texts.HotkeyToggleRouting,
@@ -47,31 +40,12 @@ public sealed class App : Application
                     HotkeyAction.StopRouting => mainViewModel.Texts.HotkeyStopRouting,
                     _ => mainViewModel.Texts.HotkeyToggleMicrophone
                 };
-                mainViewModel.SetGlobalHotkeyStatus(errors.Count == 0
+                mainViewModel.Settings.Hotkeys.RegistrationStatus = errors.Count == 0
                     ? null
                     : string.Format(mainViewModel.Texts.HotkeyRegistrationFailed,
                         string.Join(" | ", errors.Select(x => $"{ActionLabel(x.Key)}: "
-                            + x.Value))));
+                            + x.Value)));
             }
-
-            mainViewModel.TryConfigureCapturedHotkey = (action, gesture) =>
-            {
-                var bindings = new[]
-                {
-                    new HotkeyBinding(HotkeyAction.ToggleRouting, action == "ToggleRouting" || mainViewModel.ToggleRoutingHotkeyEnabled, action == "ToggleRouting" ? gesture : mainViewModel.ToggleRoutingHotkeyGesture),
-                    new HotkeyBinding(HotkeyAction.StartRouting, action == "StartRouting" || mainViewModel.StartRoutingHotkeyEnabled, action == "StartRouting" ? gesture : mainViewModel.StartRoutingHotkeyGesture),
-                    new HotkeyBinding(HotkeyAction.StopRouting, action == "StopRouting" || mainViewModel.StopRoutingHotkeyEnabled, action == "StopRouting" ? gesture : mainViewModel.StopRoutingHotkeyGesture),
-                    new HotkeyBinding(HotkeyAction.ToggleMicrophone, action == "ToggleMicrophone" || mainViewModel.ToggleMicrophoneHotkeyEnabled, action == "ToggleMicrophone" ? gesture : mainViewModel.ToggleMicrophoneHotkeyGesture)
-                };
-                var errors = globalHotkey.Configure(bindings);
-                var target = Enum.Parse<HotkeyAction>(action);
-                if (errors.Count == 0) return null;
-                ConfigureHotkeys(); // Restore the previously persisted registration set.
-                var error = errors.TryGetValue(target, out var targetError) ? targetError : errors.First().Value;
-                return error == GlobalHotkeyService.WorkerUnavailableError
-                        ? string.Format(mainViewModel.Texts.HotkeyRegistrationFailed, error)
-                    : error;
-            };
 
             globalHotkey.Pressed += (_, action) => Avalonia.Threading.Dispatcher.UIThread.Post(async () =>
             {
@@ -83,10 +57,10 @@ public sealed class App : Application
                         if (hotkeyActionsStopping.IsCancellationRequested) return;
                         switch (action)
                         {
-                            case HotkeyAction.ToggleRouting: await mainViewModel.ToggleRoutingFromHotkeyAsync(); break;
-                            case HotkeyAction.StartRouting: await mainViewModel.StartRoutingFromHotkeyAsync(); break;
-                            case HotkeyAction.StopRouting: await mainViewModel.StopRoutingFromHotkeyAsync(); break;
-                            case HotkeyAction.ToggleMicrophone: await mainViewModel.ToggleMicrophoneFromHotkeyAsync(); break;
+                            case HotkeyAction.ToggleRouting: await mainViewModel.Audio.ToggleRoutingAsync(); break;
+                            case HotkeyAction.StartRouting: await mainViewModel.Audio.StartRoutingAsync(); break;
+                            case HotkeyAction.StopRouting: await mainViewModel.Audio.StopRoutingAsync(); break;
+                            case HotkeyAction.ToggleMicrophone: await mainViewModel.Audio.Microphone.ToggleAsync(); break;
                         }
                     }
                     finally { hotkeyActionGate.Release(); }
@@ -94,18 +68,11 @@ public sealed class App : Application
                 catch (OperationCanceledException) { }
             });
             globalHotkey.Failed += (_, error) => Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-                mainViewModel.SetGlobalHotkeyStatus(
-                    string.Format(mainViewModel.Texts.HotkeyRegistrationFailed, error)));
-            mainViewModel.PropertyChanged += (_, args) =>
-            {
-                if (args.PropertyName?.EndsWith("HotkeyEnabled", StringComparison.Ordinal) == true ||
-                    args.PropertyName?.EndsWith("HotkeyGesture", StringComparison.Ordinal) == true)
-                    ConfigureHotkeys();
-            };
-
+                mainViewModel.Settings.Hotkeys.RegistrationStatus =
+                    string.Format(mainViewModel.Texts.HotkeyRegistrationFailed, error));
             mainWindow.Opened += async (_, _) =>
             {
-                Debug.WriteLine("8 - Ventana abierta, iniciando inicializaciÃ³n");
+                Debug.WriteLine("8 - Ventana abierta, iniciando inicialización");
                 try
                 {
                     await Program.AppHost.StartAsync().ConfigureAwait(false);
@@ -129,6 +96,7 @@ public sealed class App : Application
             {
                 hotkeyActionsStopping.Cancel();
                 globalHotkey.Dispose();
+                await mainViewModel.DisposeAsync();
                 await Program.AppHost.StopAsync();
             };
         }
