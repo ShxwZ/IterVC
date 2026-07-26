@@ -74,7 +74,7 @@ public sealed class MainViewModel : ViewModelBase, IAsyncDisposable
             await Audio.Microphone.HydrateAsync(settings, cancellationToken);
             Audio.NoiseGate.Hydrate(settings);
             await OscChatbox.HydrateAsync(settings, cancellationToken);
-            await Settings.Updates.HydrateAsync(settings, cancellationToken);
+            Settings.Updates.HydrateForStartup(settings);
 
             cancellationToken.ThrowIfCancellationRequested();
         }
