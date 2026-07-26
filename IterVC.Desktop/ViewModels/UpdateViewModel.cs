@@ -150,6 +150,7 @@ public sealed partial class UpdateViewModel : ViewModelBase
 
             if (!result.Success)
             {
+                _logger.LogWarning("Update check failed");
                 if (isManual) SetStatus(UpdateStatusKind.CheckFailed);
                 return;
             }

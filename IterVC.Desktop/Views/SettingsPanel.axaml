@@ -381,6 +381,11 @@
 						<CheckBox Content="{Binding Texts.UpdateEnabled}" IsChecked="{Binding Settings.Updates.IsEnabled}" />
 						<Button Classes="secondary" Content="{Binding Texts.UpdateCheckNow}" Command="{Binding Settings.Updates.CheckNowCommand}" IsEnabled="{Binding !Settings.Updates.IsChecking}" />
 						<TextBlock Text="{Binding Settings.Updates.Status}" TextWrapping="Wrap" FontSize="10" Foreground="#7B7B9A" />
+						<Separator Height="1" Background="#1C1C28" Margin="0,4" />
+						<TextBlock Text="{Binding Texts.DiagnosticsTitle}" FontWeight="Bold" Foreground="#A9A9C3" FontSize="11" />
+						<Button Classes="secondary"
+								Content="{Binding Texts.DiagnosticsOpenLogs}"
+								Command="{Binding Settings.Diagnostics.OpenLogFolderCommand}" />
 					</StackPanel>
 				</ScrollViewer>
 			</TabItem>

@@ -33,6 +33,7 @@ public sealed class AudioRouterService : IAudioRouterService
     private float _appsVolume = 1.0f;
     private float _microphoneInputLevelDb = -80f;
     private float _microphoneOutputLevelDb = -80f;
+    private int _disposed;
     private long _lastMicrophoneSampleTimestamp = Stopwatch.GetTimestamp();
 
     private MixingSampleProvider? _mainMixer;
@@ -389,6 +390,8 @@ public sealed class AudioRouterService : IAudioRouterService
 
     public void Dispose()
     {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+
         StopCableOutput();
         StopMonitorOutput();
 
