@@ -38,6 +38,7 @@ public sealed class App : Application
                     HotkeyAction.ToggleRouting => mainViewModel.Texts.HotkeyToggleRouting,
                     HotkeyAction.StartRouting => mainViewModel.Texts.HotkeyStartRouting,
                     HotkeyAction.StopRouting => mainViewModel.Texts.HotkeyStopRouting,
+                    HotkeyAction.ToggleApplicationsMute => mainViewModel.Texts.HotkeyToggleApplicationsMute,
                     _ => mainViewModel.Texts.HotkeyToggleMicrophone
                 };
                 mainViewModel.Settings.Hotkeys.RegistrationStatus = errors.Count == 0
@@ -60,6 +61,9 @@ public sealed class App : Application
                             case HotkeyAction.ToggleRouting: await mainViewModel.Audio.ToggleRoutingAsync(); break;
                             case HotkeyAction.StartRouting: await mainViewModel.Audio.StartRoutingAsync(); break;
                             case HotkeyAction.StopRouting: await mainViewModel.Audio.StopRoutingAsync(); break;
+                            case HotkeyAction.ToggleApplicationsMute:
+                                mainViewModel.Audio.Applications.ToggleApplicationsMute();
+                                break;
                             case HotkeyAction.ToggleMicrophone: await mainViewModel.Audio.Microphone.ToggleAsync(); break;
                         }
                     }

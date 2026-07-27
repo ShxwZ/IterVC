@@ -5,6 +5,8 @@ namespace IterVC.Desktop.Services;
 
 internal sealed class OscChatboxWorker : IOscChatboxWorker
 {
+    private const string WavePattern = "▁▂▄▆█▆▄▂▁▂▄▆█▆▄";
+
     private readonly IMediaSessionService _mediaSessions;
     private readonly IOscMediaService _oscMedia;
     private readonly ILogger<OscChatboxWorker> _logger;
@@ -14,6 +16,7 @@ internal sealed class OscChatboxWorker : IOscChatboxWorker
     private Task? _runTask;
     private volatile bool _enabled;
     private string _template = "{title} - [{time}]";
+    private int _waveFrameIndex;
 
     public OscChatboxWorker(IMediaSessionService mediaSessions, IOscMediaService oscMedia,
         ILogger<OscChatboxWorker> logger) : this(mediaSessions, oscMedia, logger, TimeSpan.FromSeconds(1)) { }
@@ -70,7 +73,8 @@ internal sealed class OscChatboxWorker : IOscChatboxWorker
                     if (media is { Title.Length: > 0 })
                     {
                         var message = _template.Replace("{title}", media.Title)
-                            .Replace("{status}", media.Status).Replace("{time}", media.TimeInfo);
+                            .Replace("{status}", media.Status).Replace("{time}", media.TimeInfo)
+                            .Replace("{wave}", NextWaveFrame());
                         _oscMedia.SendMediaInfo(media.Title, media.Status, message);
                     }
                 }
@@ -79,5 +83,12 @@ internal sealed class OscChatboxWorker : IOscChatboxWorker
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
         catch (Exception exception) { _logger.LogError(exception, "OSC chatbox worker stopped unexpectedly"); }
+    }
+
+    private string NextWaveFrame()
+    {
+        var frame = WavePattern[_waveFrameIndex..] + WavePattern[.._waveFrameIndex];
+        _waveFrameIndex = (_waveFrameIndex + 1) % WavePattern.Length;
+        return frame;
     }
 }

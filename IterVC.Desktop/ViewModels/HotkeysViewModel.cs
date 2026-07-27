@@ -35,6 +35,8 @@ public sealed partial class HotkeysViewModel : ViewModelBase
         Set(HotkeyAction.ToggleRouting, settings.ToggleRoutingHotkeyEnabled, settings.ToggleRoutingHotkeyGesture);
         Set(HotkeyAction.StartRouting, settings.StartRoutingHotkeyEnabled, settings.StartRoutingHotkeyGesture);
         Set(HotkeyAction.StopRouting, settings.StopRoutingHotkeyEnabled, settings.StopRoutingHotkeyGesture);
+        Set(HotkeyAction.ToggleApplicationsMute, settings.ToggleApplicationsMuteHotkeyEnabled,
+            settings.ToggleApplicationsMuteHotkeyGesture);
         Set(HotkeyAction.ToggleMicrophone, settings.ToggleMicrophoneHotkeyEnabled, settings.ToggleMicrophoneHotkeyGesture);
     }
 
@@ -128,6 +130,7 @@ public sealed partial class HotkeysViewModel : ViewModelBase
         HotkeyAction.ToggleRouting => _texts.HotkeyToggleRouting,
         HotkeyAction.StartRouting => _texts.HotkeyStartRouting,
         HotkeyAction.StopRouting => _texts.HotkeyStopRouting,
+        HotkeyAction.ToggleApplicationsMute => _texts.HotkeyToggleApplicationsMute,
         HotkeyAction.ToggleMicrophone => _texts.HotkeyToggleMicrophone,
         _ => throw new ArgumentOutOfRangeException(nameof(action), action, null)
     };
@@ -143,6 +146,9 @@ public sealed partial class HotkeysViewModel : ViewModelBase
         var stop = GetRow(HotkeyAction.StopRouting);
         settings.StopRoutingHotkeyEnabled = stop.IsEnabled;
         settings.StopRoutingHotkeyGesture = stop.Gesture;
+        var applicationsMute = GetRow(HotkeyAction.ToggleApplicationsMute);
+        settings.ToggleApplicationsMuteHotkeyEnabled = applicationsMute.IsEnabled;
+        settings.ToggleApplicationsMuteHotkeyGesture = applicationsMute.Gesture;
         var microphone = GetRow(HotkeyAction.ToggleMicrophone);
         settings.ToggleMicrophoneHotkeyEnabled = microphone.IsEnabled;
         settings.ToggleMicrophoneHotkeyGesture = microphone.Gesture;

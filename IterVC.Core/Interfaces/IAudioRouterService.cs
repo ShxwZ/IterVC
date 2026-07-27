@@ -1,3 +1,5 @@
+using IterVC.Core.Models;
+
 namespace IterVC.Core.Interfaces;
 
 /// <summary>
@@ -8,10 +10,18 @@ namespace IterVC.Core.Interfaces;
 public interface IAudioRouterService : IDisposable
 {
     bool IsRouting { get; }
+    AudioLevelSnapshot MicrophoneInputLevel { get; }
+    AudioLevelSnapshot MicrophoneOutputLevel { get; }
+    AudioLevelSnapshot ApplicationsOutputLevel { get; }
+    AudioLevelSnapshot RoutedOutputLevel { get; }
     float MicrophoneInputLevelDb { get; }
     float MicrophoneOutputLevelDb { get; }
     float NoiseGateGain { get; }
     bool IsNoiseGateOpen { get; }
+    bool AreApplicationsMuted { get; }
+
+    AudioLevelSnapshot GetApplicationOutputLevel(int processId);
+    void SetApplicationsMuted(bool muted);
 
     /// <summary>Feeds interleaved IEEE float microphone samples into the routing pipeline.</summary>
     void FeedMicrophoneSamples(byte[] pcmBytes, int count);

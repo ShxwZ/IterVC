@@ -20,10 +20,16 @@ public sealed partial class AppAudioItemViewModel : ViewModelBase
     public int ProcessId { get; }
     public string ProcessName { get; }
     public string DisplayName { get; }
+    public AudioMeterState Meter { get; } = new();
     [ObservableProperty] private bool _isIncludedInMix;
 
     [RelayCommand]
     private Task ToggleInclusionAsync() => _owner.SetIncludedAsync(this, !IsIncludedInMix);
 
-    internal void SetIncluded(bool included) => IsIncludedInMix = included;
+    internal void SetIncluded(bool included)
+    {
+        IsIncludedInMix = included;
+        if (!included)
+            Meter.Reset();
+    }
 }

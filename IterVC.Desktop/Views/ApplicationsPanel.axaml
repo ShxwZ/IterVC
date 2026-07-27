@@ -1,21 +1,81 @@
-<UserControl xmlns="https://github.com/avaloniaui"
+﻿<UserControl xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:vm="using:IterVC.Desktop.ViewModels"
+    xmlns:controls="using:IterVC.Desktop.Views.Controls"
     x:Class="IterVC.Desktop.Views.ApplicationsPanel"
     x:DataType="vm:ApplicationsViewModel">
+	<UserControl.Resources>
+		<StreamGeometry x:Key="SpeakerOnIcon">M3,9V15H7L12,20V4L7,9H3M16.5,12C16.5,10.23 15.5,8.71 14,7.97V16.02C15.5,15.29 16.5,13.77 16.5,12M14,3.23V5.29C16.89,6.15 19,8.83 19,12C19,15.17 16.89,17.85 14,18.71V20.77C18.01,19.86 21,16.28 21,12C21,7.72 18.01,4.14 14,3.23Z</StreamGeometry>
+		<StreamGeometry x:Key="SpeakerOffIcon">M16.5,12C16.5,10.77 15.81,9.69 14.8,9.15L16.25,7.7C17.62,8.61 18.5,10.19 18.5,12C18.5,13.18 18.12,14.27 17.47,15.15L16.03,13.71C16.33,13.2 16.5,12.62 16.5,12M19.78,17.78L18.36,16.36C19.38,15.15 20,13.64 20,12C20,8.95 18.21,6.32 15.62,5.09L14,6.71V3.23C18.01,4.14 21,7.72 21,12C21,14.19 20.22,16.2 18.92,17.76L21,19.84L19.59,21.25L12,13.66V20L7,15H3V9H7L8.17,7.83L2.75,2.41L4.16,1L19.78,16.62V17.78M12,4V9.66L9.59,7.25L12,4Z</StreamGeometry>
+	</UserControl.Resources>
 	<UserControl.Styles>
 		<Style Selector="ItemsControl > ContentPresenter">
 			<Setter Property="HorizontalContentAlignment" Value="Stretch" />
 		</Style>
+		<Style Selector="Button.application-mute">
+			<Setter Property="HorizontalAlignment" Value="Stretch" />
+			<Setter Property="HorizontalContentAlignment" Value="Center" />
+			<Setter Property="Height" Value="30" />
+			<Setter Property="CornerRadius" Value="15" />
+			<Setter Property="Padding" Value="10,0" />
+			<Setter Property="VerticalAlignment" Value="Center" />
+			<Setter Property="Cursor" Value="Hand" />
+		</Style>
+		<Style Selector="Button.application-mute.active">
+			<Setter Property="Background" Value="{DynamicResource SuccessSurfaceBrush}" />
+			<Setter Property="BorderBrush" Value="{DynamicResource SuccessBorderBrush}" />
+			<Setter Property="Foreground" Value="{DynamicResource SuccessBrush}" />
+		</Style>
+		<Style Selector="Button.application-mute.inactive">
+			<Setter Property="Background" Value="{DynamicResource SurfaceInteractiveBrush}" />
+			<Setter Property="BorderBrush" Value="{DynamicResource BorderStrongBrush}" />
+			<Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+		</Style>
+		<Style Selector="Button.application-mute:pointerover /template/ ContentPresenter">
+			<Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
+		</Style>
+		<Style Selector="Button.application-mute:focus-visible">
+			<Setter Property="BorderBrush" Value="{DynamicResource AccentMutedBrush}" />
+			<Setter Property="BorderThickness" Value="2" />
+		</Style>
+		<Style Selector="Button.application-mute:disabled">
+			<Setter Property="Opacity" Value="0.45" />
+		</Style>
 	</UserControl.Styles>
-				<Border Background="#111116" BorderBrush="#1C1C28"
+				<Border Background="{DynamicResource SurfaceBaseBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}"
 					BorderThickness="1" CornerRadius="8" Padding="16">
 					<Grid RowDefinitions="Auto,*,Auto">
 						<StackPanel Grid.Row="0" Margin="0,0,0,12">
 							<TextBlock Text="{Binding Texts.CardAppsTitle}" FontWeight="Bold"
-								FontSize="12" Foreground="#8F8FA8" Margin="0,0,0,2" />
-							<TextBlock Text="{Binding Texts.CardAppsHelp}" Foreground="#5F5F7A"
-								FontSize="11" TextWrapping="Wrap" />
+								FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" />
+							<TextBlock Text="{Binding Texts.CardAppsHelp}" Foreground="{DynamicResource TextSubtleBrush}"
+								FontSize="11" TextWrapping="Wrap" Margin="0,2,0,8" />
+							<Button Classes="application-mute active"
+								IsVisible="{Binding !AreApplicationsMuted}"
+								Command="{Binding ToggleApplicationsMuteCommand}"
+								ToolTip.Tip="{Binding Texts.ApplicationAudioMute}">
+								<StackPanel Orientation="Horizontal" Spacing="7"
+									HorizontalAlignment="Center" VerticalAlignment="Center">
+									<PathIcon Data="{StaticResource SpeakerOnIcon}" Width="13" Height="13"
+										Foreground="{DynamicResource SuccessBrush}" VerticalAlignment="Center" />
+									<TextBlock Text="{Binding ApplicationsMuteStatusText}"
+										FontSize="10" FontWeight="Bold"
+										Foreground="{DynamicResource SuccessBrush}" VerticalAlignment="Center" />
+								</StackPanel>
+							</Button>
+							<Button Classes="application-mute inactive"
+								IsVisible="{Binding AreApplicationsMuted}"
+								Command="{Binding ToggleApplicationsMuteCommand}"
+								ToolTip.Tip="{Binding Texts.ApplicationAudioUnmute}">
+								<StackPanel Orientation="Horizontal" Spacing="7"
+									HorizontalAlignment="Center" VerticalAlignment="Center">
+									<PathIcon Data="{StaticResource SpeakerOffIcon}" Width="13" Height="13"
+										Foreground="{DynamicResource TextMutedBrush}" VerticalAlignment="Center" />
+									<TextBlock Text="{Binding ApplicationsMuteStatusText}"
+										FontSize="10" FontWeight="SemiBold"
+										Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
+								</StackPanel>
+							</Button>
 						</StackPanel>
 
 						<!-- Listado de Apps -->
@@ -23,7 +83,7 @@
 							<ItemsControl ItemsSource="{Binding RunningApps}" Margin="3,0">
 								<ItemsControl.ItemTemplate>
 									<DataTemplate x:DataType="vm:AppAudioItemViewModel">
-										<Border Background="#15151F" BorderBrush="#1F1F2E"
+										<Border Background="{DynamicResource SurfaceRaisedBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}"
 											BorderThickness="1" Padding="12,10" CornerRadius="6"
 											Margin="1,2" HorizontalAlignment="Stretch" Cursor="Hand"
 											PointerPressed="OnAppRowPointerPressed">
@@ -36,20 +96,24 @@
 													VerticalAlignment="Center" Spacing="1">
 													<TextBlock Text="{Binding DisplayName}"
 														FontWeight="Bold" FontSize="13"
-														Foreground="#FFFFFF" />
+														Foreground="{DynamicResource TextStrongBrush}" />
 													<StackPanel Orientation="Horizontal" Spacing="6">
 														<TextBlock Text="{Binding ProcessName}"
-															FontSize="10.5" Foreground="#5F5F7A" />
+															FontSize="10.5" Foreground="{DynamicResource TextSubtleBrush}" />
 														<TextBlock Text="•" FontSize="10.5"
-															Foreground="#3F3F54" />
+															Foreground="{DynamicResource TextDisabledBrush}" />
 														<TextBlock Text="PID" FontSize="10"
-															Foreground="#4A4A63" />
+															Foreground="{DynamicResource TextDisabledBrush}" />
 														<TextBlock Text="{Binding ProcessId}"
-															FontSize="10" Foreground="#4A4A63" />
+															FontSize="10" Foreground="{DynamicResource TextDisabledBrush}" />
 													</StackPanel>
+													<controls:CompactAudioMeter Height="5" Margin="0,4,0,0"
+														LevelDb="{Binding Meter.LevelDb}"
+														PeakDb="{Binding Meter.PeakDb}"
+														IsActive="{Binding Meter.IsActive}" />
 												</StackPanel>
 												<Ellipse Grid.Column="2" Width="6" Height="6"
-													Fill="#5B5BF0" VerticalAlignment="Center"
+													Fill="{DynamicResource AccentBrush}" VerticalAlignment="Center"
 													IsVisible="{Binding IsIncludedInMix}" />
 											</Grid>
 										</Border>

@@ -1,10 +1,61 @@
 <Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:IterVC.Desktop.Views.Controls"
              x:Class="IterVC.Desktop.App"
              RequestedThemeVariant="Dark">
 
+  <Application.Resources>
+    <!-- Semantic palette: views consume roles, never raw color variants. -->
+    <SolidColorBrush x:Key="AppBackgroundBrush" Color="#0A0A0D" />
+    <SolidColorBrush x:Key="SurfaceBaseBrush" Color="#111116" />
+    <SolidColorBrush x:Key="SurfaceRaisedBrush" Color="#15151F" />
+    <SolidColorBrush x:Key="SurfaceInteractiveBrush" Color="#181820" />
+    <SolidColorBrush x:Key="SurfaceHoverBrush" Color="#202030" />
+    <SolidColorBrush x:Key="SurfaceEmphasisBrush" Color="#252532" />
+    <SolidColorBrush x:Key="BorderSubtleBrush" Color="#1C1C28" />
+    <SolidColorBrush x:Key="BorderDefaultBrush" Color="#29293B" />
+    <SolidColorBrush x:Key="BorderStrongBrush" Color="#30303D" />
+
+    <SolidColorBrush x:Key="TextStrongBrush" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="TextPrimaryBrush" Color="#E2E2E9" />
+    <SolidColorBrush x:Key="TextSecondaryBrush" Color="#A9A9C3" />
+    <SolidColorBrush x:Key="TextMutedBrush" Color="#7B7B9A" />
+    <SolidColorBrush x:Key="TextSubtleBrush" Color="#5F5F7A" />
+    <SolidColorBrush x:Key="TextDisabledBrush" Color="#4A4A63" />
+
+    <SolidColorBrush x:Key="AccentBrush" Color="#5B5BF0" />
+    <SolidColorBrush x:Key="AccentHoverBrush" Color="#7070F5" />
+    <SolidColorBrush x:Key="AccentMutedBrush" Color="#7777D8" />
+    <SolidColorBrush x:Key="AccentTextBrush" Color="#A9A9FF" />
+    <SolidColorBrush x:Key="AccentBorderBrush" Color="#55558A" />
+
+    <SolidColorBrush x:Key="SuccessBrush" Color="#4ADE80" />
+    <SolidColorBrush x:Key="SuccessSurfaceBrush" Color="#112418" />
+    <SolidColorBrush x:Key="SuccessBorderBrush" Color="#183B24" />
+
+    <SolidColorBrush x:Key="WarningBrush" Color="#F59E0B" />
+    <SolidColorBrush x:Key="WarningTextBrush" Color="#FBBF24" />
+    <SolidColorBrush x:Key="WarningSurfaceBrush" Color="#3A2A12" />
+    <SolidColorBrush x:Key="WarningBorderBrush" Color="#6B4915" />
+
+    <SolidColorBrush x:Key="DangerBrush" Color="#F15B64" />
+    <SolidColorBrush x:Key="DangerTextBrush" Color="#FF7B84" />
+    <SolidColorBrush x:Key="DangerMutedBrush" Color="#D48E94" />
+    <SolidColorBrush x:Key="DangerSurfaceBrush" Color="#3A181C" />
+    <SolidColorBrush x:Key="DangerBorderBrush" Color="#A83D46" />
+
+  </Application.Resources>
+
   <Application.Styles>
     <FluentTheme />
+    <Style Selector="controls|CompactAudioMeter">
+      <Setter Property="TrackBrush" Value="{StaticResource SurfaceEmphasisBrush}" />
+      <Setter Property="SafeLevelBrush" Value="{StaticResource SuccessBrush}" />
+      <Setter Property="WarningLevelBrush" Value="{StaticResource WarningBrush}" />
+      <Setter Property="CriticalLevelBrush" Value="{StaticResource DangerBrush}" />
+      <Setter Property="PeakBrush" Value="{StaticResource TextStrongBrush}" />
+      <Setter Property="ThresholdBrush" Value="{StaticResource WarningBrush}" />
+    </Style>
   </Application.Styles>
 
 </Application>

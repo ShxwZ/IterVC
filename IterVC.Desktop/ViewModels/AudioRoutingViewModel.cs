@@ -25,6 +25,13 @@ public sealed partial class AudioRoutingViewModel : ViewModelBase
         ISettingsService settings, ApplicationsViewModel applications, MicrophoneViewModel microphone,
         NoiseGateViewModel noiseGate,
         ILogger<AudioRoutingViewModel> logger)
+        : this(router, devices, settings, applications, microphone, noiseGate,
+            new AudioMetersViewModel(router), logger) { }
+
+    public AudioRoutingViewModel(IAudioRouterService router, IDeviceService devices,
+        ISettingsService settings, ApplicationsViewModel applications, MicrophoneViewModel microphone,
+        NoiseGateViewModel noiseGate, AudioMetersViewModel meters,
+        ILogger<AudioRoutingViewModel> logger)
     {
         _router = router;
         _devices = devices;
@@ -33,11 +40,14 @@ public sealed partial class AudioRoutingViewModel : ViewModelBase
         Applications = applications;
         Microphone = microphone;
         NoiseGate = noiseGate;
+        Meters = meters;
+        Meters.Attach(applications);
     }
 
     public ApplicationsViewModel Applications { get; }
     public MicrophoneViewModel Microphone { get; }
     public NoiseGateViewModel NoiseGate { get; }
+    public AudioMetersViewModel Meters { get; }
     public ObservableCollection<AudioDeviceInfo> OutputDevices { get; } = [];
     public ObservableCollection<AudioDeviceInfo> VbCableDevices { get; } = [];
 
@@ -55,6 +65,7 @@ public sealed partial class AudioRoutingViewModel : ViewModelBase
             Applications.HydrateIncludedProcessNames(settings.IncludedProcessNames);
             AppsVolume = settings.AppsVolume;
             _router.SetAppsVolume(AppsVolume);
+            Meters.Start();
 
             SelectedVbCableDevice = VbCableDevices.FirstOrDefault(device => device.Id == settings.VbCableDeviceId)
                 ?? _devices.FindVbCableDevice();
@@ -143,6 +154,7 @@ public sealed partial class AudioRoutingViewModel : ViewModelBase
     public async Task StopAsync()
     {
         _lifetimeCancellation.Cancel();
+        Meters.Stop();
         await AwaitSafelyAsync(_outputSelectionTask, "application output selection");
         await AwaitSafelyAsync(_targetSelectionTask, "routing target selection");
         await AwaitSafelyAsync(_volumePersistenceTask, "applications volume persistence");

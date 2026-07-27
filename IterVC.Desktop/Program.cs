@@ -44,6 +44,7 @@ internal static class Program
         services.AddSingleton<IOscMediaService, OscMediaService>();
         services.AddSingleton<IApplicationAudioService, ApplicationAudioService>();
         services.AddSingleton<TextsViewModel>();
+        services.AddSingleton<AudioMetersViewModel>();
         services.AddSingleton(sp => new ApplicationsViewModel(
             sp.GetRequiredService<IApplicationAudioService>(),
             sp.GetRequiredService<IAudioRouterService>(),
@@ -67,6 +68,7 @@ internal static class Program
             sp.GetRequiredService<ApplicationsViewModel>(),
             sp.GetRequiredService<MicrophoneViewModel>(),
             sp.GetRequiredService<NoiseGateViewModel>(),
+            sp.GetRequiredService<AudioMetersViewModel>(),
             sp.GetRequiredService<ILogger<AudioRoutingViewModel>>()));
         services.AddSingleton<IMediaSessionService, WindowsMediaSessionService>();
         services.AddSingleton<IOscChatboxWorker, OscChatboxWorker>();

@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Text;
 using IterVC.Core.Interfaces;
 using IterVC.Core.Models;
 using Microsoft.Extensions.Logging;
@@ -117,13 +118,21 @@ public sealed class ApplicationAudioService : IApplicationAudioService, IDisposa
                             session.SimpleAudioVolume.Volume,
                             _device.AudioEndpointVolume.MasterVolumeLevelScalar);
 
+                        var displayName = GetSessionDisplayName(session.DisplayName, processName);
+                        if (displayName is null)
+                        {
+                            _logger.LogDebug(
+                                "Ignoring audio session {ProcessId} because its indirect display name could not be resolved: {DisplayName}",
+                                processId,
+                                session.DisplayName);
+                            continue;
+                        }
+
                         result.Add(new AudioAppInfo
                         {
                             ProcessId = captureProcessId,
                             ProcessName = processName,
-                            DisplayName = string.IsNullOrWhiteSpace(session.DisplayName)
-                                ? GetApplicationDisplayName(processName)
-                                : session.DisplayName,
+                            DisplayName = displayName,
                             IsIncludedInMix = false
                         });
                     }
@@ -265,6 +274,45 @@ public sealed class ApplicationAudioService : IApplicationAudioService, IDisposa
         _ => processName
     };
 
+    internal static string? GetSessionDisplayName(
+        string? sessionDisplayName,
+        string processName,
+        Func<string, string?>? resolveIndirectString = null)
+    {
+        if (string.IsNullOrWhiteSpace(sessionDisplayName))
+            return GetApplicationDisplayName(processName);
+
+        var candidate = sessionDisplayName.Trim();
+        if (!candidate.StartsWith('@'))
+            return candidate;
+
+        var resolved = (resolveIndirectString ?? ResolveIndirectString)(candidate);
+        return string.IsNullOrWhiteSpace(resolved) || resolved.TrimStart().StartsWith('@')
+            ? null
+            : resolved.Trim();
+    }
+
+    private static string? ResolveIndirectString(string source)
+    {
+        const int bufferLength = 1024;
+        var buffer = new StringBuilder(bufferLength);
+
+        try
+        {
+            return SHLoadIndirectString(source, buffer, bufferLength, IntPtr.Zero) == 0
+                ? buffer.ToString()
+                : null;
+        }
+        catch (DllNotFoundException)
+        {
+            return null;
+        }
+        catch (EntryPointNotFoundException)
+        {
+            return null;
+        }
+    }
+
     /// <summary>
     /// Sube por el árbol de procesos hasta encontrar el proceso raíz con el mismo nombre.
     /// Los navegadores crean procesos hijos para pestañas, renderizado y audio, mientras que
@@ -310,6 +358,13 @@ public sealed class ApplicationAudioService : IApplicationAudioService, IDisposa
         ref PROCESS_BASIC_INFORMATION processInformation,
         int processInformationLength,
         out int returnLength);
+
+    [DllImport("shlwapi.dll", CharSet = CharSet.Unicode)]
+    private static extern int SHLoadIndirectString(
+        string source,
+        StringBuilder outputBuffer,
+        int outputBufferSize,
+        IntPtr reserved);
 
     [StructLayout(LayoutKind.Sequential)]
     private struct PROCESS_BASIC_INFORMATION

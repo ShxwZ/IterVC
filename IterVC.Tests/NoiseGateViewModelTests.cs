@@ -73,7 +73,7 @@ public sealed class NoiseGateViewModelTests
     }
 
     [TestMethod]
-    public async Task UpdateMeter_PreservesSmoothingClampAndOpenState()
+    public async Task UpdateMeter_PreservesClampAndOpenState()
     {
         var router = new Mock<IAudioRouterService>();
         router.SetupGet(service => service.MicrophoneOutputLevelDb).Returns(20f);
@@ -82,7 +82,7 @@ public sealed class NoiseGateViewModelTests
 
         viewModel.UpdateMeter();
 
-        Assert.AreEqual(-25f, viewModel.OutputLevelDb, 0.001f);
+        Assert.AreEqual(0f, viewModel.OutputLevelDb, 0.001f);
         Assert.IsTrue(viewModel.IsOpen);
         await viewModel.StopAsync();
     }

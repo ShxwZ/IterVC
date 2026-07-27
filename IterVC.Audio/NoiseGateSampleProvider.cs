@@ -4,16 +4,16 @@ namespace IterVC.Audio;
 
 internal sealed class NoiseGateSampleProvider : ISampleProvider
 {
-    private const float MinimumLinearLevel = 0.000001f;
     private readonly ISampleProvider _source;
+    private readonly Func<float> _currentInputLevelDb;
     private float _gain = 1f;
-    private float _currentLevelDb = -80f;
     private int _isOpen;
     private volatile bool _enabled;
 
-    public NoiseGateSampleProvider(ISampleProvider source)
+    public NoiseGateSampleProvider(ISampleProvider source, Func<float> currentInputLevelDb)
     {
         _source = source;
+        _currentInputLevelDb = currentInputLevelDb;
     }
 
     public WaveFormat WaveFormat => _source.WaveFormat;
@@ -26,7 +26,6 @@ internal sealed class NoiseGateSampleProvider : ISampleProvider
     public float ThresholdDb { get; set; } = -45f;
     public float AttackMilliseconds { get; set; } = 10f;
     public float ReleaseMilliseconds { get; set; } = 150f;
-    public float CurrentLevelDb => Volatile.Read(ref _currentLevelDb);
     public float CurrentGain => Enabled ? Volatile.Read(ref _gain) : 1f;
     public bool IsOpen => Volatile.Read(ref _isOpen) == 1;
 
@@ -36,16 +35,7 @@ internal sealed class NoiseGateSampleProvider : ISampleProvider
         if (read == 0)
             return 0;
 
-        double sumSquares = 0;
-        for (var i = 0; i < read; i++)
-        {
-            var sample = buffer[offset + i];
-            sumSquares += sample * sample;
-        }
-
-        var rms = MathF.Sqrt((float)(sumSquares / read));
-        var levelDb = 20f * MathF.Log10(MathF.Max(rms, MinimumLinearLevel));
-        Volatile.Write(ref _currentLevelDb, Math.Clamp(levelDb, -80f, 0f));
+        var levelDb = _currentInputLevelDb();
 
         if (!Enabled)
         {

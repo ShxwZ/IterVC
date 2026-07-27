@@ -37,7 +37,7 @@ public sealed class SettingsServiceTests : IDisposable
         var loaded = await service.LoadAsync();
 
         Assert.IsNotNull(loaded);
-        Assert.AreEqual(3, loaded.SchemaVersion);
+        Assert.AreEqual(4, loaded.SchemaVersion);
         Assert.AreEqual(1.0f, loaded.AppsVolume);
         Assert.AreEqual(1.0f, loaded.MicrophoneVolume);
         Assert.IsTrue(loaded.MicrophoneEnabled);
@@ -177,6 +177,8 @@ public sealed class SettingsServiceTests : IDisposable
             settings.StartRoutingHotkeyGesture = "Ctrl+F8";
             settings.StopRoutingHotkeyEnabled = true;
             settings.StopRoutingHotkeyGesture = "Shift+F9";
+            settings.ToggleApplicationsMuteHotkeyEnabled = true;
+            settings.ToggleApplicationsMuteHotkeyGesture = "Ctrl+Alt+M";
             settings.ToggleMicrophoneHotkeyEnabled = true;
             settings.ToggleMicrophoneHotkeyGesture = "Win+M";
         });
@@ -188,6 +190,8 @@ public sealed class SettingsServiceTests : IDisposable
         Assert.AreEqual("Ctrl+F8", loaded.StartRoutingHotkeyGesture);
         Assert.IsTrue(loaded.StopRoutingHotkeyEnabled);
         Assert.AreEqual("Shift+F9", loaded.StopRoutingHotkeyGesture);
+        Assert.IsTrue(loaded.ToggleApplicationsMuteHotkeyEnabled);
+        Assert.AreEqual("Ctrl+Alt+M", loaded.ToggleApplicationsMuteHotkeyGesture);
         Assert.IsTrue(loaded.ToggleMicrophoneHotkeyEnabled);
         Assert.AreEqual("Win+M", loaded.ToggleMicrophoneHotkeyGesture);
     }
@@ -197,7 +201,7 @@ public sealed class SettingsServiceTests : IDisposable
     {
         await File.WriteAllTextAsync(Path.Combine(_tempDir, "settings.json"), "{\"SchemaVersion\":2}");
         var loaded = await CreateService().LoadAsync();
-        Assert.AreEqual(3, loaded.SchemaVersion);
+        Assert.AreEqual(4, loaded.SchemaVersion);
         Assert.IsNull(loaded.CheckForUpdates);
     }
 
@@ -212,7 +216,7 @@ public sealed class SettingsServiceTests : IDisposable
         var loaded = await service.LoadAsync();
 
         Assert.IsNotNull(loaded);
-        Assert.AreEqual(3, loaded.SchemaVersion);
+        Assert.AreEqual(4, loaded.SchemaVersion);
         Assert.AreEqual(1.0f, loaded.AppsVolume);
     }
 

@@ -1,4 +1,4 @@
-<Window xmlns="https://github.com/avaloniaui"
+﻿<Window xmlns="https://github.com/avaloniaui"
 	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 	xmlns:vm="using:IterVC.Desktop.ViewModels"
 	xmlns:views="using:IterVC.Desktop.Views"
@@ -8,7 +8,7 @@
 	Width="1025" Height="580"
 	MinWidth="900" MinHeight="550"
 	Icon="/Assets/logo_ivc3.png"
-	Background="#0A0A0D">
+	Background="{DynamicResource AppBackgroundBrush}">
 	<Window.Resources>
 		<StreamGeometry x:Key="MicrophoneOnIcon">M12,2A4,4 0 0,0 8,6V12A4,4 0 0,0 16,12V6A4,4 0 0,0 12,2M5,11V12A7,7 0 0,0 11,18.92V22H8V24H16V22H13V18.92A7,7 0 0,0 19,12V11H17V12A5,5 0 0,1 12,17A5,5 0 0,1 7,12V11H5Z</StreamGeometry>
 		<StreamGeometry x:Key="MicrophoneOffIcon">M12,2 A4,4 0 0,0 8,6 V12 A4,4 0 0,0 16,12 V6 A4,4 0 0,0 12,2 M5,11 V12 A7,7 0 0,0 11,18.92 V22 H8 V24 H16 V22 H13 V18.92 A7,7 0 0,0 19,12 V11 H17 V12 A5,5 0 0,1 12,17 A5,5 0 0,1 7,12 V11 Z M2.2,3.6 L3.6,2.2 L21.8,20.4 L20.4,21.8 Z</StreamGeometry>
@@ -17,39 +17,39 @@
 	<Window.Styles>
 		<!-- Estilos Base de Texto -->
 		<Style Selector="TextBlock">
-			<Setter Property="Foreground" Value="#D1D1DB" />
+			<Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
 			<Setter Property="FontFamily" Value="Segoe UI, Arial" />
 		</Style>
 		<Style Selector="TextBlock.label">
 			<Setter Property="FontSize" Value="11" />
 			<Setter Property="FontWeight" Value="SemiBold" />
-			<Setter Property="Foreground" Value="#5F5F7A" />
+			<Setter Property="Foreground" Value="{DynamicResource TextSubtleBrush}" />
 			<Setter Property="Margin" Value="0,0,0,4" />
 		</Style>
 
 		<!-- Controles de Entrada -->
 		<Style Selector="ComboBox">
-			<Setter Property="Background" Value="#15151F" />
-			<Setter Property="BorderBrush" Value="#222232" />
+			<Setter Property="Background" Value="{DynamicResource SurfaceRaisedBrush}" />
+			<Setter Property="BorderBrush" Value="{DynamicResource BorderSubtleBrush}" />
 			<Setter Property="BorderThickness" Value="1" />
-			<Setter Property="Foreground" Value="#E2E2E9" />
+			<Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
 			<Setter Property="HorizontalAlignment" Value="Stretch" />
 			<Setter Property="Padding" Value="10,6" />
 			<Setter Property="CornerRadius" Value="6" />
 			<Setter Property="Height" Value="34" />
 		</Style>
 		<Style Selector="TextBox">
-			<Setter Property="Background" Value="#15151F" />
-			<Setter Property="BorderBrush" Value="#222232" />
+			<Setter Property="Background" Value="{DynamicResource SurfaceRaisedBrush}" />
+			<Setter Property="BorderBrush" Value="{DynamicResource BorderSubtleBrush}" />
 			<Setter Property="BorderThickness" Value="1" />
-			<Setter Property="Foreground" Value="#E2E2E9" />
+			<Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
 			<Setter Property="CornerRadius" Value="6" />
 			<Setter Property="Padding" Value="10,6" />
 		</Style>
 
 		<!-- Botones con Feedback Visual -->
 		<Style Selector="Button.primary">
-			<Setter Property="Background" Value="#5B5BF0" />
+			<Setter Property="Background" Value="{DynamicResource AccentBrush}" />
 			<Setter Property="Foreground" Value="White" />
 			<Setter Property="BorderThickness" Value="0" />
 			<Setter Property="CornerRadius" Value="6" />
@@ -61,13 +61,13 @@
 			<Setter Property="VerticalContentAlignment" Value="Center" />
 		</Style>
 		<Style Selector="Button.primary:pointerover /template/ ContentPresenter">
-			<Setter Property="Background" Value="#7070F5" />
+			<Setter Property="Background" Value="{DynamicResource AccentHoverBrush}" />
 		</Style>
 
 		<Style Selector="Button.danger">
-			<Setter Property="Background" Value="#2D1414" />
-			<Setter Property="Foreground" Value="#F28B8B" />
-			<Setter Property="BorderBrush" Value="#4A1D1D" />
+			<Setter Property="Background" Value="{DynamicResource DangerSurfaceBrush}" />
+			<Setter Property="Foreground" Value="{DynamicResource DangerTextBrush}" />
+			<Setter Property="BorderBrush" Value="{DynamicResource DangerSurfaceBrush}" />
 			<Setter Property="BorderThickness" Value="1" />
 			<Setter Property="CornerRadius" Value="6" />
 			<Setter Property="Padding" Value="16,0" />
@@ -78,14 +78,14 @@
 			<Setter Property="VerticalContentAlignment" Value="Center" />
 		</Style>
 		<Style Selector="Button.danger:pointerover /template/ ContentPresenter">
-			<Setter Property="Background" Value="#4A1D1D" />
-			<Setter Property="Foreground" Value="#FFA3A3" />
+			<Setter Property="Background" Value="{DynamicResource DangerSurfaceBrush}" />
+			<Setter Property="Foreground" Value="{DynamicResource DangerTextBrush}" />
 		</Style>
 
 		<Style Selector="Button.secondary">
-			<Setter Property="Background" Value="#15151F" />
-			<Setter Property="Foreground" Value="#A0A0C0" />
-			<Setter Property="BorderBrush" Value="#222232" />
+			<Setter Property="Background" Value="{DynamicResource SurfaceRaisedBrush}" />
+			<Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+			<Setter Property="BorderBrush" Value="{DynamicResource BorderSubtleBrush}" />
 			<Setter Property="BorderThickness" Value="1" />
 			<Setter Property="CornerRadius" Value="6" />
 			<Setter Property="Padding" Value="14,0" />
@@ -95,7 +95,7 @@
 			<Setter Property="VerticalContentAlignment" Value="Center" />
 		</Style>
 		<Style Selector="Button.secondary:pointerover /template/ ContentPresenter">
-			<Setter Property="Background" Value="#202030" />
+			<Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
 		</Style>
 		<Style Selector="Button.status-pill">
 			<Setter Property="Width" Value="184" />
@@ -105,17 +105,17 @@
 			<Setter Property="Cursor" Value="Hand" />
 		</Style>
 		<Style Selector="Button.status-pill:pointerover /template/ ContentPresenter">
-			<Setter Property="Background" Value="#202030" />
+			<Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
 		</Style>
 		<Style Selector="Button.status-pill:focus-visible">
-			<Setter Property="BorderBrush" Value="#7777D8" />
+			<Setter Property="BorderBrush" Value="{DynamicResource AccentMutedBrush}" />
 			<Setter Property="BorderThickness" Value="2" />
 		</Style>
 		<Style Selector="Button.status-pill:disabled">
 			<Setter Property="Opacity" Value="0.45" />
 		</Style>
 
-		<!-- Estilo Plano y Moderno para Pestañas (TabControl) -->
+		<!-- Estilo Plano y Moderno para PestaÃ±as (TabControl) -->
 		<Style Selector="TabControl">
 			<Setter Property="Background" Value="Transparent" />
 			<Setter Property="Padding" Value="0,16,0,0" />
@@ -123,20 +123,20 @@
 		<Style Selector="TabItem">
 			<Setter Property="FontSize" Value="12" />
 			<Setter Property="FontWeight" Value="SemiBold" />
-			<Setter Property="Foreground" Value="#6F6F8A" />
+			<Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
 			<Setter Property="Padding" Value="6,8,6,8" />
 			<Setter Property="Margin" Value="0,0,16,0" />
 			<Setter Property="Background" Value="Transparent" />
 		</Style>
 		<Style Selector="TabItem:pointerover">
-			<Setter Property="Foreground" Value="#E2E2E9" />
+			<Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
 		</Style>
 		<Style Selector="TabItem:selected">
-			<Setter Property="Foreground" Value="#5B5BF0" />
+			<Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
 		</Style>
 
 		<Style Selector="CheckBox">
-			<Setter Property="Foreground" Value="#A9A9C3" />
+			<Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
 			<Setter Property="FontSize" Value="13" />
 		</Style>
 
@@ -157,8 +157,8 @@
 	</Window.Styles>
 
 	<Grid>
-		<!-- Línea decorativa muy sutil superior -->
-		<Border Height="2" VerticalAlignment="Top" Background="#5B5BF0" Opacity="0.5" />
+		<!-- LÃ­nea decorativa muy sutil superior -->
+		<Border Height="2" VerticalAlignment="Top" Background="{DynamicResource AccentBrush}" Opacity="0.5" />
 
 		<Grid Margin="24,18,24,12" RowDefinitions="Auto,Auto,*,Auto">
 
@@ -167,56 +167,52 @@
 				<StackPanel DockPanel.Dock="Left" Orientation="Horizontal" Spacing="10"
 					VerticalAlignment="Center">
 					<TextBlock Text="{Binding Texts.AppTitle}" FontSize="20" FontWeight="Bold"
-						Foreground="#FFFFFF" LetterSpacing="0.5" />
+						Foreground="{DynamicResource TextStrongBrush}" LetterSpacing="0.5" />
 
-					<Button Classes="status-pill" Background="#112418" BorderBrush="#183B24" BorderThickness="1"
+					<Button Classes="status-pill" Background="{DynamicResource SuccessSurfaceBrush}" BorderBrush="{DynamicResource SuccessBorderBrush}" BorderThickness="1"
 						Command="{Binding Audio.ToggleRoutingCommand}" IsVisible="{Binding Audio.IsRouting}" ToolTip.Tip="{Binding Texts.HotkeyStopRouting}">
 						<StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
-							<Ellipse Width="6" Height="6" Fill="#4ADE80" VerticalAlignment="Center" />
+							<Ellipse Width="6" Height="6" Fill="{DynamicResource SuccessBrush}" VerticalAlignment="Center" />
 							<TextBlock Text="{Binding Texts.StatusRouting}" FontSize="10.5"
-								FontWeight="Bold" Foreground="#4ADE80" VerticalAlignment="Center" />
+								FontWeight="Bold" Foreground="{DynamicResource SuccessBrush}" VerticalAlignment="Center" />
 						</StackPanel>
 					</Button>
 
-					<Button Classes="status-pill" Background="#181820" BorderBrush="#30303D" BorderThickness="1"
+					<Button Classes="status-pill" Background="{DynamicResource SurfaceInteractiveBrush}" BorderBrush="{DynamicResource BorderStrongBrush}" BorderThickness="1"
 						Command="{Binding Audio.ToggleRoutingCommand}" IsVisible="{Binding !Audio.IsRouting}" ToolTip.Tip="{Binding Texts.HotkeyStartRouting}">
 						<StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Center">
-							<Ellipse Width="6" Height="6" Fill="#5F5F7A" VerticalAlignment="Center" />
+							<Ellipse Width="6" Height="6" Fill="{DynamicResource TextSubtleBrush}" VerticalAlignment="Center" />
 							<TextBlock Text="{Binding Texts.StatusInactive}" FontSize="10.5"
-								FontWeight="Bold" Foreground="#7B7B9A" VerticalAlignment="Center" />
+								FontWeight="Bold" Foreground="{DynamicResource TextMutedBrush}" VerticalAlignment="Center" />
 						</StackPanel>
 					</Button>
 
-					<Button Classes="status-pill" Background="#112418" BorderBrush="#183B24" BorderThickness="1"
+					<Button Classes="status-pill" Background="{DynamicResource SuccessSurfaceBrush}" BorderBrush="{DynamicResource SuccessBorderBrush}" BorderThickness="1"
 						Command="{Binding Audio.Microphone.ToggleCommand}" IsVisible="{Binding Audio.Microphone.IsEnabled}"
 						ToolTip.Tip="{Binding Texts.MicrophoneDisable}">
 						<StackPanel Orientation="Horizontal" Spacing="7" HorizontalAlignment="Center">
-							<PathIcon Data="{StaticResource MicrophoneOnIcon}" Width="13" Height="13" Foreground="#4ADE80" />
-							<TextBlock Text="{Binding Texts.StatusMicrophoneActive}" FontSize="10" FontWeight="Bold" Foreground="#4ADE80" VerticalAlignment="Center" />
+							<PathIcon Data="{StaticResource MicrophoneOnIcon}" Width="13" Height="13" Foreground="{DynamicResource SuccessBrush}" />
+							<TextBlock Text="{Binding Texts.StatusMicrophoneActive}" FontSize="10" FontWeight="Bold" Foreground="{DynamicResource SuccessBrush}" VerticalAlignment="Center" />
 						</StackPanel>
 					</Button>
 
-					<Button Classes="status-pill" Background="#181820" BorderBrush="#30303D" BorderThickness="1"
+					<Button Classes="status-pill" Background="{DynamicResource SurfaceInteractiveBrush}" BorderBrush="{DynamicResource BorderStrongBrush}" BorderThickness="1"
 						Command="{Binding Audio.Microphone.ToggleCommand}" IsVisible="{Binding !Audio.Microphone.IsEnabled}"
 						ToolTip.Tip="{Binding Texts.MicrophoneEnable}">
 						<StackPanel Orientation="Horizontal" Spacing="7" HorizontalAlignment="Center">
-							<PathIcon Data="{StaticResource MicrophoneOffIcon}" Width="13" Height="13" Foreground="#858597" />
-							<TextBlock Text="{Binding Texts.StatusMicrophoneInactive}" FontSize="10" FontWeight="SemiBold" Foreground="#9999AA" VerticalAlignment="Center" />
+							<PathIcon Data="{StaticResource MicrophoneOffIcon}" Width="13" Height="13" Foreground="{DynamicResource TextMutedBrush}" />
+							<TextBlock Text="{Binding Texts.StatusMicrophoneInactive}" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
 						</StackPanel>
 					</Button>
 				</StackPanel>
 
-				<!-- Botones de Acción + Selector de Idioma -->
+				<!-- Botones de AcciÃ³n + Selector de Idioma -->
 				<StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="10"
 					VerticalAlignment="Center">
-					<Button Classes="primary" Content="{Binding Texts.ButtonStart}"
-						Command="{Binding Audio.ToggleRoutingCommand}" IsVisible="{Binding !Audio.IsRouting}" />
-					<Button Classes="danger" Content="{Binding Texts.ButtonStop}"
-						Command="{Binding Audio.ToggleRoutingCommand}" IsVisible="{Binding Audio.IsRouting}" />
 					<Button Classes="secondary" Content="{Binding Texts.ButtonRefreshApps}"
 						Command="{Binding Applications.RefreshCommand}" />
 
-					<Separator Width="1" Height="18" Background="#202030" Margin="4,0" />
+					<Separator Width="1" Height="18" Background="{DynamicResource SurfaceHoverBrush}" Margin="4,0" />
 					<ComboBox ItemsSource="{Binding Settings.Language.AvailableLanguages}"
 						SelectedItem="{Binding Settings.Language.SelectedLanguage}"
 						Width="85" Height="30"
@@ -228,11 +224,11 @@
 			</DockPanel>
 
 			<StackPanel Grid.Row="1" Spacing="8" Margin="0,0,0,12">
-				<Border Background="#17172A" BorderBrush="#39396B" BorderThickness="1"
+				<Border Background="{DynamicResource SurfaceInteractiveBrush}" BorderBrush="{DynamicResource AccentBorderBrush}" BorderThickness="1"
 					CornerRadius="8" Padding="12" IsVisible="{Binding Settings.Updates.IsConsentVisible}">
 					<Grid ColumnDefinitions="*,Auto">
 						<StackPanel Spacing="3">
-							<TextBlock Text="{Binding Texts.UpdateConsentTitle}" FontWeight="Bold" Foreground="#A9A9FF" />
+							<TextBlock Text="{Binding Texts.UpdateConsentTitle}" FontWeight="Bold" Foreground="{DynamicResource AccentTextBrush}" />
 							<TextBlock Text="{Binding Texts.UpdateConsentBody}" TextWrapping="Wrap" FontSize="11" />
 						</StackPanel>
 						<StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" Margin="16,0,0,0">
@@ -241,7 +237,7 @@
 						</StackPanel>
 					</Grid>
 				</Border>
-				<Border Background="#112418" BorderBrush="#245B38" BorderThickness="1"
+				<Border Background="{DynamicResource SuccessSurfaceBrush}" BorderBrush="{DynamicResource SuccessBorderBrush}" BorderThickness="1"
 					CornerRadius="8" Padding="10" IsVisible="{Binding Settings.Updates.IsAvailable}">
 					<Grid ColumnDefinitions="*,Auto">
 						<TextBlock VerticalAlignment="Center">
@@ -255,15 +251,15 @@
 				</Border>
 			</StackPanel>
 
-			<!-- ESPACIO DE TRABAJO SIMÉTRICO (2 Tarjetas Principales del mismo alto) -->
+			<!-- ESPACIO DE TRABAJO SIMÃ‰TRICO (2 Tarjetas Principales del mismo alto) -->
 			<Grid Grid.Row="2" ColumnDefinitions="0.85*,1.15*">
 				<views:ApplicationsPanel Grid.Column="0" Margin="0,0,8,0" DataContext="{Binding Applications}" />
 				<views:SettingsPanel Grid.Column="1" Margin="8,0,0,0" />
 			</Grid>
 
-			<!-- PIE DE PÁGINA (FOOTER) -->
+			<!-- PIE DE PÃGINA (FOOTER) -->
 			<TextBlock Grid.Row="3" Text="{Binding Texts.AppFooter}" FontSize="11"
-				Foreground="#3F3F54" HorizontalAlignment="Center" Margin="0,12,0,0" />
+				Foreground="{DynamicResource TextDisabledBrush}" HorizontalAlignment="Center" Margin="0,12,0,0" />
 		</Grid>
 	</Grid>
 </Window>
