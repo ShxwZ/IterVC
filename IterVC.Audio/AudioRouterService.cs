@@ -37,6 +37,7 @@ public sealed class AudioRouterService : IAudioRouterService
     private readonly LevelMeterSampleProvider _applicationsOutputMeter;
     private float _appsVolume = 1.0f;
     private bool _applicationsMuted;
+    private int _disposed;
 
     private MixingSampleProvider? _mainMixer;
     private LevelMeterSampleProvider? _routedOutputMeter;
@@ -391,6 +392,8 @@ public sealed class AudioRouterService : IAudioRouterService
 
     public void Dispose()
     {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+
         StopCableOutput();
         StopMonitorOutput();
 

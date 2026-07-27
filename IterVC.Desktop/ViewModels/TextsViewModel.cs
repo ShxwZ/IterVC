@@ -187,6 +187,8 @@ public sealed class TextsViewModel : ObservableObject
     public string UpdateCurrent => G(LK.UpdateCurrent);
     public string UpdateCheckFailed => G(LK.UpdateCheckFailed);
     public string UpdateOpenFailed => G(LK.UpdateOpenFailed);
+    public string DiagnosticsTitle => G(LK.DiagnosticsTitle);
+    public string DiagnosticsOpenLogs => G(LK.DiagnosticsOpenLogs);
 
     public string AppCaptureError => G(LK.AppCaptureError);
 
@@ -288,6 +290,8 @@ public sealed class TextsViewModel : ObservableObject
         OnPropertyChanged(nameof(UpdateCurrent));
         OnPropertyChanged(nameof(UpdateCheckFailed));
         OnPropertyChanged(nameof(UpdateOpenFailed));
+        OnPropertyChanged(nameof(DiagnosticsTitle));
+        OnPropertyChanged(nameof(DiagnosticsOpenLogs));
         OnPropertyChanged(nameof(AppCaptureError));
     }
 
@@ -365,6 +369,8 @@ public sealed class TextsViewModel : ObservableObject
         internal const string UpdateCurrent = LocalizationService.Keys.UpdateCurrent;
         internal const string UpdateCheckFailed = LocalizationService.Keys.UpdateCheckFailed;
         internal const string UpdateOpenFailed = LocalizationService.Keys.UpdateOpenFailed;
+        internal const string DiagnosticsTitle = LocalizationService.Keys.DiagnosticsTitle;
+        internal const string DiagnosticsOpenLogs = LocalizationService.Keys.DiagnosticsOpenLogs;
         internal const string SettingsTitle = LocalizationService.Keys.SettingsTitle;
         internal const string UpdateDismiss = LocalizationService.Keys.UpdateDismiss;
         internal const string HotkeyTitle = LocalizationService.Keys.HotkeyTitle;

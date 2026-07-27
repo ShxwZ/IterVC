@@ -5,8 +5,9 @@ using Avalonia.Markup.Xaml;
 using Microsoft.Extensions.DependencyInjection;
 using IterVC.Desktop.ViewModels;
 using IterVC.Desktop.Views;
-using System.Diagnostics;
 using IterVC.Desktop.Services;
+using Microsoft.Extensions.Logging;
+using Avalonia.Threading;
 
 namespace IterVC.Desktop;
 
@@ -19,11 +20,12 @@ public sealed class App : Application
 
     public override void OnFrameworkInitializationCompleted()
     {
-        Debug.WriteLine("4 - OnFrameworkInitializationCompleted");
+        Dispatcher.UIThread.UnhandledException += (_, args) =>
+            Program.TryLogCritical(args.Exception, "Unhandled Avalonia dispatcher exception");
 
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            Debug.WriteLine("5 - Creando ventana");
+            var logger = Program.AppHost.Services.GetRequiredService<ILogger<App>>();
             var mainViewModel = Program.AppHost.Services.GetRequiredService<MainViewModel>();
             var mainWindow = new MainWindow { DataContext = mainViewModel };
             var globalHotkey = Program.AppHost.Services.GetRequiredService<IGlobalHotkeyService>();
@@ -76,20 +78,18 @@ public sealed class App : Application
                     string.Format(mainViewModel.Texts.HotkeyRegistrationFailed, error));
             mainWindow.Opened += async (_, _) =>
             {
-                Debug.WriteLine("8 - Ventana abierta, iniciando inicialización");
                 try
                 {
                     await Program.AppHost.StartAsync().ConfigureAwait(false);
-                    Debug.WriteLine("9 - AppHost iniciado");
                     await mainViewModel.InitializeAsync();
                     await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(ConfigureHotkeys);
-                    Debug.WriteLine("10 - ViewModel inicializado");
+                    logger.LogInformation("Application initialization completed");
                 }
                 catch (Exception ex)
                 {
-                    Debug.WriteLine($"ERROR: {ex}");
+                    logger.LogCritical(ex, "Application initialization failed");
                     await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
-                        mainViewModel.StatusMessage = $"Error:\n{ex.Message}\n\n{ex.StackTrace}");
+                        mainViewModel.StatusMessage = $"Error: {ex.Message}");
                 }
             };
 
@@ -98,6 +98,7 @@ public sealed class App : Application
 
             desktop.ShutdownRequested += async (_, _) =>
             {
+                logger.LogInformation("Application shutdown requested");
                 hotkeyActionsStopping.Cancel();
                 globalHotkey.Dispose();
                 await mainViewModel.DisposeAsync();
@@ -105,9 +106,7 @@ public sealed class App : Application
             };
         }
 
-        Debug.WriteLine("6 - base.OnFrameworkInitializationCompleted");
         base.OnFrameworkInitializationCompleted();
-        Debug.WriteLine("7 - Completado");
     }
 
 

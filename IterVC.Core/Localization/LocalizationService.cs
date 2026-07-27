@@ -110,6 +110,8 @@ public sealed class LocalizationService : ILocalizationService
         public const string HotkeyMicrophoneGroup = "hotkey.microphone_group";
         public const string MicrophoneEnable = "microphone.enable";
         public const string MicrophoneDisable = "microphone.disable";
+        public const string DiagnosticsTitle = "diagnostics.title";
+        public const string DiagnosticsOpenLogs = "diagnostics.open_logs";
     }
 
     private readonly Dictionary<string, string> _es = new()
@@ -210,6 +212,8 @@ public sealed class LocalizationService : ILocalizationService
         [Keys.HotkeyMicrophoneGroup]  = "MICRÓFONO",
         [Keys.MicrophoneEnable]       = "Activar micrófono",
         [Keys.MicrophoneDisable]      = "Silenciar micrófono",
+        [Keys.DiagnosticsTitle]       = "DIAGNÓSTICO",
+        [Keys.DiagnosticsOpenLogs]    = "Abrir carpeta de logs",
     };
 
     private readonly Dictionary<string, string> _en = new()
@@ -310,6 +314,8 @@ public sealed class LocalizationService : ILocalizationService
         [Keys.HotkeyMicrophoneGroup]  = "MICROPHONE",
         [Keys.MicrophoneEnable]       = "Enable microphone",
         [Keys.MicrophoneDisable]      = "Mute microphone",
+        [Keys.DiagnosticsTitle]       = "DIAGNOSTICS",
+        [Keys.DiagnosticsOpenLogs]    = "Open log folder",
     };
 
     public string CurrentLanguage { get; private set; } = SupportedLanguages.Spanish;
