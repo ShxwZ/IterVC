@@ -77,7 +77,7 @@
 			BorderThickness="1" CornerRadius="8" Padding="16">
 		<TabControl x:Name="SettingsTabs">
 
-			<!-- PESTAÃ‘A 1: Dispositivos de Audio -->
+			<!-- PESTAÑA 1: Dispositivos de Audio -->
 			<TabItem Header="{Binding Texts.CardDevicesTitle}">
 				<ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
 					<StackPanel Spacing="12" Margin="0,4,8,8">
@@ -128,7 +128,7 @@
 				</ScrollViewer>
 			</TabItem>
 
-			<!-- PESTAÃ‘A 2: Mezclador de VolÃºmenes -->
+			<!-- PESTAÑA 2: Mezclador de Volúmenes -->
 			<TabItem Header="{Binding Texts.CardMixTitle}">
 				<ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
 					<StackPanel Spacing="12" Margin="0,4,8,8">
@@ -309,7 +309,7 @@
 				</ScrollViewer>
 			</TabItem>
 
-			<!-- PESTAÃ‘A 3: IntegraciÃ³n OSC (VRChat) -->
+			<!-- PESTAÑA 3: Integración OSC (VRChat) -->
 			<TabItem Header="OSC">
 				<ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
 					<StackPanel Spacing="10" Margin="0,4,8,8">
