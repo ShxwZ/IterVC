@@ -6,7 +6,7 @@ namespace IterVC.Core.Settings;
 public sealed class AppSettings
 {
     /// <summary>Versión del esquema, para permitir migraciones futuras.</summary>
-    public int SchemaVersion { get; set; } = 3;
+    public int SchemaVersion { get; set; } = 4;
 
     /// <summary>Id del dispositivo de salida principal (altavoces/auriculares) desde el que se hace loopback.</summary>
     public string? OutputDeviceId { get; set; }
@@ -87,6 +87,8 @@ public sealed class AppSettings
     public string StartRoutingHotkeyGesture { get; set; } = "";
     public bool StopRoutingHotkeyEnabled { get; set; }
     public string StopRoutingHotkeyGesture { get; set; } = "";
+    public bool ToggleApplicationsMuteHotkeyEnabled { get; set; }
+    public string ToggleApplicationsMuteHotkeyGesture { get; set; } = "";
     public bool ToggleMicrophoneHotkeyEnabled { get; set; }
     public string ToggleMicrophoneHotkeyGesture { get; set; } = "";
 }

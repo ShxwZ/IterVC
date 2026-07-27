@@ -15,10 +15,12 @@ public sealed class TextsViewModel : ObservableObject
     private string _statusInactive = G(LK.StatusInactive);
     private string _statusMicrophoneActive = G(LK.StatusMicrophoneActive);
     private string _statusMicrophoneInactive = G(LK.StatusMicrophoneInactive);
-    private string _buttonStart = G(LK.ButtonStart);
-    private string _buttonStop = G(LK.ButtonStop);
     private string _buttonRefreshApps = G(LK.ButtonRefreshApps);
     private string _cardAppsTitle = G(LK.CardAppsTitle);
+    private string _applicationAudioMute = G(LK.ApplicationAudioMute);
+    private string _applicationAudioUnmute = G(LK.ApplicationAudioUnmute);
+    private string _applicationAudioMuted = G(LK.ApplicationAudioMuted);
+    private string _applicationAudioActive = G(LK.ApplicationAudioActive);
     private string _cardAppsHelp = G(LK.CardAppsHelp);
     private string _appsDetectedOne = G(LK.AppsDetectedOne);
     private string _appsDetectedMany = G(LK.AppsDetectedMany);
@@ -56,6 +58,11 @@ public sealed class TextsViewModel : ObservableObject
     private string _oscTemplateLabel = G(LK.OscTemplateLabel);
     private string _oscTemplateWatermark = G(LK.OscTemplateWatermark);
     private string _oscTemplateTokens = G(LK.OscTemplateTokens);
+    private string _oscTokenTitleDescription = G(LK.OscTokenTitleDescription);
+    private string _oscTokenStatusDescription = G(LK.OscTokenStatusDescription);
+    private string _oscTokenTimeDescription = G(LK.OscTokenTimeDescription);
+    private string _oscLengthWarningTitle = G(LK.OscLengthWarningTitle);
+    private string _oscLengthWarning = G(LK.OscLengthWarning);
     private string _cardLanguageTitle = G(LK.CardLanguageTitle);
     private string _cardLanguageHelp = G(LK.CardLanguageHelp);
     private string _updateConsentTitle = G(LK.UpdateConsentTitle);
@@ -75,6 +82,8 @@ public sealed class TextsViewModel : ObservableObject
     private string _hotkeyStartRouting = G(LK.HotkeyStartRouting);
     private string _hotkeyStopRouting = G(LK.HotkeyStopRouting);
     private string _hotkeyToggleMicrophone = G(LK.HotkeyToggleMicrophone);
+    private string _hotkeyToggleApplicationsMute = G(LK.HotkeyToggleApplicationsMute);
+    private string _hotkeyApplicationsAudioGroup = G(LK.HotkeyApplicationsAudioGroup);
     private string _hotkeyNotAssigned = G(LK.HotkeyNotAssigned);
     private string _hotkeyClear = G(LK.HotkeyClear);
     private string _hotkeyAssign = G(LK.HotkeyAssign);
@@ -92,10 +101,12 @@ public sealed class TextsViewModel : ObservableObject
     public string StatusInactive { get => _statusInactive; set => SetProperty(ref _statusInactive, value); }
     public string StatusMicrophoneActive { get => _statusMicrophoneActive; set => SetProperty(ref _statusMicrophoneActive, value); }
     public string StatusMicrophoneInactive { get => _statusMicrophoneInactive; set => SetProperty(ref _statusMicrophoneInactive, value); }
-    public string ButtonStart { get => _buttonStart; set => SetProperty(ref _buttonStart, value); }
-    public string ButtonStop { get => _buttonStop; set => SetProperty(ref _buttonStop, value); }
     public string ButtonRefreshApps { get => _buttonRefreshApps; set => SetProperty(ref _buttonRefreshApps, value); }
     public string CardAppsTitle { get => _cardAppsTitle; set => SetProperty(ref _cardAppsTitle, value); }
+    public string ApplicationAudioMute { get => _applicationAudioMute; set => SetProperty(ref _applicationAudioMute, value); }
+    public string ApplicationAudioUnmute { get => _applicationAudioUnmute; set => SetProperty(ref _applicationAudioUnmute, value); }
+    public string ApplicationAudioMuted { get => _applicationAudioMuted; set => SetProperty(ref _applicationAudioMuted, value); }
+    public string ApplicationAudioActive { get => _applicationAudioActive; set => SetProperty(ref _applicationAudioActive, value); }
     public string CardAppsHelp { get => _cardAppsHelp; set => SetProperty(ref _cardAppsHelp, value); }
     public string AppsDetectedOne { get => _appsDetectedOne; set => SetProperty(ref _appsDetectedOne, value); }
     public string AppsDetectedMany { get => _appsDetectedMany; set => SetProperty(ref _appsDetectedMany, value); }
@@ -133,6 +144,11 @@ public sealed class TextsViewModel : ObservableObject
     public string OscTemplateLabel { get => _oscTemplateLabel; set => SetProperty(ref _oscTemplateLabel, value); }
     public string OscTemplateWatermark { get => _oscTemplateWatermark; set => SetProperty(ref _oscTemplateWatermark, value); }
     public string OscTemplateTokens { get => _oscTemplateTokens; set => SetProperty(ref _oscTemplateTokens, value); }
+    public string OscTokenTitleDescription { get => _oscTokenTitleDescription; set => SetProperty(ref _oscTokenTitleDescription, value); }
+    public string OscTokenStatusDescription { get => _oscTokenStatusDescription; set => SetProperty(ref _oscTokenStatusDescription, value); }
+    public string OscTokenTimeDescription { get => _oscTokenTimeDescription; set => SetProperty(ref _oscTokenTimeDescription, value); }
+    public string OscLengthWarningTitle { get => _oscLengthWarningTitle; set => SetProperty(ref _oscLengthWarningTitle, value); }
+    public string OscLengthWarning { get => _oscLengthWarning; set => SetProperty(ref _oscLengthWarning, value); }
     public string CardLanguageTitle { get => _cardLanguageTitle; set => SetProperty(ref _cardLanguageTitle, value); }
     public string CardLanguageHelp { get => _cardLanguageHelp; set => SetProperty(ref _cardLanguageHelp, value); }
     public string UpdateConsentTitle { get => _updateConsentTitle; set => SetProperty(ref _updateConsentTitle, value); }
@@ -152,6 +168,8 @@ public sealed class TextsViewModel : ObservableObject
     public string HotkeyStartRouting { get => _hotkeyStartRouting; set => SetProperty(ref _hotkeyStartRouting, value); }
     public string HotkeyStopRouting { get => _hotkeyStopRouting; set => SetProperty(ref _hotkeyStopRouting, value); }
     public string HotkeyToggleMicrophone { get => _hotkeyToggleMicrophone; set => SetProperty(ref _hotkeyToggleMicrophone, value); }
+    public string HotkeyToggleApplicationsMute { get => _hotkeyToggleApplicationsMute; set => SetProperty(ref _hotkeyToggleApplicationsMute, value); }
+    public string HotkeyApplicationsAudioGroup { get => _hotkeyApplicationsAudioGroup; set => SetProperty(ref _hotkeyApplicationsAudioGroup, value); }
     public string HotkeyNotAssigned { get => _hotkeyNotAssigned; set => SetProperty(ref _hotkeyNotAssigned, value); }
     public string HotkeyClear { get => _hotkeyClear; set => SetProperty(ref _hotkeyClear, value); }
     public string HotkeyAssign { get => _hotkeyAssign; set => SetProperty(ref _hotkeyAssign, value); }
@@ -169,6 +187,8 @@ public sealed class TextsViewModel : ObservableObject
     public string UpdateCurrent => G(LK.UpdateCurrent);
     public string UpdateCheckFailed => G(LK.UpdateCheckFailed);
     public string UpdateOpenFailed => G(LK.UpdateOpenFailed);
+    public string DiagnosticsTitle => G(LK.DiagnosticsTitle);
+    public string DiagnosticsOpenLogs => G(LK.DiagnosticsOpenLogs);
 
     public string AppCaptureError => G(LK.AppCaptureError);
 
@@ -184,10 +204,12 @@ public sealed class TextsViewModel : ObservableObject
         StatusInactive = G(LK.StatusInactive);
         StatusMicrophoneActive = G(LK.StatusMicrophoneActive);
         StatusMicrophoneInactive = G(LK.StatusMicrophoneInactive);
-        ButtonStart = G(LK.ButtonStart);
-        ButtonStop = G(LK.ButtonStop);
         ButtonRefreshApps = G(LK.ButtonRefreshApps);
         CardAppsTitle = G(LK.CardAppsTitle);
+        ApplicationAudioMute = G(LK.ApplicationAudioMute);
+        ApplicationAudioUnmute = G(LK.ApplicationAudioUnmute);
+        ApplicationAudioMuted = G(LK.ApplicationAudioMuted);
+        ApplicationAudioActive = G(LK.ApplicationAudioActive);
         CardAppsHelp = G(LK.CardAppsHelp);
         AppsDetectedOne = G(LK.AppsDetectedOne);
         AppsDetectedMany = G(LK.AppsDetectedMany);
@@ -225,6 +247,11 @@ public sealed class TextsViewModel : ObservableObject
         OscTemplateLabel = G(LK.OscTemplateLabel);
         OscTemplateWatermark = G(LK.OscTemplateWatermark);
         OscTemplateTokens = G(LK.OscTemplateTokens);
+        OscTokenTitleDescription = G(LK.OscTokenTitleDescription);
+        OscTokenStatusDescription = G(LK.OscTokenStatusDescription);
+        OscTokenTimeDescription = G(LK.OscTokenTimeDescription);
+        OscLengthWarningTitle = G(LK.OscLengthWarningTitle);
+        OscLengthWarning = G(LK.OscLengthWarning);
         CardLanguageTitle = G(LK.CardLanguageTitle);
         CardLanguageHelp = G(LK.CardLanguageHelp);
         UpdateConsentTitle = G(LK.UpdateConsentTitle);
@@ -244,6 +271,8 @@ public sealed class TextsViewModel : ObservableObject
         HotkeyStartRouting = G(LK.HotkeyStartRouting);
         HotkeyStopRouting = G(LK.HotkeyStopRouting);
         HotkeyToggleMicrophone = G(LK.HotkeyToggleMicrophone);
+        HotkeyToggleApplicationsMute = G(LK.HotkeyToggleApplicationsMute);
+        HotkeyApplicationsAudioGroup = G(LK.HotkeyApplicationsAudioGroup);
         HotkeyNotAssigned = G(LK.HotkeyNotAssigned);
         HotkeyClear = G(LK.HotkeyClear);
         HotkeyAssign = G(LK.HotkeyAssign);
@@ -261,6 +290,8 @@ public sealed class TextsViewModel : ObservableObject
         OnPropertyChanged(nameof(UpdateCurrent));
         OnPropertyChanged(nameof(UpdateCheckFailed));
         OnPropertyChanged(nameof(UpdateOpenFailed));
+        OnPropertyChanged(nameof(DiagnosticsTitle));
+        OnPropertyChanged(nameof(DiagnosticsOpenLogs));
         OnPropertyChanged(nameof(AppCaptureError));
     }
 
@@ -274,10 +305,12 @@ public sealed class TextsViewModel : ObservableObject
         internal const string StatusInactive = LocalizationService.Keys.StatusInactive; 
         internal const string StatusMicrophoneActive = LocalizationService.Keys.StatusMicrophoneActive;
         internal const string StatusMicrophoneInactive = LocalizationService.Keys.StatusMicrophoneInactive;
-        internal const string ButtonStart = LocalizationService.Keys.ButtonStart; 
-        internal const string ButtonStop = LocalizationService.Keys.ButtonStop; 
         internal const string ButtonRefreshApps = LocalizationService.Keys.ButtonRefreshApps; 
         internal const string CardAppsTitle = LocalizationService.Keys.CardAppsTitle; 
+        internal const string ApplicationAudioMute = LocalizationService.Keys.ApplicationAudioMute;
+        internal const string ApplicationAudioUnmute = LocalizationService.Keys.ApplicationAudioUnmute;
+        internal const string ApplicationAudioMuted = LocalizationService.Keys.ApplicationAudioMuted;
+        internal const string ApplicationAudioActive = LocalizationService.Keys.ApplicationAudioActive;
         internal const string CardAppsHelp = LocalizationService.Keys.CardAppsHelp; 
         internal const string AppsDetectedOne = LocalizationService.Keys.AppsDetectedOne;
         internal const string AppsDetectedMany = LocalizationService.Keys.AppsDetectedMany;
@@ -316,6 +349,11 @@ public sealed class TextsViewModel : ObservableObject
         internal const string OscTemplateLabel = LocalizationService.Keys.OscTemplateLabel; 
         internal const string OscTemplateWatermark = LocalizationService.Keys.OscTemplateWatermark; 
         internal const string OscTemplateTokens = LocalizationService.Keys.OscTemplateTokens; 
+        internal const string OscTokenTitleDescription = LocalizationService.Keys.OscTokenTitleDescription;
+        internal const string OscTokenStatusDescription = LocalizationService.Keys.OscTokenStatusDescription;
+        internal const string OscTokenTimeDescription = LocalizationService.Keys.OscTokenTimeDescription;
+        internal const string OscLengthWarningTitle = LocalizationService.Keys.OscLengthWarningTitle;
+        internal const string OscLengthWarning = LocalizationService.Keys.OscLengthWarning;
         internal const string CardLanguageTitle = LocalizationService.Keys.CardLanguageTitle; 
         internal const string CardLanguageHelp = LocalizationService.Keys.CardLanguageHelp;
         internal const string UpdateConsentTitle = LocalizationService.Keys.UpdateConsentTitle;
@@ -331,6 +369,8 @@ public sealed class TextsViewModel : ObservableObject
         internal const string UpdateCurrent = LocalizationService.Keys.UpdateCurrent;
         internal const string UpdateCheckFailed = LocalizationService.Keys.UpdateCheckFailed;
         internal const string UpdateOpenFailed = LocalizationService.Keys.UpdateOpenFailed;
+        internal const string DiagnosticsTitle = LocalizationService.Keys.DiagnosticsTitle;
+        internal const string DiagnosticsOpenLogs = LocalizationService.Keys.DiagnosticsOpenLogs;
         internal const string SettingsTitle = LocalizationService.Keys.SettingsTitle;
         internal const string UpdateDismiss = LocalizationService.Keys.UpdateDismiss;
         internal const string HotkeyTitle = LocalizationService.Keys.HotkeyTitle;
@@ -339,6 +379,8 @@ public sealed class TextsViewModel : ObservableObject
         internal const string HotkeyStartRouting = LocalizationService.Keys.HotkeyStartRouting;
         internal const string HotkeyStopRouting = LocalizationService.Keys.HotkeyStopRouting;
         internal const string HotkeyToggleMicrophone = LocalizationService.Keys.HotkeyToggleMicrophone;
+        internal const string HotkeyToggleApplicationsMute = LocalizationService.Keys.HotkeyToggleApplicationsMute;
+        internal const string HotkeyApplicationsAudioGroup = LocalizationService.Keys.HotkeyApplicationsAudioGroup;
         internal const string HotkeyRegistrationFailed = LocalizationService.Keys.HotkeyRegistrationFailed;
         internal const string HotkeyNotAssigned = LocalizationService.Keys.HotkeyNotAssigned;
         internal const string HotkeyClear = LocalizationService.Keys.HotkeyClear;

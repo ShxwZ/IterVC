@@ -1,4 +1,3 @@
-using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using IterVC.Core.Interfaces;
@@ -13,12 +12,10 @@ public sealed partial class NoiseGateViewModel : ViewModelBase
     private readonly ISettingsService _settings;
     private readonly ILogger<NoiseGateViewModel> _logger;
     private readonly Func<TimeSpan, CancellationToken, Task> _delay;
-    private readonly DispatcherTimer _meterTimer;
     private readonly CancellationTokenSource _lifetimeCancellation = new();
     private readonly object _persistenceLock = new();
     private Task _persistenceTask = Task.CompletedTask;
     private CancellationTokenSource? _calibrationCancellation;
-    private float _smoothedOutputLevelDb = -80f;
     private bool _hydrating;
     private int _stopped;
 
@@ -33,8 +30,6 @@ public sealed partial class NoiseGateViewModel : ViewModelBase
         _settings = settings;
         _logger = logger;
         _delay = delay;
-        _meterTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(50) };
-        _meterTimer.Tick += OnMeterTick;
     }
 
     [ObservableProperty] private bool _isEnabled;
@@ -55,7 +50,6 @@ public sealed partial class NoiseGateViewModel : ViewModelBase
             AttackMilliseconds = settings.NoiseGateAttackMilliseconds;
             ReleaseMilliseconds = settings.NoiseGateReleaseMilliseconds;
             ApplySettings();
-            _meterTimer.Start();
         }
         finally { _hydrating = false; }
     }
@@ -125,8 +119,6 @@ public sealed partial class NoiseGateViewModel : ViewModelBase
         if (Interlocked.Exchange(ref _stopped, 1) != 0) return;
         _lifetimeCancellation.Cancel();
         _calibrationCancellation?.Cancel();
-        _meterTimer.Stop();
-        _meterTimer.Tick -= OnMeterTick;
         Task persistence;
         lock (_persistenceLock) persistence = _persistenceTask;
         try { await persistence; }
@@ -137,12 +129,7 @@ public sealed partial class NoiseGateViewModel : ViewModelBase
     internal void UpdateMeter()
     {
         if (Volatile.Read(ref _stopped) != 0) return;
-        var targetLevelDb = _router.MicrophoneOutputLevelDb;
-        var smoothing = targetLevelDb > _smoothedOutputLevelDb ? 0.55f : 0.18f;
-        _smoothedOutputLevelDb += (targetLevelDb - _smoothedOutputLevelDb) * smoothing;
-        OutputLevelDb = Math.Clamp(_smoothedOutputLevelDb, -80f, 0f);
+        OutputLevelDb = Math.Clamp(_router.MicrophoneOutputLevelDb, -80f, 0f);
         IsOpen = _router.IsNoiseGateOpen;
     }
-
-    private void OnMeterTick(object? sender, EventArgs e) => UpdateMeter();
 }

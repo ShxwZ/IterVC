@@ -5,7 +5,14 @@ public static class HotkeyErrors
     public const string WorkerUnavailable = "hotkey-worker-unavailable";
 }
 
-public enum HotkeyAction { ToggleRouting = 1, StartRouting, StopRouting, ToggleMicrophone }
+public enum HotkeyAction
+{
+    ToggleRouting = 1,
+    StartRouting,
+    StopRouting,
+    ToggleApplicationsMute,
+    ToggleMicrophone
+}
 
 public readonly record struct HotkeyBinding(HotkeyAction Action, bool Enabled, string Gesture);
 

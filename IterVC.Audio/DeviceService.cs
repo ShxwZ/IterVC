@@ -14,13 +14,18 @@ public sealed class DeviceService : IDeviceService, IDisposable
     private readonly MMDeviceEnumerator _enumerator = new();
     private readonly ILogger<DeviceService> _logger;
     private readonly MMNotificationClient _notificationClient;
+    private readonly DeviceChangeDebouncer _deviceChangeDebouncer;
+    private int _disposed;
 
     public event EventHandler? DevicesChanged;
 
     public DeviceService(ILogger<DeviceService> logger)
     {
         _logger = logger;
-        _notificationClient = new MMNotificationClient(() => DevicesChanged?.Invoke(this, EventArgs.Empty));
+        _deviceChangeDebouncer = new DeviceChangeDebouncer(
+            () => DevicesChanged?.Invoke(this, EventArgs.Empty),
+            TimeSpan.FromMilliseconds(300));
+        _notificationClient = new MMNotificationClient(_deviceChangeDebouncer.Notify);
         _enumerator.RegisterEndpointNotificationCallback(_notificationClient);
     }
 
@@ -82,7 +87,9 @@ public sealed class DeviceService : IDeviceService, IDisposable
 
     public void Dispose()
     {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
         _enumerator.UnregisterEndpointNotificationCallback(_notificationClient);
+        _deviceChangeDebouncer.Dispose();
         _enumerator.Dispose();
     }
 
@@ -98,5 +105,45 @@ public sealed class DeviceService : IDeviceService, IDisposable
         public void OnDeviceRemoved(string deviceId) => _onChanged();
         public void OnDefaultDeviceChanged(DataFlow flow, Role role, string defaultDeviceId) => _onChanged();
         public void OnPropertyValueChanged(string pwstrDeviceId, PropertyKey key) { }
+    }
+}
+
+/// <summary>
+/// Coalesces the burst of Core Audio notifications produced by a single physical device change.
+/// </summary>
+internal sealed class DeviceChangeDebouncer : IDisposable
+{
+    private readonly Action _onSettled;
+    private readonly TimeSpan _delay;
+    private readonly Timer _timer;
+    private int _disposed;
+
+    internal DeviceChangeDebouncer(Action onSettled, TimeSpan delay)
+    {
+        ArgumentNullException.ThrowIfNull(onSettled);
+        if (delay <= TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(delay));
+
+        _onSettled = onSettled;
+        _delay = delay;
+        _timer = new Timer(OnTimerElapsed);
+    }
+
+    internal void Notify()
+    {
+        if (Volatile.Read(ref _disposed) != 0) return;
+
+        try { _timer.Change(_delay, Timeout.InfiniteTimeSpan); }
+        catch (ObjectDisposedException) { }
+    }
+
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+        _timer.Dispose();
+    }
+
+    private void OnTimerElapsed(object? state)
+    {
+        if (Volatile.Read(ref _disposed) == 0) _onSettled();
     }
 }

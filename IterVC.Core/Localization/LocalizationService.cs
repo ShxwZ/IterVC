@@ -20,10 +20,12 @@ public sealed class LocalizationService : ILocalizationService
         public const string StatusInactive     = "status.inactive";
         public const string StatusMicrophoneActive = "status.microphone_active";
         public const string StatusMicrophoneInactive = "status.microphone_inactive";
-        public const string ButtonStart        = "button.start";
-        public const string ButtonStop         = "button.stop";
         public const string ButtonRefreshApps  = "button.refresh_apps";
         public const string CardAppsTitle      = "card.apps.title";
+        public const string ApplicationAudioMute = "application_audio.mute";
+        public const string ApplicationAudioUnmute = "application_audio.unmute";
+        public const string ApplicationAudioMuted = "application_audio.muted";
+        public const string ApplicationAudioActive = "application_audio.active";
         public const string CardAppsHelp       = "card.apps.help";
         public const string AppsDetectedOne    = "apps.detected_one";
         public const string AppsDetectedMany   = "apps.detected_many";
@@ -62,6 +64,11 @@ public sealed class LocalizationService : ILocalizationService
         public const string OscTemplateLabel   = "osc.template_label";
         public const string OscTemplateWatermark = "osc.template_watermark";
         public const string OscTemplateTokens  = "osc.template_tokens";
+        public const string OscTokenTitleDescription = "osc.token.title.description";
+        public const string OscTokenStatusDescription = "osc.token.status.description";
+        public const string OscTokenTimeDescription = "osc.token.time.description";
+        public const string OscLengthWarningTitle = "osc.length_warning.title";
+        public const string OscLengthWarning = "osc.length_warning";
         public const string CardLanguageTitle  = "card.language.title";
         public const string CardLanguageHelp   = "card.language.help";
         public const string MediaPlayingStatus = "media.playing";
@@ -87,6 +94,8 @@ public sealed class LocalizationService : ILocalizationService
         public const string HotkeyStartRouting = "hotkey.start_routing";
         public const string HotkeyStopRouting = "hotkey.stop_routing";
         public const string HotkeyToggleMicrophone = "hotkey.toggle_microphone";
+        public const string HotkeyToggleApplicationsMute = "hotkey.toggle_applications_mute";
+        public const string HotkeyApplicationsAudioGroup = "hotkey.applications_audio_group";
         public const string HotkeyHelp = "hotkey.help";
         public const string HotkeyRegistrationFailed = "hotkey.registration_failed";
         public const string HotkeyNotAssigned = "hotkey.not_assigned";
@@ -101,6 +110,8 @@ public sealed class LocalizationService : ILocalizationService
         public const string HotkeyMicrophoneGroup = "hotkey.microphone_group";
         public const string MicrophoneEnable = "microphone.enable";
         public const string MicrophoneDisable = "microphone.disable";
+        public const string DiagnosticsTitle = "diagnostics.title";
+        public const string DiagnosticsOpenLogs = "diagnostics.open_logs";
     }
 
     private readonly Dictionary<string, string> _es = new()
@@ -111,10 +122,12 @@ public sealed class LocalizationService : ILocalizationService
         [Keys.StatusInactive]       = "ENRUTAMIENTO DETENIDO",
         [Keys.StatusMicrophoneActive] = "MICRÓFONO ACTIVO",
         [Keys.StatusMicrophoneInactive] = "MICRÓFONO SILENCIADO",
-        [Keys.ButtonStart]          = "Iniciar",
-        [Keys.ButtonStop]           = "Detener",
         [Keys.ButtonRefreshApps]    = "Actualizar apps",
         [Keys.CardAppsTitle]        = "APLICACIONES CON AUDIO",
+        [Keys.ApplicationAudioMute] = "Silenciar sonido de aplicaciones",
+        [Keys.ApplicationAudioUnmute] = "Activar sonido de aplicaciones",
+        [Keys.ApplicationAudioMuted] = "AUDIO SILENCIADO",
+        [Keys.ApplicationAudioActive] = "AUDIO ACTIVO",
         [Keys.CardAppsHelp]         = "Marca las apps que quieres mezclar en el micrófono virtual.",
         [Keys.AppsDetectedOne]      = "1 aplicación con audio detectada.",
         [Keys.AppsDetectedMany]     = "{0} aplicaciones con audio detectadas.",
@@ -124,7 +137,7 @@ public sealed class LocalizationService : ILocalizationService
         [Keys.DeviceVbCable]        = "Micrófono virtual (VB-Cable)",
         [Keys.DeviceMicrophone]     = "Micrófono físico",
         [Keys.DeviceMicrophoneEnable] = "Usar micrófono",
-        [Keys.CardSpatialInfoTitle] = "* Audio espacial del dispositivo de referencia",
+        [Keys.CardSpatialInfoTitle] = "* AUDIO ESPACIAL DEL DISPOSITIVO DE REFERENCIA",
         [Keys.CardSpatialInfoBody]  = "Tu dispositivo puede tener Dolby Atmos for Headphones, Windows Sonic o DTS Sound Unbound activos. Esos efectos espaciales se aplican al audio de tus auriculares Y al audio que IterVC captura por proceso.",
         [Keys.CardSpatialInfoHelp]  = "Para obtener señal estéreo limpia en VB-Cable: abre Configuración → Sistema → Sonido → tu dispositivo → Formato de audio espacial → Off.",
         [Keys.CardMixTitle]         = "MEZCLA",
@@ -152,7 +165,12 @@ public sealed class LocalizationService : ILocalizationService
         [Keys.OscEnableChatbox]     = "Enviar info al Chatbox",
         [Keys.OscTemplateLabel]     = "Plantilla",
         [Keys.OscTemplateWatermark] = "{title} - {status}",
-        [Keys.OscTemplateTokens]    = "Tokens: {title}  {status}  {time}",
+        [Keys.OscTemplateTokens]    = "TOKENS DISPONIBLES",
+        [Keys.OscTokenTitleDescription] = "Título de la canción o contenido actual.",
+        [Keys.OscTokenStatusDescription] = "Estado de reproducción actual.",
+        [Keys.OscTokenTimeDescription] = "Posición y duración de la reproducción.",
+        [Keys.OscLengthWarningTitle] = "LÍMITE DE VRCHAT",
+        [Keys.OscLengthWarning] = "Si una línea supera el ancho disponible, VRChat puede insertar un salto de línea. IterVC no controla este ajuste. El Chatbox admite un máximo de 144 caracteres.",
         [Keys.CardLanguageTitle]    = "IDIOMA",
         [Keys.CardLanguageHelp]     = "Cambia el idioma de la interfaz al vuelo.",
         [Keys.MediaPlayingStatus]   = "Reproduciendo",
@@ -177,7 +195,9 @@ public sealed class LocalizationService : ILocalizationService
         [Keys.HotkeyToggleRouting]  = "Alternar enrutamiento",
         [Keys.HotkeyStartRouting]   = "Iniciar enrutamiento",
         [Keys.HotkeyStopRouting]    = "Detener enrutamiento",
-        [Keys.HotkeyToggleMicrophone] = "Alternar micrófono",
+        [Keys.HotkeyToggleMicrophone] = "Alternar silencio",
+        [Keys.HotkeyToggleApplicationsMute] = "Alternar silencio",
+        [Keys.HotkeyApplicationsAudioGroup] = "Sonido de aplicaciones",
         [Keys.HotkeyHelp]           = "Los atajos funcionan aunque la aplicaci\u00f3n no tenga el foco y no bloquean su uso en otras aplicaciones.",
         [Keys.HotkeyRegistrationFailed] = "No se pudieron aplicar los atajos observados: {0}",
         [Keys.HotkeyNotAssigned]    = "Sin asignar",
@@ -192,6 +212,8 @@ public sealed class LocalizationService : ILocalizationService
         [Keys.HotkeyMicrophoneGroup]  = "MICRÓFONO",
         [Keys.MicrophoneEnable]       = "Activar micrófono",
         [Keys.MicrophoneDisable]      = "Silenciar micrófono",
+        [Keys.DiagnosticsTitle]       = "DIAGNÓSTICO",
+        [Keys.DiagnosticsOpenLogs]    = "Abrir carpeta de logs",
     };
 
     private readonly Dictionary<string, string> _en = new()
@@ -202,10 +224,12 @@ public sealed class LocalizationService : ILocalizationService
         [Keys.StatusInactive]       = "ROUTING STOPPED",
         [Keys.StatusMicrophoneActive] = "MICROPHONE ON",
         [Keys.StatusMicrophoneInactive] = "MICROPHONE MUTED",
-        [Keys.ButtonStart]          = "Start",
-        [Keys.ButtonStop]           = "Stop",
         [Keys.ButtonRefreshApps]    = "Refresh apps",
         [Keys.CardAppsTitle]        = "APPS WITH AUDIO",
+        [Keys.ApplicationAudioMute] = "Mute application audio",
+        [Keys.ApplicationAudioUnmute] = "Unmute application audio",
+        [Keys.ApplicationAudioMuted] = "AUDIO MUTED",
+        [Keys.ApplicationAudioActive] = "AUDIO ACTIVE",
         [Keys.CardAppsHelp]         = "Check the apps you want to mix into the virtual microphone.",
         [Keys.AppsDetectedOne]      = "1 application with audio detected.",
         [Keys.AppsDetectedMany]     = "{0} applications with audio detected.",
@@ -215,7 +239,7 @@ public sealed class LocalizationService : ILocalizationService
         [Keys.DeviceVbCable]        = "Virtual microphone (VB-Cable)",
         [Keys.DeviceMicrophone]     = "Physical microphone",
         [Keys.DeviceMicrophoneEnable] = "Use microphone",
-        [Keys.CardSpatialInfoTitle] = "* Reference device spatial audio",
+        [Keys.CardSpatialInfoTitle] = "* REFERENCE DEVICE SPATIAL AUDIO",
         [Keys.CardSpatialInfoBody]  = "Your device may have Dolby Atmos for Headphones, Windows Sonic or DTS Sound Unbound enabled. Those spatial effects are applied to your headphone audio AND to the audio IterVC captures per process.",
         [Keys.CardSpatialInfoHelp]  = "To get clean stereo signal in VB-Cable: open Settings → System → Sound → your device → 'Spatial audio format' → 'Off'.",
         [Keys.CardMixTitle]         = "MIX",
@@ -243,7 +267,12 @@ public sealed class LocalizationService : ILocalizationService
         [Keys.OscEnableChatbox]     = "Send info to Chatbox",
         [Keys.OscTemplateLabel]     = "Template",
         [Keys.OscTemplateWatermark] = "{title} - {status}",
-        [Keys.OscTemplateTokens]    = "Tokens: {title}  {status}  {time}",
+        [Keys.OscTemplateTokens]    = "AVAILABLE TOKENS",
+        [Keys.OscTokenTitleDescription] = "Title of the current song or content.",
+        [Keys.OscTokenStatusDescription] = "Current playback status.",
+        [Keys.OscTokenTimeDescription] = "Current playback position and duration.",
+        [Keys.OscLengthWarningTitle] = "VRCHAT LIMIT",
+        [Keys.OscLengthWarning] = "If a line exceeds the available width, VRChat may insert a line break. IterVC does not control this behavior. The Chatbox supports up to 144 characters.",
         [Keys.CardLanguageTitle]    = "LANGUAGE",
         [Keys.CardLanguageHelp]     = "Switches the interface language on the fly.",
         [Keys.MediaPlayingStatus]   = "Playing",
@@ -268,7 +297,9 @@ public sealed class LocalizationService : ILocalizationService
         [Keys.HotkeyToggleRouting]  = "Toggle routing",
         [Keys.HotkeyStartRouting]   = "Start routing",
         [Keys.HotkeyStopRouting]    = "Stop routing",
-        [Keys.HotkeyToggleMicrophone] = "Toggle microphone",
+        [Keys.HotkeyToggleMicrophone] = "Toggle mute",
+        [Keys.HotkeyToggleApplicationsMute] = "Toggle mute",
+        [Keys.HotkeyApplicationsAudioGroup] = "Application audio",
         [Keys.HotkeyHelp]           = "Shortcuts work while the app is unfocused without blocking their use in other applications.",
         [Keys.HotkeyRegistrationFailed] = "Could not apply observed shortcuts: {0}",
         [Keys.HotkeyNotAssigned]    = "Not assigned",
@@ -283,6 +314,8 @@ public sealed class LocalizationService : ILocalizationService
         [Keys.HotkeyMicrophoneGroup]  = "MICROPHONE",
         [Keys.MicrophoneEnable]       = "Enable microphone",
         [Keys.MicrophoneDisable]      = "Mute microphone",
+        [Keys.DiagnosticsTitle]       = "DIAGNOSTICS",
+        [Keys.DiagnosticsOpenLogs]    = "Open log folder",
     };
 
     public string CurrentLanguage { get; private set; } = SupportedLanguages.Spanish;

@@ -1,49 +1,111 @@
 using Avalonia;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 using IterVC.Audio;
 using IterVC.Core.Interfaces;
 using IterVC.Core.Localization;
-using IterVC.Desktop.ViewModels;
 using IterVC.Desktop.Services;
-using System.Diagnostics;
+using IterVC.Desktop.ViewModels;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
 namespace IterVC.Desktop;
 
 internal static class Program
 {
-    /// <summary>Host de DI accesible desde App.axaml.cs para resolver el MainViewModel.</summary>
+    private static RollingFileLoggerProvider? _fileLogger;
+
     public static IHost AppHost { get; private set; } = null!;
 
     [STAThread]
     public static void Main(string[] args)
     {
-        Debug.WriteLine("1 - Antes de Host");
-        AppHost = Host.CreateDefaultBuilder(args)
-            .ConfigureLogging(logging =>
-            {
-                logging.ClearProviders();
-                logging.AddConsole();
-            })
-            .ConfigureServices(ConfigureServices)
-            .Build();
-        Debug.WriteLine("2 - Host construido");
+        var appDataDirectory = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "IterVC");
+        var logsDirectory = Path.Combine(appDataDirectory, "Logs");
+        _fileLogger = new RollingFileLoggerProvider(logsDirectory);
 
-        BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
-        Debug.WriteLine("3 - Avalonia iniciado");
+        try
+        {
+            AppHost = Host.CreateDefaultBuilder(args)
+                .ConfigureLogging(logging =>
+                {
+                    logging.ClearProviders();
+                    logging.SetMinimumLevel(LogLevel.Trace);
+                    logging.AddProvider(_fileLogger);
+#if DEBUG
+                    logging.AddConsole();
+#endif
+                })
+                .ConfigureServices((context, services) =>
+                    ConfigureServices(context, services, logsDirectory))
+                .Build();
+
+            RegisterGlobalExceptionHandlers();
+            var logger = AppHost.Services.GetRequiredService<ILoggerFactory>().CreateLogger("IterVC");
+            logger.LogInformation("IterVC {Version} started", AppVersion.Display);
+
+            BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+            logger.LogInformation("IterVC shut down cleanly");
+        }
+        catch (Exception exception)
+        {
+            TryLogCritical(exception, "IterVC terminated unexpectedly");
+            throw;
+        }
+        finally
+        {
+            _fileLogger.Flush(TimeSpan.FromSeconds(1));
+            AppHost?.Dispose();
+        }
     }
 
-    private static void ConfigureServices(HostBuilderContext context, IServiceCollection services)
+    private static void RegisterGlobalExceptionHandlers()
     {
-        Debug.WriteLine("ConfigureServices llamado");
+        AppDomain.CurrentDomain.UnhandledException += (_, args) =>
+        {
+            var exception = args.ExceptionObject as Exception
+                            ?? new InvalidOperationException(
+                                $"Unhandled object: {args.ExceptionObject?.GetType().FullName}");
+            TryLogCritical(exception, "Unhandled application exception. Terminating: {IsTerminating}",
+                args.IsTerminating);
+        };
+        TaskScheduler.UnobservedTaskException += (_, args) =>
+        {
+            TryLogCritical(args.Exception, "Unobserved task exception");
+            args.SetObserved();
+        };
+    }
 
+    internal static void TryLogCritical(Exception exception, string message, params object?[] args)
+    {
+        try
+        {
+            AppHost?.Services.GetService<ILoggerFactory>()
+                ?.CreateLogger("IterVC.GlobalExceptions")
+                .LogCritical(exception, message, args);
+            _fileLogger?.Flush(TimeSpan.FromSeconds(1));
+        }
+        catch
+        {
+            // Exception reporting must not hide the original failure.
+        }
+    }
+
+    private static void ConfigureServices(HostBuilderContext context, IServiceCollection services,
+        string logsDirectory)
+    {
+        services.AddSingleton(new DiagnosticsService(logsDirectory));
+        services.AddSingleton(sp => new DiagnosticsViewModel(
+            sp.GetRequiredService<DiagnosticsService>(),
+            sp.GetRequiredService<ILogger<DiagnosticsViewModel>>()));
         services.AddSingleton<ISettingsService, SettingsService>();
         services.AddSingleton<ILocalizationService>(LocalizationService.Instance);
         services.AddSingleton<IDeviceService, DeviceService>();
         services.AddSingleton<IOscMediaService, OscMediaService>();
         services.AddSingleton<IApplicationAudioService, ApplicationAudioService>();
         services.AddSingleton<TextsViewModel>();
+        services.AddSingleton<AudioMetersViewModel>();
         services.AddSingleton(sp => new ApplicationsViewModel(
             sp.GetRequiredService<IApplicationAudioService>(),
             sp.GetRequiredService<IAudioRouterService>(),
@@ -67,6 +129,7 @@ internal static class Program
             sp.GetRequiredService<ApplicationsViewModel>(),
             sp.GetRequiredService<MicrophoneViewModel>(),
             sp.GetRequiredService<NoiseGateViewModel>(),
+            sp.GetRequiredService<AudioMetersViewModel>(),
             sp.GetRequiredService<ILogger<AudioRoutingViewModel>>()));
         services.AddSingleton<IMediaSessionService, WindowsMediaSessionService>();
         services.AddSingleton<IOscChatboxWorker, OscChatboxWorker>();
@@ -80,8 +143,7 @@ internal static class Program
             sp.GetRequiredService<ISettingsService>(),
             sp.GetRequiredService<TextsViewModel>()));
         services.AddSingleton<IMicrophoneService, MicrophoneService>();
-        services.AddSingleton<AudioRouterService>();
-        services.AddSingleton<IAudioRouterService>(sp => sp.GetRequiredService<AudioRouterService>());
+        services.AddSingleton<IAudioRouterService, AudioRouterService>();
         services.AddSingleton(new HttpClient { Timeout = TimeSpan.FromSeconds(10) });
         services.AddSingleton<IUpdateService>(sp => new GitHubUpdateService(sp.GetRequiredService<HttpClient>()));
         services.AddSingleton<IExternalUrlLauncher, ShellUrlLauncher>();
@@ -102,7 +164,8 @@ internal static class Program
         services.AddSingleton(sp => new SettingsViewModel(
             sp.GetRequiredService<LanguageViewModel>(),
             sp.GetRequiredService<HotkeysViewModel>(),
-            sp.GetRequiredService<UpdateViewModel>()));
+            sp.GetRequiredService<UpdateViewModel>(),
+            sp.GetRequiredService<DiagnosticsViewModel>()));
         services.AddSingleton(sp => new MainViewModel(
             sp.GetRequiredService<IDeviceService>(),
             sp.GetRequiredService<AudioRoutingViewModel>(),
@@ -110,8 +173,6 @@ internal static class Program
             sp.GetRequiredService<ILogger<MainViewModel>>(),
             sp.GetRequiredService<OscChatboxViewModel>(),
             sp.GetRequiredService<SettingsViewModel>()));
-
-        Debug.WriteLine("ConfigureServices completado");
     }
 
     public static AppBuilder BuildAvaloniaApp() =>

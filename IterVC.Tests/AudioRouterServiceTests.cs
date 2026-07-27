@@ -9,12 +9,13 @@ namespace IterVC.Tests;
 public sealed class AudioRouterServiceTests
 {
     [TestMethod]
-    public void FeedMicrophoneSamples_ReportsRawInputRms()
+    public async Task FeedMicrophoneSamples_ReportsRawInputRms()
     {
         using var router = CreateRouter();
 
         router.FeedMicrophoneSamples(ToBytes(Enumerable.Repeat(0.25f, 960).ToArray()), 960 * sizeof(float));
 
+        await WaitUntilAsync(() => router.MicrophoneInputLevel.HasRecentSamples);
         Assert.AreEqual(-12.0412f, router.MicrophoneInputLevelDb, 0.001f);
     }
 

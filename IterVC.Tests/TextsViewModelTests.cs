@@ -27,8 +27,7 @@ public sealed class TextsViewModelTests
             Assert.AreEqual(1, notifications.Count(name => name == nameof(TextsViewModel.NoiseGateAdvanced)));
             Assert.AreEqual(LocalizationService.Instance.Get(LocalizationService.Keys.AppCaptureError),
                 texts.AppCaptureError);
-            Assert.AreNotEqual(LocalizationService.Instance.Get(LocalizationService.Keys.ButtonStart) + ":",
-                texts.AppCaptureError);
+            Assert.AreNotEqual("Start:", texts.AppCaptureError);
         }
         finally { LocalizationService.Instance.SetLanguage(original); }
     }

@@ -17,6 +17,7 @@ public sealed partial class UpdateViewModel : ViewModelBase
     private readonly CancellationTokenSource _lifetimeCancellation = new();
     private readonly object _persistenceLock = new();
     private Task _preferencePersistenceTask = Task.CompletedTask;
+    private Task _automaticCheckTask = Task.CompletedTask;
     private bool _hydrating;
     private bool _suppressPreferencePersistence;
     private UpdateStatusKind _statusKind;
@@ -42,6 +43,19 @@ public sealed partial class UpdateViewModel : ViewModelBase
 
     public async Task HydrateAsync(AppSettings settings, CancellationToken cancellationToken = default)
     {
+        HydrateState(settings);
+        if (IsEnabled) await CheckAsync(isManual: false, cancellationToken);
+    }
+
+    internal void HydrateForStartup(AppSettings settings)
+    {
+        HydrateState(settings);
+        if (IsEnabled)
+            _automaticCheckTask = CheckAutomaticallyAsync(_lifetimeCancellation.Token);
+    }
+
+    private void HydrateState(AppSettings settings)
+    {
         _hydrating = true;
         try
         {
@@ -49,7 +63,6 @@ public sealed partial class UpdateViewModel : ViewModelBase
             IsEnabled = settings.CheckForUpdates == true;
         }
         finally { _hydrating = false; }
-        if (IsEnabled) await CheckAsync(isManual: false, cancellationToken);
     }
 
     partial void OnIsEnabledChanged(bool value)
@@ -110,12 +123,21 @@ public sealed partial class UpdateViewModel : ViewModelBase
     public async Task StopAsync()
     {
         if (Interlocked.Exchange(ref _stopped, 1) != 0) return;
+        _lifetimeCancellation.Cancel();
         Task persistence;
         lock (_persistenceLock) persistence = _preferencePersistenceTask;
         try { await persistence; }
         catch (Exception exception) { _logger.LogError(exception, "Failed to finish update preference persistence"); }
-        _lifetimeCancellation.Cancel();
+        try { await _automaticCheckTask; }
+        catch (Exception exception) { _logger.LogError(exception, "Failed to finish automatic update check"); }
         _lifetimeCancellation.Dispose();
+    }
+
+    private async Task CheckAutomaticallyAsync(CancellationToken cancellationToken)
+    {
+        try { await CheckAsync(isManual: false, cancellationToken); }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
+        catch (Exception exception) { _logger.LogWarning(exception, "Automatic update check failed"); }
     }
 
     private async Task CheckAsync(bool isManual, CancellationToken cancellationToken)
@@ -150,6 +172,7 @@ public sealed partial class UpdateViewModel : ViewModelBase
 
             if (!result.Success)
             {
+                _logger.LogWarning("Update check failed");
                 if (isManual) SetStatus(UpdateStatusKind.CheckFailed);
                 return;
             }

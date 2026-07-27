@@ -21,7 +21,6 @@ public sealed class NoiseGateSampleProviderTests
         CollectionAssert.AreEqual(new[] { 0.25f, -0.5f }, output);
         Assert.AreEqual(1f, gate.CurrentGain, Tolerance);
         Assert.IsTrue(gate.IsOpen);
-        Assert.AreEqual(-8.0618f, gate.CurrentLevelDb, 0.001f);
     }
 
     [TestMethod]
@@ -37,7 +36,6 @@ public sealed class NoiseGateSampleProviderTests
         Assert.AreEqual(0f, gate.CurrentGain, Tolerance);
         Assert.AreEqual(0.009f, output[0], Tolerance);
         Assert.AreEqual(0f, output[^1], Tolerance);
-        Assert.AreEqual(-40f, gate.CurrentLevelDb, 0.001f);
     }
 
     [TestMethod]
@@ -57,7 +55,6 @@ public sealed class NoiseGateSampleProviderTests
         Assert.AreEqual(1f, gate.CurrentGain, Tolerance);
         Assert.AreEqual(0.1f, opened[0], Tolerance);
         Assert.AreEqual(1f, opened[^1], Tolerance);
-        Assert.AreEqual(0f, gate.CurrentLevelDb, Tolerance);
     }
 
     [TestMethod]
@@ -81,13 +78,19 @@ public sealed class NoiseGateSampleProviderTests
         var read = gate.Read(output, 0, output.Length);
 
         Assert.AreEqual(0, read);
-        Assert.AreEqual(-80f, gate.CurrentLevelDb);
         Assert.AreEqual(1f, gate.CurrentGain);
         Assert.IsFalse(gate.IsOpen);
     }
 
-    private static NoiseGateSampleProvider CreateGate(float[] samples, bool enabled = false) =>
-        new(new ArraySampleProvider(samples)) { Enabled = enabled, ThresholdDb = -20f };
+    private static NoiseGateSampleProvider CreateGate(float[] samples, bool enabled = false)
+    {
+        var meter = new LevelMeterSampleProvider(new ArraySampleProvider(samples));
+        return new NoiseGateSampleProvider(meter, () => meter.LatestLevelDb)
+        {
+            Enabled = enabled,
+            ThresholdDb = -20f
+        };
+    }
 
     private sealed class ArraySampleProvider(float[] samples) : ISampleProvider
     {

@@ -39,11 +39,34 @@ public sealed partial class ApplicationsViewModel : ViewModelBase, IDisposable
     public TextsViewModel Texts { get; }
     public ObservableCollection<AppAudioItemViewModel> RunningApps { get; } = [];
     [ObservableProperty] private string? _statusMessage;
+    [ObservableProperty] private bool _areApplicationsMuted;
+
+    public bool HasSelectedApplications => RunningApps.Any(app => app.IsIncludedInMix);
+    public string ApplicationsMuteButtonText => AreApplicationsMuted
+        ? Texts.ApplicationAudioUnmute
+        : Texts.ApplicationAudioMute;
+    public string ApplicationsMuteStatusText => AreApplicationsMuted
+        ? Texts.ApplicationAudioMuted
+        : Texts.ApplicationAudioActive;
+
+    partial void OnAreApplicationsMutedChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ApplicationsMuteButtonText));
+        OnPropertyChanged(nameof(ApplicationsMuteStatusText));
+    }
+
+    [RelayCommand]
+    public void ToggleApplicationsMute()
+    {
+        _router.SetApplicationsMuted(!_router.AreApplicationsMuted);
+        AreApplicationsMuted = _router.AreApplicationsMuted;
+    }
 
     public void HydrateIncludedProcessNames(IReadOnlyCollection<string> processNames)
     {
         _pendingIncludedProcessNames = processNames;
         ReplaceIncludedProcessNames(processNames);
+        AreApplicationsMuted = _router.AreApplicationsMuted;
     }
 
     public async Task SelectOutputDeviceAsync(string deviceId, CancellationToken cancellationToken = default)
@@ -106,6 +129,7 @@ public sealed partial class ApplicationsViewModel : ViewModelBase, IDisposable
                     app with { IsIncludedInMix = included },
                     this));
             }
+            OnPropertyChanged(nameof(HasSelectedApplications));
 
             if (!anyCaptureFailed)
             {
@@ -137,11 +161,14 @@ public sealed partial class ApplicationsViewModel : ViewModelBase, IDisposable
         }
 
         app.SetIncluded(included);
+        OnPropertyChanged(nameof(HasSelectedApplications));
         await PersistIncludedAppsAsync(cancellationToken);
     }
 
     public void RefreshLocalization()
     {
+        OnPropertyChanged(nameof(ApplicationsMuteButtonText));
+        OnPropertyChanged(nameof(ApplicationsMuteStatusText));
         if (_statusShowsDetectedApps)
             UpdateDetectedAppsStatus();
     }

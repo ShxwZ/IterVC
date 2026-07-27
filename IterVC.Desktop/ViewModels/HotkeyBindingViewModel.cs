@@ -26,8 +26,10 @@ public sealed partial class HotkeyBindingViewModel : ViewModelBase
     public string? CaptureError => IsRecording ? _owner.CaptureError : null;
     public bool ShowRoutingGroupHeader => Action == HotkeyAction.ToggleRouting;
     public bool ShowMicrophoneGroupHeader => Action == HotkeyAction.ToggleMicrophone;
+    public bool ShowApplicationsAudioGroupHeader => Action == HotkeyAction.ToggleApplicationsMute;
     public string RoutingGroupText => _owner.Texts.HotkeyRoutingGroup;
     public string MicrophoneGroupText => _owner.Texts.HotkeyMicrophoneGroup;
+    public string ApplicationsAudioGroupText => _owner.Texts.HotkeyApplicationsAudioGroup;
     [ObservableProperty] private bool _isEnabled;
     [ObservableProperty] private string _gesture = string.Empty;
     [ObservableProperty] private bool _isRecording;
@@ -64,5 +66,6 @@ public sealed partial class HotkeyBindingViewModel : ViewModelBase
         OnPropertyChanged(nameof(CaptureError));
         OnPropertyChanged(nameof(RoutingGroupText));
         OnPropertyChanged(nameof(MicrophoneGroupText));
+        OnPropertyChanged(nameof(ApplicationsAudioGroupText));
     }
 }
