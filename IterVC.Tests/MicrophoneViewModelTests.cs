@@ -57,7 +57,7 @@ public sealed class MicrophoneViewModelTests
     }
 
     [TestMethod]
-    public async Task DataAvailable_FeedsOnlyWhileEnabledAndSubscribed()
+    public async Task DataAvailable_IsNotForwardedByViewModel()
     {
         var router = new Mock<IAudioRouterService>();
         var microphone = new Mock<IMicrophoneService>();
@@ -65,13 +65,16 @@ public sealed class MicrophoneViewModelTests
         await viewModel.HydrateAsync(new AppSettings { MicrophoneEnabled = false });
         var samples = new byte[8];
 
-        microphone.Raise(service => service.DataAvailable += null, microphone.Object, samples);
+        microphone.Raise(service => service.DataAvailable += null,
+            new AudioDataEventArgs(samples, samples.Length));
         await viewModel.ToggleAsync();
-        microphone.Raise(service => service.DataAvailable += null, microphone.Object, samples);
+        microphone.Raise(service => service.DataAvailable += null,
+            new AudioDataEventArgs(samples, samples.Length));
         await viewModel.StopAsync();
-        microphone.Raise(service => service.DataAvailable += null, microphone.Object, samples);
+        microphone.Raise(service => service.DataAvailable += null,
+            new AudioDataEventArgs(samples, samples.Length));
 
-        router.Verify(service => service.FeedMicrophoneSamples(samples, samples.Length), Times.Once);
+        router.Verify(service => service.FeedMicrophoneSamples(It.IsAny<byte[]>(), It.IsAny<int>()), Times.Never);
     }
 
     private static MicrophoneViewModel CreateViewModel(Mock<IAudioRouterService> router,

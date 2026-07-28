@@ -21,7 +21,6 @@ public sealed partial class MicrophoneViewModel : ViewModelBase
     private Task _persistenceTask = Task.CompletedTask;
     private bool _hydrating;
     private bool _refreshing;
-    private bool _subscribed;
     private int _stopped;
 
     public MicrophoneViewModel(IAudioRouterService router, IMicrophoneService microphone,
@@ -42,7 +41,6 @@ public sealed partial class MicrophoneViewModel : ViewModelBase
 
     public async Task HydrateAsync(AppSettings settings, CancellationToken cancellationToken = default)
     {
-        AttachDataSubscription();
         _hydrating = true;
         try
         {
@@ -140,11 +138,6 @@ public sealed partial class MicrophoneViewModel : ViewModelBase
     {
         if (Interlocked.Exchange(ref _stopped, 1) != 0) return;
         _lifetimeCancellation.Cancel();
-        if (_subscribed)
-        {
-            _microphone.DataAvailable -= OnDataAvailable;
-            _subscribed = false;
-        }
         Task transition;
         Task persistence;
         lock (_taskLock)
@@ -156,19 +149,6 @@ public sealed partial class MicrophoneViewModel : ViewModelBase
         await ObserveAsync(persistence, "microphone persistence");
         try { await _microphone.StopAsync(); }
         finally { _lifetimeCancellation.Dispose(); }
-    }
-
-    private void AttachDataSubscription()
-    {
-        if (_subscribed) return;
-        _microphone.DataAvailable += OnDataAvailable;
-        _subscribed = true;
-    }
-
-    private void OnDataAvailable(object? sender, byte[] data)
-    {
-        if (Volatile.Read(ref _stopped) == 0 && IsEnabled)
-            _router.FeedMicrophoneSamples(data, data.Length);
     }
 
     private void QueueTransition(Func<Task> operation, string description)

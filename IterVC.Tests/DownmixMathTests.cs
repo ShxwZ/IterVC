@@ -1,260 +1,122 @@
-using Microsoft.VisualStudio.TestTools.UnitTesting;
 using IterVC.Core.Helpers;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace IterVC.Tests;
 
-/// <summary>
-/// Tests unitarios puros para <see cref="DownmixMath"/>. No tocan WASAPI/NAudio,
-/// así que corren en milisegundos en cualquier máquina (incluso sin audio stack).
-/// </summary>
 [TestClass]
 public sealed class DownmixMathTests
 {
-    private const float Tol = 1e-5f;
-
-    // ---------- SoftClip ----------
+    private const float Tolerance = 1e-5f;
 
     [TestMethod]
-    public void SoftClip_ClampsPositiveOverOne()
+    public void Downmix5_1_MapsChannelsWithDocumentedHeadroom()
     {
-        Assert.AreEqual(1f, DownmixMath.SoftClip(2.5f), Tol);
-        Assert.AreEqual(1f, DownmixMath.SoftClip(1.0001f), Tol);
+        var frontLeft = DownmixMath.Downmix5_1([1, 0, 0, 0, 0, 0]);
+        var center = DownmixMath.Downmix5_1([0, 0, 1, 0, 0, 0]);
+        var surround = DownmixMath.Downmix5_1([0, 0, 0, 0, 1, 0]);
+        var lfe = DownmixMath.Downmix5_1([0, 0, 0, 1, 0, 0]);
+
+        Assert.AreEqual(1f, frontLeft.Left, Tolerance);
+        Assert.AreEqual(0, frontLeft.Right, Tolerance);
+        Assert.AreEqual(DownmixMath.InvSqrt2, center.Left, Tolerance);
+        Assert.AreEqual(center.Left, center.Right, Tolerance);
+        Assert.AreEqual(DownmixMath.InvSqrt2, surround.Left, Tolerance);
+        Assert.AreEqual(0, surround.Right, Tolerance);
+        Assert.AreEqual(DownmixMath.LfeGain, lfe.Left, Tolerance);
+        Assert.AreEqual(lfe.Left, lfe.Right, Tolerance);
     }
 
     [TestMethod]
-    public void SoftClip_ClampsNegativeBelowMinusOne()
+    public void Downmix5_1_AllCorrelatedChannelsRemainLinearForFinalProtection()
     {
-        Assert.AreEqual(-1f, DownmixMath.SoftClip(-3f), Tol);
-        Assert.AreEqual(-1f, DownmixMath.SoftClip(-1.5f), Tol);
+        var result = DownmixMath.Downmix5_1([1, 1, 1, 1, 1, 1]);
+        Assert.IsTrue(result.Left > 1);
+        Assert.IsTrue(result.Right > 1);
     }
 
     [TestMethod]
-    public void SoftClip_PassesThroughRangeValues()
+    public void Downmix7_1_MapsBackAndSideChannelsToTheirOwnSide()
     {
-        Assert.AreEqual(0f, DownmixMath.SoftClip(0f), Tol);
-        Assert.AreEqual(0.5f, DownmixMath.SoftClip(0.5f), Tol);
-        Assert.AreEqual(-0.5f, DownmixMath.SoftClip(-0.5f), Tol);
-        Assert.AreEqual(1f, DownmixMath.SoftClip(1f), Tol);
-        Assert.AreEqual(-1f, DownmixMath.SoftClip(-1f), Tol);
+        var result = DownmixMath.Downmix7_1([0, 0, 0, 0, 1, 0, 1, 0]);
+        var expected = 0.5f + DownmixMath.InvSqrt2;
+        Assert.AreEqual(expected, result.Left, Tolerance);
+        Assert.AreEqual(0, result.Right, Tolerance);
     }
 
     [TestMethod]
-    public void SoftClip_HandlesEdgeValues()
+    public void Downmix_DoesNotHardClampIntermediateFloatSamples()
     {
-        Assert.AreEqual(0.99999f, DownmixMath.SoftClip(0.99999f), Tol);
-        Assert.AreEqual(1f, DownmixMath.SoftClip(float.MaxValue), Tol);
-        Assert.AreEqual(-1f, DownmixMath.SoftClip(float.MinValue), Tol);
-    }
-
-    // ---------- Downmix 5.1 ----------
-
-    [TestMethod]
-    public void Downmix5_1_AppliesFormula_FrontOnly()
-    {
-        // Sólo FL y FR activos (todo lo demás cero).
-        var frame = new float[6] { 1f, -1f, 0f, 0f, 0f, 0f };
-        var (l, r) = DownmixMath.Downmix5_1(frame);
-        Assert.AreEqual(1f, l, Tol);
-        Assert.AreEqual(-1f, r, Tol);
+        var result = DownmixMath.Downmix5_1([2, 2, 2, 2, 2, 2]);
+        Assert.IsTrue(result.Left > 1);
+        Assert.IsTrue(result.Right > 1);
     }
 
     [TestMethod]
-    public void Downmix5_1_AppliesFormula_AllChannels()
+    public void Downmix_OppositePhaseFrontChannelsPreserveSides()
     {
-        // Center and surround use 1/sqrt(2); LFE uses its dedicated 0.5 attenuation.
-        // Valores pequeños para evitar SoftClip (>1).
-        var fl = 0.30f; var fr = -0.20f; var fc = 0.10f; var lfe = 0.05f;
-        var ls = 0.15f; var rs = -0.15f;
-        var frame = new float[6] { fl, fr, fc, lfe, ls, rs };
-        var (l, r) = DownmixMath.Downmix5_1(frame);
-        var expectedL = fl + DownmixMath.InvSqrt2 * fc + DownmixMath.LfeGain * lfe + DownmixMath.InvSqrt2 * ls;
-        var expectedR = fr + DownmixMath.InvSqrt2 * fc + DownmixMath.LfeGain * lfe + DownmixMath.InvSqrt2 * rs;
-        // 0.30 + 0.0707 + 0.025 + 0.1061 ≈ 0.5018 (no clipping).
-        // -0.20 + 0.0707 + 0.025 - 0.1061 ≈ -0.2104.
-        Assert.AreEqual(expectedL, l, 1e-4f);
-        Assert.AreEqual(expectedR, r, 1e-4f);
+        var result = DownmixMath.Downmix5_1([1, -1, 0, 0, 0, 0]);
+        Assert.AreEqual(1f, result.Left, Tolerance);
+        Assert.AreEqual(-1f, result.Right, Tolerance);
     }
 
     [TestMethod]
-    public void Downmix5_1_ClipsToOneWhenSaturating()
+    public void DownmixGeneric_MonoDuplicatesAndStereoPreservesPlacement()
     {
-        // Si los canales suman > 1, debe saturar (no propagar > 1).
-        var frame = new float[6] { 1f, 1f, 1f, 1f, 1f, 1f };
-        var (l, r) = DownmixMath.Downmix5_1(frame);
-        Assert.AreEqual(1f, l, Tol);
-        Assert.AreEqual(1f, r, Tol);
+        Assert.AreEqual((0.42f, 0.42f), DownmixMath.DownmixGeneric([0.42f]));
+        var stereo = DownmixMath.DownmixGeneric([0.5f, -0.7f]);
+        Assert.AreEqual(0.5f, stereo.Left, Tolerance);
+        Assert.AreEqual(-0.7f, stereo.Right, Tolerance);
     }
 
     [TestMethod]
-    public void Downmix5_1_SurroundOnlyAffectsOwnChannel()
+    public void DownmixForChannels_UsesExpectedMatrix()
     {
-        // LS=1 afecta L, RS=1 afecta R, sin mezclarse entre canales.
-        var frameLs = new float[6] { 0f, 0f, 0f, 0f, 1f, 0f };
-        var (lLs, rLs) = DownmixMath.Downmix5_1(frameLs);
-        Assert.AreEqual(DownmixMath.InvSqrt2, lLs, Tol);
-        Assert.AreEqual(0f, rLs, Tol);
+        float[] fiveOne = [1, 0, 0, 0, 0, 0];
+        float[] sevenOne = [1, 0, 0, 0, 0, 0, 0, 0];
+        Assert.AreEqual(DownmixMath.Downmix5_1(fiveOne), DownmixMath.DownmixForChannels(fiveOne));
+        Assert.AreEqual(DownmixMath.Downmix7_1(sevenOne), DownmixMath.DownmixForChannels(sevenOne));
+    }
 
-        var frameRs = new float[6] { 0f, 0f, 0f, 0f, 0f, 1f };
-        var (lRs, rRs) = DownmixMath.Downmix5_1(frameRs);
-        Assert.AreEqual(0f, lRs, Tol);
-        Assert.AreEqual(DownmixMath.InvSqrt2, rRs, Tol);
+    [DataTestMethod]
+    [DataRow(0, 1f, 0f)]
+    [DataRow(1, 0f, 1f)]
+    [DataRow(2, 0.70710678f, 0.70710678f)]
+    [DataRow(3, 0.5f, 0.5f)]
+    [DataRow(4, 0.70710678f, 0f)]
+    [DataRow(5, 0f, 0.70710678f)]
+    public void Downmix5_1_EachChannelHasDeterministicPlacement(
+        int channel, float expectedLeftWeight, float expectedRightWeight)
+    {
+        var frame = new float[6];
+        frame[channel] = 1;
+        var result = DownmixMath.Downmix5_1(frame);
+        Assert.AreEqual(expectedLeftWeight, result.Left, Tolerance);
+        Assert.AreEqual(expectedRightWeight, result.Right, Tolerance);
+    }
+
+    [DataTestMethod]
+    [DataRow(0, 1f, 0f)]
+    [DataRow(1, 0f, 1f)]
+    [DataRow(2, 0.70710678f, 0.70710678f)]
+    [DataRow(3, 0.5f, 0.5f)]
+    [DataRow(4, 0.5f, 0f)]
+    [DataRow(5, 0f, 0.5f)]
+    [DataRow(6, 0.70710678f, 0f)]
+    [DataRow(7, 0f, 0.70710678f)]
+    public void Downmix7_1_EachChannelHasDeterministicPlacement(
+        int channel, float expectedLeftWeight, float expectedRightWeight)
+    {
+        var frame = new float[8];
+        frame[channel] = 1;
+        var result = DownmixMath.Downmix7_1(frame);
+        Assert.AreEqual(expectedLeftWeight, result.Left, Tolerance);
+        Assert.AreEqual(expectedRightWeight, result.Right, Tolerance);
     }
 
     [TestMethod]
-    public void Downmix5_1_ShortSpanFallsBackGracefully()
+    public void DownmixSilenceRemainsSilence()
     {
-        // Menos de 6 muestras -> fallback usando disponibles, sin excepción.
-        var frame = new float[2] { 0.3f, 0.6f };
-        var (l, r) = DownmixMath.Downmix5_1(frame);
-        Assert.AreEqual(0.3f, l, Tol);
-        Assert.AreEqual(0.6f, r, Tol);
-    }
-
-    // ---------- Downmix 7.1 ----------
-
-    [TestMethod]
-    public void Downmix7_1_AppliesFormula_CenterAndSides()
-    {
-        // FC=0.5 se reparte en ambos canales con factor 0.707 (sin desfase).
-        var frame = new float[8] { 0f, 0f, 0.5f, 0f, 0f, 0f, 0f, 0f };
-        var (l, r) = DownmixMath.Downmix7_1(frame);
-        Assert.AreEqual(DownmixMath.InvSqrt2 * 0.5f, l, 1e-5f);
-        Assert.AreEqual(DownmixMath.InvSqrt2 * 0.5f, r, 1e-5f);
-    }
-
-    [TestMethod]
-    public void Downmix7_1_FrontChannelsPassThrough()
-    {
-        // FL y FR limpios; LFE/BL/BR/SL/SR = 0.
-        var frame = new float[8] { 1f, -1f, 0f, 0f, 0f, 0f, 0f, 0f };
-        var (l, r) = DownmixMath.Downmix7_1(frame);
-        Assert.AreEqual(1f, l, Tol);
-        Assert.AreEqual(-1f, r, Tol);
-    }
-
-    [TestMethod]
-    public void Downmix7_1_BackAndSideChannelsContributeToCorrectSide()
-    {
-        // BL=0.4 -> L (0.5*0.4=0.2), SR=0.6 -> R (0.707*0.6=0.4243).
-        var frame = new float[8] { 0f, 0f, 0f, 0f, 0.4f, 0f, 0f, 0.6f };
-        var (l, r) = DownmixMath.Downmix7_1(frame);
-        Assert.AreEqual(0.2f, l, 1e-5f);
-        Assert.AreEqual(DownmixMath.InvSqrt2 * 0.6f, r, 1e-5f);
-    }
-
-    [TestMethod]
-    public void Downmix7_1_LfeAttenuatedToLfeGainFactor()
-    {
-        // LFE = 1.0 -> ambos canales suman LfeGain = 0.5.
-        var frame = new float[8] { 0f, 0f, 0f, 1f, 0f, 0f, 0f, 0f };
-        var (l, r) = DownmixMath.Downmix7_1(frame);
-        Assert.AreEqual(DownmixMath.LfeGain, l, Tol);
-        Assert.AreEqual(DownmixMath.LfeGain, r, Tol);
-    }
-
-    [TestMethod]
-    public void Downmix7_1_ShortSpanFallsBackToGeneric()
-    {
-        // Si pasan menos de 8 muestras, cae al genérico sin lanzar.
-        var frame = new float[4] { 1f, -1f, 0.3f, 0.1f };
-        var (l, r) = DownmixMath.Downmix7_1(frame);
-        // N=4, invSqrt4=0.5; ch[2]+ch[3]=0.4; shared=0.2; L=1.2->SoftClip=1; R=-0.8
-        Assert.AreEqual(1f, l, Tol);
-        Assert.AreEqual(-0.8f, r, 1e-5f);
-    }
-
-    // ---------- Downmix genérico ----------
-
-    [TestMethod]
-    public void DownmixGeneric_Mono_DuplicatesToLR()
-    {
-        var frame = new float[1] { 0.42f };
-        var (l, r) = DownmixMath.DownmixGeneric(frame);
-        // 1 muestra -> ambos canales = 0.42 * 1/√1 = 0.42.
-        Assert.AreEqual(0.42f, l, Tol);
-        Assert.AreEqual(0.42f, r, Tol);
-    }
-
-    [TestMethod]
-    public void DownmixGeneric_EmptySpan_ReturnsZeros()
-    {
-        var frame = System.Array.Empty<float>();
-        var (l, r) = DownmixMath.DownmixGeneric(frame);
-        Assert.AreEqual(0f, l);
-        Assert.AreEqual(0f, r);
-    }
-
-    [TestMethod]
-    public void DownmixGeneric_TwoChannels_PreservesLR()
-    {
-        var frame = new float[2] { 0.5f, -0.7f };
-        var (l, r) = DownmixMath.DownmixGeneric(frame);
-        Assert.AreEqual(0.5f, l, Tol);
-        Assert.AreEqual(-0.7f, r, Tol);
-    }
-
-    [TestMethod]
-    public void DownmixGeneric_ExtraChannels_MixWithInvSqrtN()
-    {
-        // N=4 -> invSqrtN = 0.5. ch[2]+ch[3]=0.20+(-0.10)=0.10; shared=0.05.
-        // Valores pequeños para evitar SoftClip (>1).
-        var frame = new float[4] { 0.50f, -0.50f, 0.20f, -0.10f };
-        var (l, r) = DownmixMath.DownmixGeneric(frame);
-        Assert.AreEqual(0.50f + 0.05f, l, 1e-5f);
-        Assert.AreEqual(-0.50f + 0.05f, r, 1e-5f);
-    }
-
-    [TestMethod]
-    public void DownmixGeneric_AvoidsSaturationWithManyChannels()
-    {
-        // 16 canales todos a 1.0 -> sin invSqrtN satura a 16; con invSqrtN a 1/4 = 4 (-> SoftClip a 1).
-        var frame = new float[16];
-        for (var i = 0; i < 16; i++) frame[i] = 1f;
-        var (l, r) = DownmixMath.DownmixGeneric(frame);
-        Assert.IsTrue(l <= 1f, $"L saturó por encima de 1: {l}");
-        Assert.IsTrue(r <= 1f, $"R saturó por encima de 1: {r}");
-    }
-
-    // ---------- Selector DownmixForChannels ----------
-
-    [TestMethod]
-    public void DownmixForChannels_FiveOne_UsesFiveOneFormula()
-    {
-        var frame = new float[6] { 1f, -1f, 0.5f, 0f, 0.7f, -0.7f };
-        var actual = DownmixMath.DownmixForChannels(frame);
-        var expected = DownmixMath.Downmix5_1(frame);
-        Assert.AreEqual(expected, actual);
-    }
-
-    [TestMethod]
-    public void DownmixForChannels_SevenOne_UsesSevenOneFormula()
-    {
-        var frame = new float[8] { 1f, -1f, 0.5f, 0f, 0.2f, 0.3f, 0.4f, 0.5f };
-        var actual = DownmixMath.DownmixForChannels(frame);
-        var expected = DownmixMath.Downmix7_1(frame);
-        Assert.AreEqual(expected, actual);
-    }
-
-    [TestMethod]
-    public void DownmixForChannels_Other_UsesGeneric()
-    {
-        var frame = new float[4] { 1f, -1f, 0.3f, -0.1f };
-        var actual = DownmixMath.DownmixForChannels(frame);
-        var expected = DownmixMath.DownmixGeneric(frame);
-        Assert.AreEqual(expected, actual);
-    }
-
-    // ---------- Constantes ----------
-
-    [TestMethod]
-    public void InvSqrt2_IsOneOverRootTwo()
-    {
-        Assert.AreEqual(0.7071067811865475f, DownmixMath.InvSqrt2, Tol);
-    }
-
-    [TestMethod]
-    public void LfeGain_IsHalf()
-    {
-        Assert.AreEqual(0.5f, DownmixMath.LfeGain, Tol);
+        Assert.AreEqual((0f, 0f), DownmixMath.Downmix5_1(new float[6]));
+        Assert.AreEqual((0f, 0f), DownmixMath.Downmix7_1(new float[8]));
     }
 }

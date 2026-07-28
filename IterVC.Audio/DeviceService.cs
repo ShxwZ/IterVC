@@ -104,7 +104,12 @@ public sealed class DeviceService : IDeviceService, IDisposable
         public void OnDeviceAdded(string pwstrDeviceId) => _onChanged();
         public void OnDeviceRemoved(string deviceId) => _onChanged();
         public void OnDefaultDeviceChanged(DataFlow flow, Role role, string defaultDeviceId) => _onChanged();
-        public void OnPropertyValueChanged(string pwstrDeviceId, PropertyKey key) { }
+        public void OnPropertyValueChanged(string pwstrDeviceId, PropertyKey key)
+        {
+            // Spatial-audio changes can arrive only as endpoint property updates.
+            // Forward them through the same debounce so active captures can renegotiate.
+            _onChanged();
+        }
     }
 }
 

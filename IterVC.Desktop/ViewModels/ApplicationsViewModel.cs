@@ -165,6 +165,31 @@ public sealed partial class ApplicationsViewModel : ViewModelBase, IDisposable
         await PersistIncludedAppsAsync(cancellationToken);
     }
 
+    /// <summary>
+    /// Recreates selected process-loopback clients after an endpoint change so their
+    /// channel format is renegotiated. The refresh gate prevents overlap with normal
+    /// application discovery and preserves the selected process names.
+    /// </summary>
+    internal async Task RestartCapturedSourcesAsync(CancellationToken cancellationToken = default)
+    {
+        await _refreshGate.WaitAsync(cancellationToken);
+
+        try
+        {
+            foreach (var processId in _capturedProcessIds.ToArray())
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                await _router.RemoveAppSourceAsync(processId);
+                _capturedProcessIds.Remove(processId);
+                await TryAddSourceAsync(processId, cancellationToken);
+            }
+        }
+        finally
+        {
+            _refreshGate.Release();
+        }
+    }
+
     public void RefreshLocalization()
     {
         OnPropertyChanged(nameof(ApplicationsMuteButtonText));

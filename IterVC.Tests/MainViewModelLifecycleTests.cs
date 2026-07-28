@@ -1,4 +1,5 @@
 using IterVC.Core.Interfaces;
+using IterVC.Core.Models;
 using IterVC.Core.Settings;
 using IterVC.Desktop.Services;
 using IterVC.Desktop.ViewModels;
@@ -54,7 +55,7 @@ public sealed class MainViewModelLifecycleTests
     }
 
     [TestMethod]
-    public async Task DisposeAsync_UnsubscribesMicrophoneAndStopsResourcesOnce()
+    public async Task DisposeAsync_StopsResourcesOnceWithoutForwardingMicrophonePackets()
     {
         var router = new Mock<IAudioRouterService>();
         var microphone = new Mock<IMicrophoneService>();
@@ -63,12 +64,14 @@ public sealed class MainViewModelLifecycleTests
         var samples = new byte[16];
         await viewModel.Audio.Microphone.HydrateAsync(new AppSettings());
 
-        microphone.Raise(service => service.DataAvailable += null, microphone.Object, samples);
+        microphone.Raise(service => service.DataAvailable += null,
+            new AudioDataEventArgs(samples, samples.Length));
         await viewModel.DisposeAsync();
         await viewModel.DisposeAsync();
-        microphone.Raise(service => service.DataAvailable += null, microphone.Object, samples);
+        microphone.Raise(service => service.DataAvailable += null,
+            new AudioDataEventArgs(samples, samples.Length));
 
-        router.Verify(service => service.FeedMicrophoneSamples(samples, samples.Length), Times.Once);
+        router.Verify(service => service.FeedMicrophoneSamples(It.IsAny<byte[]>(), It.IsAny<int>()), Times.Never);
         worker.Verify(service => service.StopAsync(), Times.Once);
         microphone.Verify(service => service.StopAsync(), Times.Once);
         router.Verify(service => service.StopAsync(), Times.Once);

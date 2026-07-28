@@ -8,6 +8,12 @@ namespace IterVC.Audio;
 
 public sealed class ProcessLoopbackCapture : IDisposable
 {
+    // Keep the endpoint-aware path as the production default. The Windows stereo
+    // conversion remains available for A/B tests, but changed level and spatial
+    // balance on the validated 7.1 device.
+    internal const ProcessLoopbackCaptureStrategy DefaultStrategy =
+        ProcessLoopbackCaptureStrategy.CustomMultichannel;
+    private readonly ProcessLoopbackCaptureStrategy _strategy;
     private const ushort CaptureBitsPerSample = 32;
     private const int ChannelLevelLogIntervalSeconds = 2;
     private const int MaximumChannelLevelLogs = 3;
@@ -31,6 +37,13 @@ public sealed class ProcessLoopbackCapture : IDisposable
     public bool IsUsingRawAudio => false;
 
     public event EventHandler<byte[]>? DataAvailable;
+
+    public ProcessLoopbackCapture() : this(DefaultStrategy) { }
+
+    internal ProcessLoopbackCapture(ProcessLoopbackCaptureStrategy strategy)
+    {
+        _strategy = strategy;
+    }
 
     public Task StartAsync(int processId, bool includeProcessTree, ILogger? logger = null) =>
         StartCoreAsync(processId, includeProcessTree, logger);
@@ -65,7 +78,8 @@ public sealed class ProcessLoopbackCapture : IDisposable
                           | ProcessLoopbackNativeMethods.AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM
                           | ProcessLoopbackNativeMethods.AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY;
 
-        var requestedFormat = ProcessRenderFormatDetector.Detect(processId, includeProcessTree, logger);
+        var requestedFormat = SelectRequestedFormat(_strategy,
+            () => ProcessRenderFormatDetector.Detect(processId, includeProcessTree, logger));
 
         _audioClient = await ActivateAsync(processId, includeProcessTree);
 
@@ -146,6 +160,18 @@ public sealed class ProcessLoopbackCapture : IDisposable
             Marshal.FreeHGlobal(formatPointer);
         }
     }
+
+    /// <summary>
+    /// Selects the capture format without hiding the two Task 3 A/B strategies.
+    /// Custom multichannel preserves endpoint channel placement for IterVC's
+    /// deterministic downmix; standard stereo delegates that conversion to Windows.
+    /// </summary>
+    internal static ProcessRenderFormat SelectRequestedFormat(
+        ProcessLoopbackCaptureStrategy strategy,
+        Func<ProcessRenderFormat> detectMultichannel) =>
+        strategy == ProcessLoopbackCaptureStrategy.StandardStereo
+            ? ProcessRenderFormat.StereoFallback
+            : detectMultichannel();
 
     private static IntPtr AllocateWaveFormat(int sampleRate, ushort channels)
     {
@@ -342,18 +368,23 @@ public sealed class ProcessLoopbackCapture : IDisposable
                     var hrBuffer = _captureClient.GetBuffer(out var dataPointer, out var numFrames, out var flags, out _, out _);
                     if (hrBuffer != 0) break;
 
-                    var byteCount = (int)numFrames * WaveFormat.BlockAlign;
-                    if (byteCount > 0)
+                    try
                     {
-                        var buffer = new byte[byteCount];
-                        if ((flags & ProcessLoopbackNativeMethods.AUDCLNT_BUFFERFLAGS_SILENT) == 0)
-                            Marshal.Copy(dataPointer, buffer, 0, byteCount);
+                        var byteCount = (int)numFrames * WaveFormat.BlockAlign;
+                        if (byteCount > 0)
+                        {
+                            var buffer = new byte[byteCount];
+                            if ((flags & ProcessLoopbackNativeMethods.AUDCLNT_BUFFERFLAGS_SILENT) == 0)
+                                Marshal.Copy(dataPointer, buffer, 0, byteCount);
 
-                        AccumulateChannelLevels(buffer, logger);
-                        DataAvailable?.Invoke(this, buffer);
+                            AccumulateChannelLevels(buffer, logger);
+                            DataAvailable?.Invoke(this, buffer);
+                        }
                     }
-
-                    _captureClient.ReleaseBuffer(numFrames);
+                    finally
+                    {
+                        _captureClient.ReleaseBuffer(numFrames);
+                    }
                 }
             }
             catch (Exception ex)
