@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using NAudio.CoreAudioApi;
 using NAudio.Wave;
 using IterVC.Core.Interfaces;
+using IterVC.Core.Models;
 
 namespace IterVC.Audio;
 
@@ -14,12 +15,13 @@ public sealed class MicrophoneService : IMicrophoneService
     private readonly ILogger<MicrophoneService> _logger;
     private readonly MMDeviceEnumerator _enumerator = new();
     private WasapiCapture? _capture;
+    private EventHandler<StoppedEventArgs>? _recordingStoppedHandler;
 
     public bool IsCapturing { get; private set; }
 
     public WaveFormat? WaveFormat => _capture?.WaveFormat;
 
-    public event EventHandler<byte[]>? DataAvailable;
+    public event EventHandler<AudioDataEventArgs>? DataAvailable;
 
     public MicrophoneService(ILogger<MicrophoneService> logger)
     {
@@ -31,22 +33,48 @@ public sealed class MicrophoneService : IMicrophoneService
         StopInternal();
 
         var device = _enumerator.GetDevice(microphoneDeviceId);
-        _capture = new WasapiCapture(device, useEventSync: true, audioBufferMillisecondsLength: 20)
+        Exception? preferredFailure = null;
+        foreach (var latency in new[]
+                 {
+                     AudioLatencyPolicy.PreferredMicrophoneBufferMilliseconds,
+                     AudioLatencyPolicy.FallbackMicrophoneBufferMilliseconds
+                 })
         {
-            WaveFormat = WaveFormat.CreateIeeeFloatWaveFormat(48000, 2)
-        };
-        _capture.DataAvailable += OnDataAvailable;
-        _capture.RecordingStopped += (_, e) =>
-        {
-            if (e.Exception is not null)
-                _logger.LogError(e.Exception, "La captura del micrófono se detuvo con error");
-            IsCapturing = false;
-        };
+            try
+            {
+                var capture = new WasapiCapture(device, useEventSync: true, audioBufferMillisecondsLength: latency)
+                {
+                    WaveFormat = WaveFormat.CreateIeeeFloatWaveFormat(48000, 2)
+                };
+                _recordingStoppedHandler = OnRecordingStopped;
+                capture.DataAvailable += OnDataAvailable;
+                capture.RecordingStopped += _recordingStoppedHandler;
+                _capture = capture;
+                capture.StartRecording();
+                IsCapturing = true;
+                _logger.LogInformation(
+                    "Microphone capture initialized: Device={Device} Format={Format} PreferredBufferMs={PreferredBufferMs} SelectedBufferMs={SelectedBufferMs} FallbackUsed={FallbackUsed}",
+                    device.FriendlyName, capture.WaveFormat,
+                    AudioLatencyPolicy.PreferredMicrophoneBufferMilliseconds, latency,
+                    latency != AudioLatencyPolicy.PreferredMicrophoneBufferMilliseconds);
+                return Task.CompletedTask;
+            }
+            catch (Exception exception)
+            {
+                CleanupCapture();
+                if (latency == AudioLatencyPolicy.PreferredMicrophoneBufferMilliseconds)
+                {
+                    preferredFailure = exception;
+                    continue;
+                }
 
-        _capture.StartRecording();
-        IsCapturing = true;
-        _logger.LogInformation("Captura de micrófono iniciada en '{Device}'", device.FriendlyName);
-        return Task.CompletedTask;
+                throw new AggregateException(
+                    "Could not initialize microphone capture at the preferred or fallback buffer size.",
+                    preferredFailure!, exception);
+            }
+        }
+
+        throw new InvalidOperationException("Microphone capture initialization did not run.");
     }
 
     public Task StopAsync()
@@ -55,7 +83,6 @@ public sealed class MicrophoneService : IMicrophoneService
         return Task.CompletedTask;
     }
 
-    // CORREGIDO: Ahora detiene la captura anterior e inicia la nueva de manera incondicional
     public async Task SetDeviceAsync(string microphoneDeviceId)
     {
         StopInternal();
@@ -66,9 +93,14 @@ public sealed class MicrophoneService : IMicrophoneService
     {
         if (e.BytesRecorded == 0) return;
 
-        var copy = new byte[e.BytesRecorded];
-        Buffer.BlockCopy(e.Buffer, 0, copy, 0, e.BytesRecorded);
-        DataAvailable?.Invoke(this, copy);
+        DataAvailable?.Invoke(this, new AudioDataEventArgs(e.Buffer, e.BytesRecorded));
+    }
+
+    private void OnRecordingStopped(object? sender, StoppedEventArgs e)
+    {
+        if (e.Exception is not null)
+            _logger.LogError(e.Exception, "Microphone capture stopped with an error");
+        IsCapturing = false;
     }
 
     private void StopInternal()
@@ -85,11 +117,22 @@ public sealed class MicrophoneService : IMicrophoneService
         }
         finally
         {
-            _capture.DataAvailable -= OnDataAvailable;
-            _capture.Dispose();
-            _capture = null;
-            IsCapturing = false;
+            CleanupCapture();
         }
+    }
+
+    private void CleanupCapture()
+    {
+        if (_capture is not null)
+        {
+            _capture.DataAvailable -= OnDataAvailable;
+            if (_recordingStoppedHandler is not null)
+                _capture.RecordingStopped -= _recordingStoppedHandler;
+            _capture.Dispose();
+        }
+        _capture = null;
+        _recordingStoppedHandler = null;
+        IsCapturing = false;
     }
 
     public void Dispose()

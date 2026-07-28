@@ -48,7 +48,7 @@ public sealed class MainViewModel : ViewModelBase, IAsyncDisposable
     private bool IsDisposed => Volatile.Read(ref _disposed) != 0;
 
     private void OnDevicesChanged(object? sender, EventArgs e) =>
-        Avalonia.Threading.Dispatcher.UIThread.Post(() => { if (!IsDisposed) RefreshDevices(); });
+        Avalonia.Threading.Dispatcher.UIThread.Post(() => _ = RefreshDevicesAsync());
 
     public Task InitializeAsync()
     {
@@ -87,11 +87,25 @@ public sealed class MainViewModel : ViewModelBase, IAsyncDisposable
         }
     }
 
-    private void RefreshDevices()
+    private async Task RefreshDevicesAsync()
     {
-        if (Avalonia.Application.Current == null) return;
-        Audio.RefreshDevices();
-        Audio.Microphone.RefreshDevices();
+        if (IsDisposed || Avalonia.Application.Current == null) return;
+
+        try
+        {
+            Audio.RefreshDevices();
+            Audio.Microphone.RefreshDevices();
+            // Device enumeration alone is insufficient after a spatial-audio format
+            // change: existing process-loopback clients retain their original format.
+            await Applications.RestartCapturedSourcesAsync(_lifetimeCancellation.Token);
+        }
+        catch (OperationCanceledException) when (_lifetimeCancellation.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            _logger.LogWarning(exception, "Could not recover audio captures after a device change");
+        }
     }
 
     public async ValueTask DisposeAsync()

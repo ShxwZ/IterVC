@@ -7,6 +7,8 @@ using NAudio.Wave;
 using NAudio.Wave.SampleProviders;
 using IterVC.Core.Interfaces;
 using IterVC.Core.Models;
+using IterVC.Audio.Buffers;
+using IterVC.Audio.Diagnostics;
 
 namespace IterVC.Audio;
 
@@ -20,15 +22,19 @@ public sealed class AudioRouterService : IAudioRouterService
     private readonly ILogger<AudioRouterService> _logger;
     private readonly MMDeviceEnumerator _enumerator = new();
 
-    private readonly BufferedWaveProvider _micBuffer;
+    private readonly RealtimeAudioBuffer _micBuffer;
     private readonly LevelMeterSampleProvider _microphoneInputMeter;
     private readonly VolumeSampleProvider _micVolume;
     private readonly LevelMeterSampleProvider _microphoneOutputMeter;
     private readonly NoiseGateSampleProvider _noiseGate;
-    private readonly BufferedWaveProvider _routedMicrophoneBuffer;
-    private readonly BufferedWaveProvider _monitorMicrophoneBuffer;
+    private readonly RealtimeAudioBuffer _routedMicrophoneBuffer;
+    private readonly RealtimeAudioBuffer _monitorMicrophoneBuffer;
     private readonly CancellationTokenSource _microphoneProcessingCancellation = new();
+    private readonly SemaphoreSlim _microphoneDataSignal = new(0, 1);
     private readonly Task _microphoneProcessingTask;
+    private readonly AudioBufferDiagnosticsReporter _bufferDiagnostics;
+    private readonly AudioSignalDiagnosticsReporter _signalDiagnostics;
+    private readonly AudioProcessingMetrics _microphoneProcessingMetrics = new();
     private volatile bool _monitorMicRequested;
     private volatile bool _isRouting;
 
@@ -41,8 +47,10 @@ public sealed class AudioRouterService : IAudioRouterService
 
     private MixingSampleProvider? _mainMixer;
     private LevelMeterSampleProvider? _routedOutputMeter;
-    private WasapiOut? _cableOutput;
-    private WasapiOut? _monitorOutput;
+    private PreProtectionDiagnosticsSampleProvider? _preProtectionDiagnostics;
+    private OutputProtectionSampleProvider? _outputProtection;
+    private IWavePlayer? _cableOutput;
+    private IWavePlayer? _monitorOutput;
 
     public bool IsRouting => _isRouting;
     public AudioLevelSnapshot MicrophoneInputLevel => _microphoneInputMeter.GetSnapshot(MeterStaleAfter);
@@ -61,12 +69,7 @@ public sealed class AudioRouterService : IAudioRouterService
     {
         _logger = logger;
 
-        _micBuffer = new BufferedWaveProvider(MixFormat)
-        {
-            DiscardOnBufferOverflow = true,
-            BufferDuration = TimeSpan.FromMilliseconds(150),
-            ReadFully = false
-        };
+        _micBuffer = new RealtimeAudioBuffer(MixFormat, readFully: false, countUnderflows: false);
         _microphoneInputMeter = new LevelMeterSampleProvider(_micBuffer.ToSampleProvider());
         _noiseGate = new NoiseGateSampleProvider(_microphoneInputMeter, () => _microphoneInputMeter.LatestLevelDb);
         _micVolume = new VolumeSampleProvider(_noiseGate);
@@ -75,19 +78,23 @@ public sealed class AudioRouterService : IAudioRouterService
         _applicationsOutputMeter = new LevelMeterSampleProvider(_applicationsMixer);
         _routedMicrophoneBuffer = CreateProcessedMicrophoneBuffer();
         _monitorMicrophoneBuffer = CreateProcessedMicrophoneBuffer();
+        _bufferDiagnostics = new AudioBufferDiagnosticsReporter(logger);
+        _bufferDiagnostics.Register("MicrophoneRaw", _micBuffer, _microphoneProcessingMetrics, 10);
+        _bufferDiagnostics.Register("MicrophoneRouted", _routedMicrophoneBuffer);
+        _bufferDiagnostics.Register("MicrophoneMonitor", _monitorMicrophoneBuffer);
+        _signalDiagnostics = new AudioSignalDiagnosticsReporter(
+            logger, () => _preProtectionDiagnostics, () => _outputProtection);
         _microphoneProcessingTask = Task.Run(() => ProcessMicrophoneAsync(_microphoneProcessingCancellation.Token));
     }
 
-    private static BufferedWaveProvider CreateProcessedMicrophoneBuffer() => new(MixFormat)
-    {
-        DiscardOnBufferOverflow = true,
-        BufferDuration = TimeSpan.FromMilliseconds(150),
-        ReadFully = true
-    };
+    private static RealtimeAudioBuffer CreateProcessedMicrophoneBuffer() =>
+        new(MixFormat, readFully: true);
 
     public void FeedMicrophoneSamples(byte[] pcmBytes, int count)
     {
-        _micBuffer.AddSamples(pcmBytes, 0, count);
+        _micBuffer.Write(pcmBytes, 0, count);
+        try { _microphoneDataSignal.Release(); }
+        catch (SemaphoreFullException) { /* A pending wake-up already covers this packet. */ }
     }
 
     public Task StartAsync(string vbCableDeviceId, CancellationToken cancellationToken = default)
@@ -96,7 +103,7 @@ public sealed class AudioRouterService : IAudioRouterService
 
         Debug.WriteLine($"[Router] StartAsync — fuentes existentes: {_appSources.Count}");
 
-        _routedMicrophoneBuffer.ClearBuffer();
+        _routedMicrophoneBuffer.Clear();
         _mainMixer = new MixingSampleProvider(MixFormat) { ReadFully = true };
         _mainMixer.AddMixerInput(_routedMicrophoneBuffer.ToSampleProvider());
 
@@ -107,12 +114,19 @@ public sealed class AudioRouterService : IAudioRouterService
         }
 
         _mainMixer.AddMixerInput(_applicationsOutputMeter);
-        _routedOutputMeter = new LevelMeterSampleProvider(_mainMixer);
+        _preProtectionDiagnostics = new PreProtectionDiagnosticsSampleProvider(_mainMixer);
+        _outputProtection = new OutputProtectionSampleProvider(_preProtectionDiagnostics);
+        _routedOutputMeter = new LevelMeterSampleProvider(_outputProtection);
 
         var device = _enumerator.GetDevice(vbCableDeviceId);
-        _cableOutput = new WasapiOut(device, AudioClientShareMode.Shared, useEventSync: true, latency: 40);
-        _cableOutput.Init(_routedOutputMeter);
-        _cableOutput.Play();
+        _cableOutput = AudioLatencyPolicy.StartOutput(
+            latency => new WasapiOut(device, AudioClientShareMode.Shared, useEventSync: true, latency),
+            _routedOutputMeter.ToWaveProvider(),
+            "VB-Cable",
+            device.FriendlyName,
+            AudioLatencyPolicy.PreferredCableLatencyMilliseconds,
+            AudioLatencyPolicy.FallbackCableLatencyMilliseconds,
+            _logger);
 
         Debug.WriteLine($"[Router] WasapiOut iniciado hacia '{device.FriendlyName}', estado: {_cableOutput.PlaybackState}");
 
@@ -150,7 +164,8 @@ public sealed class AudioRouterService : IAudioRouterService
 
         Debug.WriteLine($"[Router] AddAppSourceAsync {processId} — _mainMixer: {(_mainMixer == null ? "NULL" : "OK")}");
 
-        // Process-loopback activation requires a dedicated STA thread.
+        // Keep the complete activation call on an STA caller. The inner thread
+        // pumps the callback; this apartment preserves the COM proxy lifecycle.
         try
         {
             await RunOnStaThread(() => capture.StartAsync(processId, includeProcessTree: true, _logger));
@@ -164,16 +179,17 @@ public sealed class AudioRouterService : IAudioRouterService
             throw;
         }
 
-        var buffer = new BufferedWaveProvider(capture.WaveFormat)
-        {
-            DiscardOnBufferOverflow = true,
-            BufferDuration = TimeSpan.FromMilliseconds(300)
-        };
+        var buffer = new RealtimeAudioBuffer(capture.WaveFormat, readFully: true);
+        var processingMetrics = new AudioProcessingMetrics();
+        var sourceLabel = $"Application:{GetProcessLabel(processId)}:PID={processId}";
+        _bufferDiagnostics.Register(sourceLabel, buffer, processingMetrics, 10);
 
         var packetsReceived = 0;
         capture.DataAvailable += (_, data) =>
         {
-            buffer.AddSamples(data, 0, data.Length);
+            var started = Stopwatch.GetTimestamp();
+            buffer.Write(data, 0, data.Length);
+            processingMetrics.Record(started);
             var count = Interlocked.Increment(ref packetsReceived);
             if (count == 1)
                 Debug.WriteLine($"[Router] Primer paquete proceso {processId}: {data.Length} bytes");
@@ -191,44 +207,42 @@ public sealed class AudioRouterService : IAudioRouterService
         var volume = new VolumeSampleProvider(adapted) { Volume = GetEffectiveApplicationsGain() };
         var meter = new LevelMeterSampleProvider(volume);
 
-        _appSources[processId] = new AppSource(capture, volume, meter);
+        _appSources[processId] = new AppSource(capture, volume, meter, sourceLabel);
         _applicationsMixer.AddMixerInput(meter);
 
         Debug.WriteLine($"[Router] App {processId} añadida al mixer correctamente");
     }
 
-    /// <summary>
-    /// Ejecuta una función async en un hilo STA dedicado y espera su resultado.
-    /// Necesario para APIs COM que requieren STA (como ActivateAudioInterfaceAsync).
-    /// </summary>
     private static Task RunOnStaThread(Func<Task> action)
     {
-        var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-
+        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var thread = new Thread(async () =>
         {
             try
             {
                 await action();
-                tcs.SetResult();
+                completion.TrySetResult();
             }
-            catch (Exception ex)
+            catch (Exception exception)
             {
-                tcs.SetException(ex);
+                completion.TrySetException(exception);
             }
-        });
-
+        })
+        {
+            IsBackground = true,
+            Name = "ProcessLoopbackCallerSTA"
+        };
         thread.SetApartmentState(ApartmentState.STA);
-        thread.IsBackground = true;
         thread.Start();
-
-        return tcs.Task;
+        return completion.Task;
     }
+
     public Task RemoveAppSourceAsync(int processId)
     {
         if (_appSources.TryRemove(processId, out var source))
         {
             _applicationsMixer.RemoveMixerInput(source.Meter);
+            _bufferDiagnostics.Remove(source.DiagnosticsKey);
             source.Capture.Dispose();
             Debug.WriteLine($"[Router] Proceso {processId} eliminado del mixer");
         }
@@ -240,7 +254,7 @@ public sealed class AudioRouterService : IAudioRouterService
         _monitorMicRequested = enabled;
         if (enabled)
         {
-            _monitorMicrophoneBuffer.ClearBuffer();
+            _monitorMicrophoneBuffer.Clear();
             EnsureMonitorOutput();
         }
         else
@@ -254,9 +268,14 @@ public sealed class AudioRouterService : IAudioRouterService
         if (_monitorOutput is not null) return;
 
         var defaultDevice = _enumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
-        _monitorOutput = new WasapiOut(defaultDevice, AudioClientShareMode.Shared, useEventSync: true, latency: 60);
-        _monitorOutput.Init(_monitorMicrophoneBuffer);
-        _monitorOutput.Play();
+        _monitorOutput = AudioLatencyPolicy.StartOutput(
+            latency => new WasapiOut(defaultDevice, AudioClientShareMode.Shared, useEventSync: true, latency),
+            _monitorMicrophoneBuffer,
+            "MicrophoneMonitor",
+            defaultDevice.FriendlyName,
+            AudioLatencyPolicy.PreferredMonitorLatencyMilliseconds,
+            AudioLatencyPolicy.FallbackMonitorLatencyMilliseconds,
+            _logger);
     }
 
     private async Task ProcessMicrophoneAsync(CancellationToken cancellationToken)
@@ -265,19 +284,21 @@ public sealed class AudioRouterService : IAudioRouterService
         var bytes = new byte[samples.Length * sizeof(float)];
         while (!cancellationToken.IsCancellationRequested)
         {
-            var read = _microphoneOutputMeter.Read(samples, 0, samples.Length);
-            if (read == 0)
+            await _microphoneDataSignal.WaitAsync(cancellationToken).ConfigureAwait(false);
+            while (!cancellationToken.IsCancellationRequested)
             {
-                await Task.Delay(5, cancellationToken).ConfigureAwait(false);
-                continue;
+                var started = Stopwatch.GetTimestamp();
+                var read = _microphoneOutputMeter.Read(samples, 0, samples.Length);
+                if (read == 0) break;
+
+                Buffer.BlockCopy(samples, 0, bytes, 0, read * sizeof(float));
+
+                if (IsRouting)
+                _routedMicrophoneBuffer.Write(bytes, 0, read * sizeof(float));
+                if (_monitorMicRequested)
+                    _monitorMicrophoneBuffer.Write(bytes, 0, read * sizeof(float));
+                _microphoneProcessingMetrics.Record(started);
             }
-
-            Buffer.BlockCopy(samples, 0, bytes, 0, read * sizeof(float));
-
-            if (IsRouting)
-                _routedMicrophoneBuffer.AddSamples(bytes, 0, read * sizeof(float));
-            if (_monitorMicRequested)
-                _monitorMicrophoneBuffer.AddSamples(bytes, 0, read * sizeof(float));
         }
     }
 
@@ -376,9 +397,14 @@ public sealed class AudioRouterService : IAudioRouterService
 
     private void StopCableOutput()
     {
+        if (_cableOutput is not null)
+            _signalDiagnostics.Report(final: true);
         _cableOutput?.Stop();
         _cableOutput?.Dispose();
         _cableOutput = null;
+        _preProtectionDiagnostics = null;
+        _outputProtection = null;
+        _routedOutputMeter = null;
 
         _isRouting = false;
     }
@@ -401,6 +427,9 @@ public sealed class AudioRouterService : IAudioRouterService
         try { _microphoneProcessingTask.GetAwaiter().GetResult(); }
         catch (OperationCanceledException) { }
         _microphoneProcessingCancellation.Dispose();
+        _microphoneDataSignal.Dispose();
+        _bufferDiagnostics.Dispose();
+        _signalDiagnostics.Dispose();
 
         foreach (var source in _appSources.Values)
             source.Capture.Dispose();
@@ -412,7 +441,14 @@ public sealed class AudioRouterService : IAudioRouterService
     private sealed record AppSource(
         ProcessLoopbackCapture Capture,
         VolumeSampleProvider Volume,
-        LevelMeterSampleProvider Meter);
+        LevelMeterSampleProvider Meter,
+        string DiagnosticsKey);
+
+    private static string GetProcessLabel(int processId)
+    {
+        try { return Process.GetProcessById(processId).ProcessName; }
+        catch { return $"Process-{processId}"; }
+    }
 
     //private sealed class DownmixToStereoSampleProvider : ISampleProvider
     //{

@@ -90,6 +90,23 @@ public sealed class ApplicationsViewModelTests
             It.IsAny<CancellationToken>()), Times.Once);
     }
 
+    [TestMethod]
+    public async Task RestartCapturedSourcesAsync_RecreatesExistingCaptures()
+    {
+        var applicationService = CreateApplicationService();
+        var router = new Mock<IAudioRouterService>();
+        var settings = CreateSettingsService();
+        var viewModel = CreateViewModel(applicationService, router, settings);
+        viewModel.HydrateIncludedProcessNames(["player"]);
+        await viewModel.InitializeOutputDeviceAsync("device");
+
+        await viewModel.RestartCapturedSourcesAsync();
+
+        router.Verify(service => service.RemoveAppSourceAsync(42), Times.Once);
+        router.Verify(service => service.AddAppSourceAsync(42, true), Times.Exactly(2));
+        Assert.IsTrue(viewModel.RunningApps.Single().IsIncludedInMix);
+    }
+
     private static Mock<IApplicationAudioService> CreateApplicationService()
     {
         var service = new Mock<IApplicationAudioService>();

@@ -42,6 +42,7 @@ internal static class Program
                 .Build();
 
             RegisterGlobalExceptionHandlers();
+            _ = AppHost.Services.GetRequiredService<MicrophoneRoutingCoordinator>();
             var logger = AppHost.Services.GetRequiredService<ILoggerFactory>().CreateLogger("IterVC");
             logger.LogInformation("IterVC {Version} started", AppVersion.Display);
 
@@ -144,6 +145,7 @@ internal static class Program
             sp.GetRequiredService<TextsViewModel>()));
         services.AddSingleton<IMicrophoneService, MicrophoneService>();
         services.AddSingleton<IAudioRouterService, AudioRouterService>();
+        services.AddSingleton<MicrophoneRoutingCoordinator>();
         services.AddSingleton(new HttpClient { Timeout = TimeSpan.FromSeconds(10) });
         services.AddSingleton<IUpdateService>(sp => new GitHubUpdateService(sp.GetRequiredService<HttpClient>()));
         services.AddSingleton<IExternalUrlLauncher, ShellUrlLauncher>();

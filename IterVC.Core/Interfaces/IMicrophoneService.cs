@@ -1,5 +1,7 @@
 namespace IterVC.Core.Interfaces;
 
+using IterVC.Core.Models;
+
 /// <summary>
 /// Captura el micrófono físico seleccionado y expone su señal como stream de audio
 /// para que el <see cref="IAudioRouterService"/> la mezcle.
@@ -15,5 +17,5 @@ public interface IMicrophoneService : IDisposable
     Task SetDeviceAsync(string microphoneDeviceId);
 
     /// <summary>Datos PCM capturados en crudo, listos para ser inyectados en el mixer.</summary>
-    event EventHandler<byte[]>? DataAvailable;
+    event EventHandler<AudioDataEventArgs>? DataAvailable;
 }

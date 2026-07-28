@@ -1,9 +1,7 @@
 namespace IterVC.Core.Helpers;
 
 /// <summary>
-/// Funciones puras para conversión multicanal (5.1 / 7.1 / N) a estéreo.
-/// Sin estado, sin alocación: un único frame a la vez, aptas para inlining del JIT.
-/// Esta capa es independiente de NAudio/WASAPI para permitir tests unitarios sin audio.
+/// Allocation-free pure functions for multichannel (5.1 / 7.1 / N) to stereo conversion.
 /// </summary>
 /// <remarks>
 /// Orden de canales asumido (Windows <c>WAVEFORMATEXTENSIBLE</c>):
@@ -13,27 +11,27 @@ namespace IterVC.Core.Helpers;
 /// </list>
 /// Para cualquier otro N se usa <see cref="DownmixGeneric"/>.
 ///
-/// Nota extra: No tengo ni idea de como funciona, totalmente generado por IA esta parte
 /// </remarks>
 public static class DownmixMath
 {
-    /// <summary>1 / √2 — atenuación estándar (-3 dB) usada en matrices estéreo para canales centrales/surround.</summary>
+    /// <summary>1 / √2 (-3 dB), used for center and surround contributions.</summary>
     public const float InvSqrt2 = 0.7071067811865475f;
 
-    /// <summary>Ganancia del LFE en downmix estéreo (-6 dB). El subwoofer no aporta imagen espacial L/R,
-    /// por eso se atenúa más que los canales de imagen (FC, LS/RS, etc.), que usan <see cref="InvSqrt2"/>.</summary>
+    /// <summary>LFE contribution in the stereo matrix (-6 dB).</summary>
     public const float LfeGain = 0.5f;
 
-    /// <summary>Función matemática pura 5.1 → estéreo. Llamar una vez por frame.</summary>
-    /// <param name="frame">Vector interleaved con <b>6</b> muestras (FL, FR, FC, LFE, LS, RS).</param>
-    /// <returns>Tupla (L, R) usando la fórmula espacial estándar:
+    /// <summary>Applies the deterministic 5.1-to-stereo matrix to one frame.</summary>
+    /// <param name="frame">Six interleaved samples ordered as FL, FR, FC, LFE, LS, RS.</param>
+    /// <returns>A stereo pair using:
     /// <c>L = FL + 0.707·FC + 0.5·LFE + 0.707·LS</c>,
     /// <c>R = FR + 0.707·FC + 0.5·LFE + 0.707·RS</c>.
-    /// Ambas componentes se pasan por <see cref="SoftClip"/> para evitar clipping digital.</returns>
+    /// The established channel gains intentionally preserve normal listening level.
+    /// Correlated channels may exceed full scale in the IEEE-float intermediate;
+    /// final post-mix protection, not this method, handles those peaks.</returns>
     public static (float Left, float Right) Downmix5_1(ReadOnlySpan<float> frame)
     {
         if (frame.Length < 6)
-            return (SoftClip(frame.Length > 0 ? frame[0] : 0f), SoftClip(frame.Length > 1 ? frame[1] : 0f));
+            return (frame.Length > 0 ? frame[0] : 0f, frame.Length > 1 ? frame[1] : 0f);
 
         var fl = frame[0];
         var fr = frame[1];
@@ -43,14 +41,17 @@ public static class DownmixMath
         var rs = frame[5];
 
         return (
-            SoftClip(fl + InvSqrt2 * fc + LfeGain * lfe + InvSqrt2 * ls),
-            SoftClip(fr + InvSqrt2 * fc + LfeGain * lfe + InvSqrt2 * rs));
+            fl + InvSqrt2 * fc + LfeGain * lfe + InvSqrt2 * ls,
+            fr + InvSqrt2 * fc + LfeGain * lfe + InvSqrt2 * rs);
     }
 
-    /// <summary>Función matemática pura 7.1 → estéreo. Llamar una vez por frame.</summary>
-    /// <param name="frame">Vector interleaved con <b>8</b> muestras (FL, FR, FC, LFE, BL, BR, SL, SR).</param>
-    /// <returns>Tupla (L, R): <c>L = FL + 0.707·FC + 0.5·BL + 0.707·SL + 0.5·LFE</c>,
-    /// <c>R = FR + 0.707·FC + 0.5·BR + 0.707·SR + 0.5·LFE</c>.</returns>
+    /// <summary>Applies the validated 7.1-to-stereo matrix to one frame.</summary>
+    /// <param name="frame">Eight interleaved samples ordered as FL, FR, FC, LFE, BL, BR, SL, SR.</param>
+    /// <returns>A stereo pair using
+    /// <c>L = FL + 0.707·FC + 0.5·BL + 0.707·SL + 0.5·LFE</c> and
+    /// <c>R = FR + 0.707·FC + 0.5·BR + 0.707·SR + 0.5·LFE</c>.
+    /// No normalization or nonlinear clipping is applied here because both changed
+    /// the validated 7.1 sound; the complete mix is protected at the final output.</returns>
     public static (float Left, float Right) Downmix7_1(ReadOnlySpan<float> frame)
     {
         if (frame.Length < 8)
@@ -66,8 +67,8 @@ public static class DownmixMath
         var sr = frame[7];
 
         return (
-            SoftClip(fl + InvSqrt2 * fc + 0.5f * bl + InvSqrt2 * sl + LfeGain * lfe),
-            SoftClip(fr + InvSqrt2 * fc + 0.5f * br + InvSqrt2 * sr + LfeGain * lfe));
+            fl + InvSqrt2 * fc + 0.5f * bl + InvSqrt2 * sl + LfeGain * lfe,
+            fr + InvSqrt2 * fc + 0.5f * br + InvSqrt2 * sr + LfeGain * lfe);
     }
 
     /// <summary>
@@ -79,6 +80,8 @@ public static class DownmixMath
         if (frame.Length == 0) return (0f, 0f);
 
         var n = frame.Length;
+        if (n == 1) return (frame[0], frame[0]);
+        if (n == 2) return (frame[0], frame[1]);
         var invSqrtN = 1f / MathF.Sqrt(n);
 
         if (n >= 2)
@@ -90,7 +93,7 @@ public static class DownmixMath
             for (var i = 2; i < n; i++) sumRest += frame[i];
 
             var shared = sumRest * invSqrtN;
-            return (SoftClip(lBase + shared), SoftClip(rBase + shared));
+            return ((lBase + shared) * invSqrtN, (rBase + shared) * invSqrtN);
         }
         else
         {
@@ -98,7 +101,7 @@ public static class DownmixMath
             for (var i = 0; i < n; i++) sum += frame[i];
 
             var mixed = sum * invSqrtN;
-            return (SoftClip(mixed), SoftClip(mixed));
+            return (mixed, mixed);
         }
     }
 
@@ -112,17 +115,4 @@ public static class DownmixMath
         _ => DownmixGeneric(frame),
     };
 
-    /// <summary>
-    /// Clamp duro en [-1, 1] (el nombre "SoftClip" es heredado, pero no aplica ninguna curva
-    /// de saturación; es un recorte lineal). Para PCM IEEE float los valores legítimos están
-    /// en ese rango; recortar fuera de él es la forma más simple de evitar overflow/aliasing
-    /// en el destino (VB-Cable / Discord / OBS). Si en el futuro se quiere una saturación
-    /// real (tipo tanh), esta es la función a sustituir.
-    /// </summary>
-    public static float SoftClip(float x)
-    {
-        if (x > 1f) return 1f;
-        if (x < -1f) return -1f;
-        return x;
-    }
 }
