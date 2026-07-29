@@ -112,10 +112,34 @@ public sealed class LocalizationService : ILocalizationService
         public const string MicrophoneDisable = "microphone.disable";
         public const string DiagnosticsTitle = "diagnostics.title";
         public const string DiagnosticsOpenLogs = "diagnostics.open_logs";
+        public const string TrayTitle = "tray.title";
+        public const string TrayAsk = "tray.ask";
+        public const string TrayMinimize = "tray.minimize";
+        public const string TrayExit = "tray.exit";
+        public const string TrayMinimizeOnMinimize = "tray.minimize_on_minimize";
+        public const string TrayCloseDialogTitle = "tray.close_dialog.title";
+        public const string TrayCloseDialogBody = "tray.close_dialog.body";
+        public const string TrayRememberChoice = "tray.remember_choice";
+        public const string TrayHideNotice = "tray.hide_notice";
+        public const string TrayDoNotShowAgain = "tray.do_not_show_again";
+        public const string TrayOpen = "tray.open";
+        public const string TrayDismiss = "tray.dismiss";
     }
 
     private readonly Dictionary<string, string> _es = new()
     {
+        [Keys.TrayTitle] = "BANDEJA DEL SISTEMA",
+        [Keys.TrayAsk] = "Preguntar siempre",
+        [Keys.TrayMinimize] = "Minimizar a la bandeja del sistema",
+        [Keys.TrayExit] = "Salir de IterVC",
+        [Keys.TrayMinimizeOnMinimize] = "Minimizar a la bandeja del sistema al minimizar",
+        [Keys.TrayCloseDialogTitle] = "Cerrar IterVC",
+        [Keys.TrayCloseDialogBody] = "¿Qué desea que haga IterVC cuando se cierre la ventana?",
+        [Keys.TrayRememberChoice] = "Recordar mi elección",
+        [Keys.TrayHideNotice] = "IterVC sigue ejecutándose en la bandeja del sistema. Puede volver a abrirlo o salir completamente desde el icono de la bandeja.",
+        [Keys.TrayDoNotShowAgain] = "No mostrar esto de nuevo",
+        [Keys.TrayOpen] = "Abrir",
+        [Keys.TrayDismiss] = "Aceptar",
         [Keys.AppTitle]             = "IterVC",
         [Keys.AppFooter]            = "IterVC - {0}",
         [Keys.StatusRouting]        = "ENRUTAMIENTO ACTIVO",
@@ -218,6 +242,18 @@ public sealed class LocalizationService : ILocalizationService
 
     private readonly Dictionary<string, string> _en = new()
     {
+        [Keys.TrayTitle] = "SYSTEM TRAY",
+        [Keys.TrayAsk] = "Ask every time",
+        [Keys.TrayMinimize] = "Minimize to system tray",
+        [Keys.TrayExit] = "Exit IterVC",
+        [Keys.TrayMinimizeOnMinimize] = "Minimize to system tray when minimizing",
+        [Keys.TrayCloseDialogTitle] = "Close IterVC",
+        [Keys.TrayCloseDialogBody] = "What would you like IterVC to do when the window is closed?",
+        [Keys.TrayRememberChoice] = "Remember my choice",
+        [Keys.TrayHideNotice] = "IterVC is still running in the system tray. You can reopen it or fully exit from the tray icon.",
+        [Keys.TrayDoNotShowAgain] = "Don't show this again",
+        [Keys.TrayOpen] = "Open",
+        [Keys.TrayDismiss] = "OK",
         [Keys.AppTitle]             = "IterVC",
         [Keys.AppFooter]            = "IterVC - {0}",
         [Keys.StatusRouting]        = "ROUTING ACTIVE",

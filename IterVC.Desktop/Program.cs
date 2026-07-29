@@ -167,7 +167,9 @@ internal static class Program
             sp.GetRequiredService<LanguageViewModel>(),
             sp.GetRequiredService<HotkeysViewModel>(),
             sp.GetRequiredService<UpdateViewModel>(),
+            sp.GetRequiredService<TraySettingsViewModel>(),
             sp.GetRequiredService<DiagnosticsViewModel>()));
+        services.AddSingleton<TraySettingsViewModel>();
         services.AddSingleton(sp => new MainViewModel(
             sp.GetRequiredService<IDeviceService>(),
             sp.GetRequiredService<AudioRoutingViewModel>(),

@@ -1,0 +1,83 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="IterVC.Desktop.Views.CloseBehaviorDialog"
+        Width="520"
+        MinWidth="440"
+        SizeToContent="Height"
+        CanResize="False"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource SurfaceBaseBrush}">
+  <Window.Styles>
+    <Style Selector="TextBlock">
+      <Setter Property="FontFamily" Value="Segoe UI, Arial" />
+    </Style>
+    <Style Selector="Button.dialog-action">
+      <Setter Property="Height" Value="40" />
+      <Setter Property="Padding" Value="14,6" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.dialog-action:focus-visible">
+      <Setter Property="BorderBrush" Value="{DynamicResource AccentMutedBrush}" />
+      <Setter Property="BorderThickness" Value="2" />
+    </Style>
+    <Style Selector="Button.secondary-action">
+      <Setter Property="Background" Value="{DynamicResource SurfaceInteractiveBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource BorderStrongBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+    </Style>
+    <Style Selector="Button.secondary-action:pointerover">
+      <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
+    </Style>
+    <Style Selector="Button.primary-action">
+      <Setter Property="Background" Value="{DynamicResource SurfaceEmphasisBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource TextStrongBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource AccentBorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="Button.primary-action:pointerover">
+      <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
+    </Style>
+  </Window.Styles>
+
+  <Border Padding="28">
+      <Grid RowDefinitions="Auto,Auto,Auto,Auto">
+        <TextBlock x:Name="DialogTitle"
+                   FontSize="19"
+                   FontWeight="SemiBold"
+                   Foreground="{DynamicResource TextStrongBrush}"
+                   TextWrapping="Wrap" />
+
+        <TextBlock x:Name="DialogBody"
+                   Grid.Row="1"
+                   FontSize="13"
+                   LineHeight="19"
+                   Foreground="{DynamicResource TextSecondaryBrush}"
+                   Margin="0,16,0,0"
+                   TextWrapping="Wrap" />
+
+        <CheckBox x:Name="RememberChoice"
+                  Grid.Row="2"
+                  Foreground="{DynamicResource TextSecondaryBrush}"
+                  FontSize="13"
+                  Margin="0,16,0,0"
+                  HorizontalAlignment="Left" />
+
+        <StackPanel Grid.Row="3" Spacing="8" Margin="0,20,0,0">
+          <Button Classes="dialog-action primary-action"
+                  IsDefault="True"
+                  Click="OnMinimizeClick">
+            <TextBlock x:Name="MinimizeButtonText" TextWrapping="Wrap" TextAlignment="Center" />
+          </Button>
+          <Button Classes="dialog-action secondary-action"
+                  Click="OnExitClick">
+            <TextBlock x:Name="ExitButtonText" TextWrapping="Wrap" TextAlignment="Center" />
+          </Button>
+        </StackPanel>
+      </Grid>
+  </Border>
+</Window>

@@ -8,11 +8,13 @@ using IterVC.Desktop.Views;
 using IterVC.Desktop.Services;
 using Microsoft.Extensions.Logging;
 using Avalonia.Threading;
+using IterVC.Core.Interfaces;
 
 namespace IterVC.Desktop;
 
 public sealed class App : Application
 {
+    private int _exitStarted;
     public override void Initialize()
     {
         AvaloniaXamlLoader.Load(this);
@@ -28,6 +30,7 @@ public sealed class App : Application
             var logger = Program.AppHost.Services.GetRequiredService<ILogger<App>>();
             var mainViewModel = Program.AppHost.Services.GetRequiredService<MainViewModel>();
             var mainWindow = new MainWindow { DataContext = mainViewModel };
+            DesktopLifecycleCoordinator? lifecycle = null;
             var globalHotkey = Program.AppHost.Services.GetRequiredService<IGlobalHotkeyService>();
             var hotkeyActionGate = new SemaphoreSlim(1, 1);
             var hotkeyActionsStopping = new CancellationTokenSource();
@@ -93,16 +96,45 @@ public sealed class App : Application
                 }
             };
 
-            desktop.MainWindow = mainWindow;
-            mainWindow.Show(); 
-
-            desktop.ShutdownRequested += async (_, _) =>
+            async Task ExitAsync()
             {
-                logger.LogInformation("Application shutdown requested");
-                hotkeyActionsStopping.Cancel();
-                globalHotkey.Dispose();
-                await mainViewModel.DisposeAsync();
-                await Program.AppHost.StopAsync();
+                if (Interlocked.Exchange(ref _exitStarted, 1) != 0) return;
+                mainWindow.AllowTerminalExit();
+                try
+                {
+                    lifecycle?.Dispose();
+                    hotkeyActionsStopping.Cancel();
+                    globalHotkey.Dispose();
+                    await mainViewModel.DisposeAsync();
+                    await Program.AppHost.StopAsync();
+                }
+                catch (Exception exception)
+                {
+                    logger.LogError(exception, "Application cleanup failed; continuing terminal shutdown");
+                }
+                finally
+                {
+                    desktop.Shutdown();
+                }
+            }
+
+            desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            lifecycle = new DesktopLifecycleCoordinator(
+                mainViewModel.Settings.Tray!,
+                Program.AppHost.Services.GetRequiredService<ISettingsService>(),
+                ExitAsync);
+            lifecycle.Attach(mainWindow);
+            mainWindow.AttachLifecycle(lifecycle);
+            desktop.MainWindow = mainWindow;
+            mainWindow.Show();
+
+            desktop.ShutdownRequested += (_, args) =>
+            {
+                if (Volatile.Read(ref _exitStarted) == 0)
+                {
+                    args.Cancel = true;
+                    _ = ExitAsync();
+                }
             };
         }
 
