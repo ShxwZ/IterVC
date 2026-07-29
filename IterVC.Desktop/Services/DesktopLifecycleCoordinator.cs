@@ -7,6 +7,7 @@ using IterVC.Core.Localization;
 using IterVC.Core.Settings;
 using IterVC.Desktop.ViewModels;
 using IterVC.Desktop.Views;
+using Microsoft.Extensions.Logging;
 
 namespace IterVC.Desktop.Services;
 
@@ -15,6 +16,7 @@ internal sealed class DesktopLifecycleCoordinator : IDisposable
 {
     private readonly TraySettingsViewModel _settings;
     private readonly ISettingsService _persistedSettings;
+    private readonly ILogger<DesktopLifecycleCoordinator> _logger;
     private readonly Func<Task> _exit;
     private readonly TrayIcon _trayIcon;
     private readonly NativeMenuItem _openMenuItem;
@@ -25,10 +27,12 @@ internal sealed class DesktopLifecycleCoordinator : IDisposable
     private bool _disposed;
     private int _decisionInProgress;
 
-    public DesktopLifecycleCoordinator(TraySettingsViewModel settings, ISettingsService persistedSettings, Func<Task> exit)
+    public DesktopLifecycleCoordinator(TraySettingsViewModel settings, ISettingsService persistedSettings,
+        ILogger<DesktopLifecycleCoordinator> logger, Func<Task> exit)
     {
         _settings = settings;
         _persistedSettings = persistedSettings;
+        _logger = logger;
         _exit = exit;
         _openMenuItem = new NativeMenuItem();
         _openMenuItem.Click += (_, _) => Restore();
@@ -63,30 +67,46 @@ internal sealed class DesktopLifecycleCoordinator : IDisposable
 
     public async Task RequestCloseAsync()
     {
-        if (Interlocked.Exchange(ref _decisionInProgress, 1) != 0) return;
         try
         {
-            var behavior = _settings.CloseBehavior;
-            if (behavior == CloseBehavior.Ask)
+            if (Interlocked.Exchange(ref _decisionInProgress, 1) != 0) return;
+            try
             {
-                var result = _window is null ? null : await _window.ShowCloseBehaviorDialogAsync();
-                if (result is null) return;
-                behavior = result.Value.Behavior;
-                if (result.Value.Remember)
-                    await _settings.SetCloseBehaviorAsync(behavior);
-            }
+                var behavior = _settings.CloseBehavior;
+                if (behavior == CloseBehavior.Ask)
+                {
+                    var result = _window is null ? null : await _window.ShowCloseBehaviorDialogAsync();
+                    if (result is null) return;
+                    behavior = result.Value.Behavior;
+                    if (result.Value.Remember)
+                        await _settings.SetCloseBehaviorAsync(behavior);
+                }
 
-            if (behavior == CloseBehavior.Exit)
-                await _exit();
-            else
-                await HideToTrayAsync();
+                if (behavior == CloseBehavior.Exit)
+                    await _exit();
+                else
+                    await HideToTrayAsync();
+            }
+            finally { Interlocked.Exchange(ref _decisionInProgress, 0); }
         }
-        finally { Interlocked.Exchange(ref _decisionInProgress, 0); }
+        catch (Exception exception)
+        {
+            _logger.LogError(exception, "Failed to process the window close request");
+        }
     }
 
-    public Task RequestMinimizeAsync() => _settings.MinimizeToTrayWhenMinimized
-        ? HideToTrayAsync()
-        : Task.CompletedTask;
+    public async Task RequestMinimizeAsync()
+    {
+        try
+        {
+            if (_settings.MinimizeToTrayWhenMinimized)
+                await HideToTrayAsync();
+        }
+        catch (Exception exception)
+        {
+            _logger.LogError(exception, "Failed to process the window minimize request");
+        }
+    }
 
     private Task HideToTrayAsync()
     {

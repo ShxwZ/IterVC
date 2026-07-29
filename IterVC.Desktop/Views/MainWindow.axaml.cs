@@ -5,8 +5,8 @@ using IterVC.Desktop.Services;
 namespace IterVC.Desktop.Views;
 
 /// <summary>
-/// Code-behind mínimo, exigido por Avalonia únicamente para cargar el XAML.
-/// Toda la lógica reside en MainViewModel (MVVM estricto, sin lógica aquí).
+/// Thin Avalonia adapter that forwards window close, minimize, and visibility events to
+/// <see cref="DesktopLifecycleCoordinator"/> while keeping business and UI state out of ViewModels.
 /// </summary>
 public sealed partial class MainWindow : Window
 {

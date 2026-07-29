@@ -122,6 +122,7 @@ public sealed class App : Application
             lifecycle = new DesktopLifecycleCoordinator(
                 mainViewModel.Settings.Tray!,
                 Program.AppHost.Services.GetRequiredService<ISettingsService>(),
+                Program.AppHost.Services.GetRequiredService<ILogger<DesktopLifecycleCoordinator>>(),
                 ExitAsync);
             lifecycle.Attach(mainWindow);
             mainWindow.AttachLifecycle(lifecycle);
