@@ -1,0 +1,59 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="IterVC.Desktop.Views.TrayHideNotificationWindow"
+        Width="440"
+        MinWidth="380"
+        SizeToContent="Height"
+        CanResize="False"
+        WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource SurfaceBaseBrush}">
+  <Window.Styles>
+    <Style Selector="TextBlock">
+      <Setter Property="FontFamily" Value="Segoe UI, Arial" />
+    </Style>
+    <Style Selector="Button.notice-action">
+      <Setter Property="Height" Value="34" />
+      <Setter Property="Padding" Value="16,0" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="Background" Value="{DynamicResource SurfaceEmphasisBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource TextStrongBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource AccentBorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.notice-action:pointerover">
+      <Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
+    </Style>
+    <Style Selector="Button.notice-action:focus-visible">
+      <Setter Property="BorderBrush" Value="{DynamicResource AccentMutedBrush}" />
+      <Setter Property="BorderThickness" Value="2" />
+    </Style>
+  </Window.Styles>
+
+  <Border Padding="28">
+    <Grid RowDefinitions="Auto,Auto,Auto">
+      <TextBlock x:Name="NoticeText"
+                 Grid.Row="1"
+                 FontSize="13"
+                 LineHeight="19"
+                 Foreground="{DynamicResource TextPrimaryBrush}"
+                 TextWrapping="Wrap" />
+
+      <Grid Grid.Row="2" Margin="0,16,0,0" ColumnDefinitions="*,Auto">
+        <CheckBox x:Name="SuppressNotice"
+                  VerticalAlignment="Center"
+                  Foreground="{DynamicResource TextSecondaryBrush}"
+                  FontSize="12" />
+        <Button Grid.Column="1"
+                Classes="notice-action"
+                Margin="16,0,0,0"
+                IsDefault="True"
+                Click="OnDismissClick">
+          <TextBlock x:Name="DismissButtonText" />
+        </Button>
+      </Grid>
+    </Grid>
+  </Border>
+</Window>

@@ -191,6 +191,11 @@ public sealed class TextsViewModel : ObservableObject
     public string DiagnosticsOpenLogs => G(LK.DiagnosticsOpenLogs);
 
     public string AppCaptureError => G(LK.AppCaptureError);
+    public string TrayTitle => G(LK.TrayTitle);
+    public string TrayAsk => G(LK.TrayAsk);
+    public string TrayMinimize => G(LK.TrayMinimize);
+    public string TrayExit => G(LK.TrayExit);
+    public string TrayMinimizeOnMinimize => G(LK.TrayMinimizeOnMinimize);
 
     /// <summary>
     /// Llamado por el MainViewModel cuando cambia el idioma. Dispara PropertyChanged
@@ -293,6 +298,11 @@ public sealed class TextsViewModel : ObservableObject
         OnPropertyChanged(nameof(DiagnosticsTitle));
         OnPropertyChanged(nameof(DiagnosticsOpenLogs));
         OnPropertyChanged(nameof(AppCaptureError));
+        OnPropertyChanged(nameof(TrayTitle));
+        OnPropertyChanged(nameof(TrayAsk));
+        OnPropertyChanged(nameof(TrayMinimize));
+        OnPropertyChanged(nameof(TrayExit));
+        OnPropertyChanged(nameof(TrayMinimizeOnMinimize));
     }
 
     private static string G(string key) => LocalizationService.Instance.Get(key);
@@ -394,6 +404,11 @@ public sealed class TextsViewModel : ObservableObject
         internal const string HotkeyMicrophoneGroup = LocalizationService.Keys.HotkeyMicrophoneGroup;
         internal const string MicrophoneEnable = LocalizationService.Keys.MicrophoneEnable;
         internal const string MicrophoneDisable = LocalizationService.Keys.MicrophoneDisable;
+        internal const string TrayTitle = LocalizationService.Keys.TrayTitle;
+        internal const string TrayAsk = LocalizationService.Keys.TrayAsk;
+        internal const string TrayMinimize = LocalizationService.Keys.TrayMinimize;
+        internal const string TrayExit = LocalizationService.Keys.TrayExit;
+        internal const string TrayMinimizeOnMinimize = LocalizationService.Keys.TrayMinimizeOnMinimize;
     }
 }
 

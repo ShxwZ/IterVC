@@ -426,6 +426,12 @@
 						<Button Classes="secondary" Content="{Binding Texts.UpdateCheckNow}" Command="{Binding Settings.Updates.CheckNowCommand}" IsEnabled="{Binding !Settings.Updates.IsChecking}" />
 						<TextBlock Text="{Binding Settings.Updates.Status}" TextWrapping="Wrap" FontSize="10" Foreground="{DynamicResource TextMutedBrush}" />
 						<Separator Height="1" Background="{DynamicResource BorderSubtleBrush}" Margin="0,4" />
+						<TextBlock Text="{Binding Texts.TrayTitle}" FontWeight="Bold" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11" />
+						<RadioButton Content="{Binding Texts.TrayAsk}" IsChecked="{Binding Settings.Tray.AskOnClose}" />
+						<RadioButton Content="{Binding Texts.TrayMinimize}" IsChecked="{Binding Settings.Tray.MinimizeOnClose}" />
+						<RadioButton Content="{Binding Texts.TrayExit}" IsChecked="{Binding Settings.Tray.ExitOnClose}" />
+						<CheckBox Content="{Binding Texts.TrayMinimizeOnMinimize}" IsChecked="{Binding Settings.Tray.MinimizeToTrayWhenMinimized}" />
+						<Separator Height="1" Background="{DynamicResource BorderSubtleBrush}" Margin="0,4" />
 						<TextBlock Text="{Binding Texts.DiagnosticsTitle}" FontWeight="Bold" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11" />
 						<Button Classes="secondary"
 								Content="{Binding Texts.DiagnosticsOpenLogs}"

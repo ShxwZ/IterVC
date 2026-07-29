@@ -103,3 +103,5 @@ $RECYCLE.BIN/
 publish_output/
 
 .local
+# Local SDD skill registry
+.atl/

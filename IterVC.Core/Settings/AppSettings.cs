@@ -1,5 +1,12 @@
 namespace IterVC.Core.Settings;
 
+public enum CloseBehavior
+{
+    Ask,
+    MinimizeToTray,
+    Exit
+}
+
 /// <summary>
 /// Configuración persistida de la aplicación (settings.json).
 /// </summary>
@@ -91,4 +98,13 @@ public sealed class AppSettings
     public string ToggleApplicationsMuteHotkeyGesture { get; set; } = "";
     public bool ToggleMicrophoneHotkeyEnabled { get; set; }
     public string ToggleMicrophoneHotkeyGesture { get; set; } = "";
+
+    /// <summary>Preferred action when the main window is closed.</summary>
+    public CloseBehavior CloseBehavior { get; set; } = CloseBehavior.Ask;
+
+    /// <summary>Whether minimizing the window hides it in the system tray.</summary>
+    public bool MinimizeToTrayWhenMinimized { get; set; }
+
+    /// <summary>Whether the first tray-hide notification has been dismissed.</summary>
+    public bool TrayHideNotificationSuppressed { get; set; }
 }
