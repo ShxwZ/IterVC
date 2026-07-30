@@ -1,0 +1,42 @@
+---
+title: Instalación
+description: Descargue IterVC, instale VB-CABLE si lo necesita y complete el primer inicio.
+---
+
+import Screenshot from '../../../../components/Screenshot.astro';
+import { Steps } from '@astrojs/starlight/components';
+
+<Steps>
+1. **Descargue IterVC.** Abra la [última versión de GitHub](https://github.com/ShxwZ/IterVC/releases/latest) y descargue el paquete para Windows x64 incluido en esa versión.
+
+2. **Extraiga o instale la versión.** Siga las instrucciones de empaquetado incluidas. No ejecute IterVC desde un archivo comprimido.
+
+3. **Decida si necesita un cable virtual.** Omita este paso si solo quiere enviar la mezcla final a altavoces, auriculares u otro dispositivo de reproducción convencional. Para exponer la mezcla como micrófono en Discord, VRChat, OBS, TeamSpeak o un programa similar, descargue [VB-CABLE desde la página oficial de VB-Audio](https://vb-audio.com/Cable/), ejecute el instalador de Windows como administrador y reinicie Windows cuando se le solicite.
+
+4. **Inicie IterVC.** En el primer inicio, Windows puede mostrar una advertencia de reputación o seguridad para una aplicación distribuida recientemente. Antes de continuar, compruebe que el archivo procede de la versión oficial de `ShxwZ/IterVC`.
+
+5. **Elija cómo comprobar las actualizaciones.** IterVC solicita consentimiento antes de activar las comprobaciones automáticas en GitHub Releases. Solo comprueba si hay una versión más reciente; no descarga ni instala actualizaciones automáticamente.
+</Steps>
+
+:::caution[Aviso de Windows SmartScreen]
+IterVC no está firmado actualmente con un certificado de firma de código reconocido, por lo que Microsoft Defender SmartScreen puede mostrar **"Windows protegió su PC"** o identificar un editor desconocido. Solo después de comprobar que la descarga procede de la [versión oficial de `ShxwZ/IterVC` en GitHub](https://github.com/ShxwZ/IterVC/releases/latest), seleccione **"Más información"** y luego **"Ejecutar de todas formas"**.
+:::
+
+<Screenshot
+  src="images/installation/github-release.webp"
+  alt="Archivos de una versión de IterVC en GitHub"
+  caption="Descargue IterVC únicamente desde el repositorio oficial de GitHub."
+  hint="Capture la página de la última versión y destaque la descarga para Windows x64."
+/>
+
+## Notas sobre la instalación de VB-CABLE
+
+VB-Audio distribuye el controlador en un paquete ZIP. Extráigalo en una carpeta local, ejecute el instalador adecuado como administrador y reinicie el equipo después de la instalación. Use la [página oficial de VB-CABLE](https://vb-audio.com/Cable/) en lugar de repositorios de descarga de terceros.
+
+## Carpetas portables e inicio con Windows
+
+Si la compilación es portátil, guarde su carpeta en una ubicación estable antes de activar **Start with Windows**. Mover o eliminar el ejecutable más adelante puede invalidar el registro de inicio. IterVC muestra un aviso para esta situación.
+
+## Actualizar una instalación existente
+
+Detenga el enrutamiento de audio y cierre IterVC por completo desde la bandeja del sistema antes de sustituir los archivos de la aplicación. Los ajustes de usuario se guardan por separado en `%AppData%\IterVC` y normalmente no se eliminan al sustituir la carpeta de la aplicación.

@@ -1,0 +1,16 @@
+{
+  "name": "itervc-documentation",
+  "private": true,
+  "type": "module",
+  "version": "1.0.5",
+  "scripts": {
+    "dev": "astro dev",
+    "start": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "^0.41.4",
+    "astro": "^7.1.4"
+  }
+}

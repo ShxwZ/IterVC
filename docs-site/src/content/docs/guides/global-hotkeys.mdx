@@ -1,0 +1,35 @@
+---
+title: Global hotkeys
+description: Assign system-wide shortcuts for routing, application audio, and microphone controls.
+---
+
+import Screenshot from '../../../components/Screenshot.astro';
+
+Global hotkeys work while IterVC is running even when another application has focus.
+
+## Available actions
+
+- Toggle routing.
+- Start routing.
+- Stop routing.
+- Mute or unmute all selected application audio.
+- Enable or disable the microphone.
+
+The default configuration enables **Toggle routing** with `Ctrl+Shift+R`. Other actions are unassigned until you configure them.
+
+## Assign a shortcut
+
+1. Open **Settings**.
+2. Select **Assign** or **Change** beside an action.
+3. Press the desired key combination.
+4. Press Escape or use Cancel to stop recording without changing it.
+5. Use the clear button to remove an assignment.
+
+IterVC validates and registers shortcuts with Windows. If another application or Windows itself already owns a combination, the registration status area reports the problem.
+
+<Screenshot
+  src="images/guides/global-hotkeys.webp"
+  alt="Global hotkey settings in IterVC"
+  caption="Use distinct shortcuts and avoid combinations already reserved by Windows or another application."
+  hint="Capture the hotkey cards with at least two configured actions."
+/>

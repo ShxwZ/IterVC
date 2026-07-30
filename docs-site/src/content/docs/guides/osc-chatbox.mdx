@@ -1,0 +1,58 @@
+---
+title: OSC Chatbox
+description: Send current media information from Windows to the VRChat Chatbox.
+---
+
+import Screenshot from '../../../components/Screenshot.astro';
+
+IterVC can read the active Windows media session and send a formatted message to the VRChat Chatbox once per second.
+
+## Enable OSC in VRChat
+
+In VRChat, enable OSC from the Action Menu or the relevant settings page before enabling the IterVC Chatbox option. IterVC uses the standard VRChat OSC Chatbox behavior provided by its OSC library.
+
+## Enable the Chatbox in IterVC
+
+Open the **OSC** tab and enable the Chatbox option. The setting is persisted between sessions.
+
+IterVC only sends when an active media session has a non-empty title. If nothing is playing or Windows does not expose media metadata, no new media message is sent.
+
+## Template tokens
+
+Use the tokens exposed by the IterVC interface:
+
+| Token | Value |
+| --- | --- |
+| `{title}` | Current media title reported by Windows. |
+| `{time}` | Current media timing information supplied by the media session. |
+
+Example:
+
+```text
+🎵 {title}
+{time}
+```
+
+Line breaks entered in the template are converted to the vertical-tab separator expected by the OSC Chatbox library.
+
+<Screenshot
+  src="images/guides/osc-template.webp"
+  alt="OSC Chatbox template editor in IterVC"
+  caption="Keep templates short enough for VRChat's Chatbox display limits."
+  hint="Capture the OSC tab with a useful multiline template using title and time."
+/>
+
+<Screenshot
+  src="images/guides/osc-chatbox-in-game.webp"
+  alt="Formatted IterVC media message shown in VRChat's in-game Chatbox"
+  caption="The formatted media message appears directly in VRChat's in-game Chatbox."
+  hint="Capture a clean in-game Chatbox view with the message legible and private or player-identifying information minimized."
+/>
+
+## Message length
+
+VRChat may truncate or reflow long messages. Media titles are outside IterVC's control, so leave spare room in the template and avoid excessive decoration.
+
+## Disable or clear
+
+Disabling the feature stops periodic media updates. Depending on the current UI action and VRChat state, the existing Chatbox message may remain visible until VRChat clears or replaces it.
