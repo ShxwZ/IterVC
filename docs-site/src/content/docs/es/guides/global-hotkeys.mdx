@@ -1,0 +1,35 @@
+---
+title: Atajos globales
+description: Asigne combinaciones de teclas de todo el sistema para controlar el enrutamiento, el audio de aplicaciones y el micrófono.
+---
+
+import Screenshot from '../../../../components/Screenshot.astro';
+
+Los atajos globales funcionan mientras IterVC está en ejecución, incluso cuando otra aplicación tiene el foco.
+
+## Acciones disponibles
+
+- Alternar el enrutamiento.
+- Iniciar el enrutamiento.
+- Detener el enrutamiento.
+- Silenciar o restaurar todo el audio de las aplicaciones seleccionadas.
+- Activar o desactivar el micrófono.
+
+La configuración predeterminada habilita **Toggle routing** con `Ctrl+Shift+R`. Las demás acciones no tienen ninguna combinación asignada hasta que las configure.
+
+## Asigne un atajo
+
+1. Abra **Settings**.
+2. Seleccione **Assign** o **Change** junto a una acción.
+3. Pulse la combinación de teclas deseada.
+4. Pulse Escape o use Cancel para detener el registro sin cambiar la combinación.
+5. Use el botón para borrar la asignación si desea eliminarla.
+
+IterVC valida y registra los atajos con Windows. Si otra aplicación o el propio Windows ya usa una combinación, el área de estado del registro informa del problema.
+
+<Screenshot
+  src="images/guides/global-hotkeys.webp"
+  alt="Ajustes de atajos globales de IterVC"
+  caption="Use atajos distintos y evite combinaciones ya reservadas por Windows u otra aplicación."
+  hint="Capture las tarjetas de atajos con al menos dos acciones configuradas."
+/>

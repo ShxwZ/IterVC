@@ -1,0 +1,50 @@
+---
+title: Noise gate
+description: Reduce background noise with threshold, calibration, attack, and release controls.
+---
+
+import Screenshot from '../../../components/Screenshot.astro';
+
+A noise gate suppresses the microphone when its level is below a configurable threshold. It is useful for steady room noise, keyboard noise between phrases, and microphone self-noise.
+
+## Enable and observe the gate
+
+Open the **Noise gate** tab and enable the feature. The live meter shows the processed microphone level and whether the gate is currently open or closed.
+
+## Threshold
+
+The threshold ranges from -80 dB to 0 dB. The gate opens when the input becomes loud enough.
+
+- A lower threshold opens more easily and preserves quiet speech, but lets more background noise through.
+- A higher threshold blocks more noise, but may cut quiet words or the start of sentences.
+
+The default persisted threshold is -45 dB.
+
+## Automatic calibration
+
+Use **Calibrate** in a quiet moment without speaking. IterVC samples the microphone and chooses a threshold based on the observed background level. Review the result with normal speech and adjust manually when necessary.
+
+## Attack and release
+
+Advanced controls change how quickly the gate gain moves:
+
+- **Attack**: 0–250 ms. Lower values open faster; higher values fade in more gently but can cut the beginning of speech.
+- **Release**: 0–1000 ms. Lower values close faster; higher values keep the gate open between syllables and produce a smoother result.
+
+The default settings are 10 ms attack and 150 ms release.
+
+<Screenshot
+  src="images/guides/noise-gate.webp"
+  alt="Noise gate configuration in IterVC"
+  caption="Use the live meter and open/closed indicator while tuning the threshold."
+  hint="Capture the full Noise gate tab with the advanced section expanded."
+/>
+
+## Recommended tuning order
+
+1. Set microphone boost first.
+2. Calibrate in representative background noise.
+3. Speak quietly and normally while watching the gate state.
+4. Lower the threshold if words are cut.
+5. Raise it if noise opens the gate.
+6. Adjust release before increasing attack.

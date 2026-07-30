@@ -1,0 +1,50 @@
+---
+title: Puerta de ruido
+description: Reduzca el ruido de fondo con controles de umbral, calibración, ataque y liberación.
+---
+
+import Screenshot from '../../../../components/Screenshot.astro';
+
+Una puerta de ruido atenúa el micrófono cuando su nivel está por debajo de un umbral configurable. Es útil para el ruido constante de una habitación, el ruido del teclado entre frases y el ruido propio del micrófono.
+
+## Active y observe la puerta
+
+Abra la pestaña **Noise gate** y active la función. El medidor en directo muestra el nivel del micrófono procesado e indica si la puerta está abierta o cerrada.
+
+## Umbral
+
+El umbral va de -80 dB a 0 dB. La puerta se abre cuando la entrada alcanza un nivel suficiente.
+
+- Un umbral bajo se abre con más facilidad y conserva el habla suave, pero deja pasar más ruido de fondo.
+- Un umbral alto bloquea más ruido, pero puede cortar palabras suaves o el inicio de las frases.
+
+El umbral predeterminado que se guarda es -45 dB.
+
+## Calibración automática
+
+Use **Calibrate** en un momento de silencio, sin hablar. IterVC toma muestras del micrófono y elige un umbral a partir del nivel de fondo observado. Compruebe el resultado hablando con normalidad y ajústelo manualmente si es necesario.
+
+## Ataque y liberación
+
+Los controles avanzados modifican la rapidez con la que cambia la ganancia de la puerta:
+
+- **Attack**: de 0 a 250 ms. Los valores bajos abren la puerta antes; los altos producen una entrada más suave, pero pueden cortar el inicio del habla.
+- **Release**: de 0 a 1000 ms. Los valores bajos cierran la puerta antes; los altos la mantienen abierta entre sílabas y producen un resultado más uniforme.
+
+Los valores predeterminados son 10 ms de ataque y 150 ms de liberación.
+
+<Screenshot
+  src="images/guides/noise-gate.webp"
+  alt="Configuración de la puerta de ruido en IterVC"
+  caption="Use el medidor en directo y el indicador de estado abierto o cerrado mientras ajusta el umbral."
+  hint="Capture la pestaña Noise gate completa con la sección avanzada desplegada."
+/>
+
+## Orden de ajuste recomendado
+
+1. Ajuste primero la amplificación del micrófono.
+2. Calibre con un ruido de fondo representativo.
+3. Hable bajo y con normalidad mientras observa el estado de la puerta.
+4. Baje el umbral si se cortan palabras.
+5. Súbalo si el ruido abre la puerta.
+6. Ajuste la liberación antes de aumentar el ataque.

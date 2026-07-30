@@ -1,0 +1,122 @@
+---
+title: Documentación de IterVC
+description: Capture el audio de aplicaciones seleccionadas, añada su micrófono y envíe el resultado a un cable virtual, altavoces, auriculares u otro dispositivo de reproducción de Windows.
+template: splash
+hero:
+  title: Elige. Mezcla. Enruta.
+  tagline: Capture el audio de aplicaciones seleccionadas, añada el micrófono cuando lo necesite y envíe una mezcla controlada al destino que mejor se adapte a su configuración.
+  image:
+    alt: Logotipo de IterVC con una onda de audio
+    file: ../../../assets/logo.svg
+  actions:
+    - text: Primeros pasos
+      link: ./getting-started/quick-start/
+      icon: right-arrow
+      variant: primary
+    - text: Descargar IterVC
+      link: https://github.com/ShxwZ/IterVC/releases/latest
+      icon: external
+    - text: GitHub
+      link: https://github.com/ShxwZ/IterVC
+      icon: github
+      variant: minimal
+---
+
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+<div className="itervc-kicker">Enrutamiento de audio para aplicaciones en Windows</div>
+
+## Envíe el audio que realmente quiere usar
+
+IterVC captura una copia no destructiva del audio que emiten las aplicaciones seleccionadas. Sus aplicaciones siguen reproduciéndose normalmente por la salida de Windows existente, mientras IterVC crea una mezcla independiente para otro destino.
+
+<div className="itervc-route-flow" aria-label="Flujo de enrutamiento de audio de IterVC">
+  <div className="itervc-route-step">
+    <span className="itervc-route-number">1</span>
+    <div>
+      <strong>Seleccione las aplicaciones</strong>
+      <span>Elija un navegador, juego, reproductor de música, panel de sonidos u otro proceso compatible que está en ejecución.</span>
+    </div>
+  </div>
+  <div className="itervc-route-step">
+    <span className="itervc-route-number">2</span>
+    <div>
+      <strong>Cree la mezcla</strong>
+      <span>Equilibre la ganancia de las aplicaciones, añada un micrófono, supervise los niveles y configure la puerta de ruido.</span>
+    </div>
+  </div>
+  <div className="itervc-route-step">
+    <span className="itervc-route-number">3</span>
+    <div>
+      <strong>Elija un destino</strong>
+      <span>Envíe la mezcla a VB-CABLE, altavoces, auriculares u otro extremo de reproducción de Windows.</span>
+    </div>
+  </div>
+</div>
+
+## ¿Necesita un cable virtual?
+
+<div className="itervc-choice">
+  <div className="itervc-choice__card itervc-choice__card--primary">
+    <span className="itervc-choice__label">Caso de uso principal</span>
+    <h3>Sí: cuando otra aplicación debe recibir la mezcla como micrófono</h3>
+    <p>Use un cable virtual cuando Discord, VRChat, OBS, TeamSpeak u otra aplicación deban recibir IterVC como dispositivo de entrada. VB-CABLE es la opción recomendada y con la que se han realizado la mayor parte de las pruebas.</p>
+  </div>
+  <div className="itervc-choice__card">
+    <span className="itervc-choice__label">Reproducción directa</span>
+    <h3>No: cuando solo quiere escuchar la mezcla final</h3>
+    <p>IterVC puede reproducir la mezcla directamente en altavoces, auriculares u otro dispositivo de reproducción. En este flujo, la mezcla no se expone a otras aplicaciones como micrófono.</p>
+  </div>
+</div>
+
+## Funciones integradas
+
+<CardGrid stagger>
+  <Card title="Captura por aplicación">
+    Incluya solo las aplicaciones que necesita, en lugar de reenviar todo el audio del escritorio.
+  </Card>
+  <Card title="Controles de micrófono">
+    Active o desactive el micrófono, aplique amplificación, escúchelo localmente y configure una puerta de ruido en tiempo real.
+  </Card>
+  <Card title="Destino de reproducción flexible">
+    Use un cable virtual para flujos de entrada de voz o envíe la mezcla a altavoces y auriculares para escucharla directamente.
+  </Card>
+  <Card title="Chatbox OSC de VRChat">
+    Publique el título y la información temporal del contenido multimedia actual con una plantilla configurable de varias líneas.
+  </Card>
+  <Card title="Controles cotidianos rápidos">
+    Alterne el enrutamiento, el audio de aplicaciones o el micrófono mediante atajos globales y acciones de la bandeja del sistema.
+  </Card>
+  <Card title="Local y transparente">
+    Los ajustes y diagnósticos permanecen en la carpeta AppData de Windows. Las comprobaciones de actualización requieren su consentimiento.
+  </Card>
+</CardGrid>
+
+## Empiece por el flujo que necesita
+
+<CardGrid>
+  <LinkCard
+    title="Instalar y configurar"
+    href="./getting-started/installation/"
+    description="Descargue IterVC, instale VB-CABLE si lo necesita y prepare el primer inicio."
+  />
+  <LinkCard
+    title="Inicio rápido de cinco minutos"
+    href="./getting-started/quick-start/"
+    description="Seleccione los dispositivos, elija las aplicaciones, inicie el enrutamiento y compruebe los medidores."
+  />
+  <LinkCard
+    title="Descargar VB-CABLE"
+    href="https://vb-audio.com/Cable/"
+    description="Abra la página oficial de VB-Audio para descargar el cable virtual recomendado."
+  />
+  <LinkCard
+    title="Solucionar problemas de audio"
+    href="./troubleshooting/no-audio/"
+    description="Siga la señal desde el medidor de cada aplicación hasta el destino final."
+  />
+</CardGrid>
+
+## Diseñado para que resulte fácil de entender
+
+IterVC se centra en la ruta de audio que la mayoría de las personas necesita sin exigir una mesa de mezcla virtual completa. El procesamiento avanzado de audio de Windows aún puede afectar al sonido capturado; por eso la documentación también cubre el audio espacial, los formatos de sonido envolvente, las mejoras, la latencia, los diagnósticos y los errores frecuentes al seleccionar dispositivos.

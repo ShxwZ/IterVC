@@ -1,0 +1,173 @@
+---
+import DefaultSocialIcons from '@astrojs/starlight/components/SocialIcons.astro';
+
+const repositoryUrl = 'https://github.com/ShxwZ/IterVC';
+const language = Astro.locals.starlightRoute.lang || 'en';
+const isSpanish = language.toLowerCase().startsWith('es');
+const accessibleLabel = isSpanish
+  ? 'Dale una estrella a IterVC en GitHub'
+  : 'Star IterVC on GitHub';
+---
+
+<itervc-github-star
+  class="itervc-social-cluster"
+  data-language={language}
+  data-label={accessibleLabel}
+>
+  <DefaultSocialIcons />
+  <a
+    class="itervc-github-star__link"
+    href={repositoryUrl}
+    target="_blank"
+    rel="noopener noreferrer"
+    aria-label={accessibleLabel}
+  >
+    <svg
+      class="itervc-github-star__icon"
+      viewBox="0 0 24 24"
+      width="16"
+      height="16"
+      aria-hidden="true"
+    >
+      <path
+        fill="currentColor"
+        d="m12 2.25 2.92 5.92 6.53.95-4.73 4.61 1.12 6.51L12 17.17l-5.84 3.07 1.12-6.51-4.73-4.61 6.53-.95L12 2.25Z"
+      ></path>
+    </svg>
+    <span class="itervc-github-star__label">Star</span>
+    <span class="itervc-github-star__count" data-github-star-count hidden></span>
+  </a>
+</itervc-github-star>
+
+<script>
+  const CACHE_KEY = 'itervc:github-stargazers';
+  const CACHE_TTL_MS = 15 * 60 * 1000;
+  const API_URL = 'https://api.github.com/repos/ShxwZ/IterVC';
+
+  type CachedStarCount = {
+    count: number;
+    cachedAt: number;
+  };
+
+  function isValidCount(value: unknown): value is number {
+    return Number.isSafeInteger(value) && Number(value) >= 0;
+  }
+
+  function readCachedCount(): number | undefined {
+    try {
+      const rawValue = sessionStorage.getItem(CACHE_KEY);
+      if (!rawValue) return;
+
+      const cachedValue = JSON.parse(rawValue) as Partial<CachedStarCount>;
+      if (
+        !isValidCount(cachedValue.count) ||
+        typeof cachedValue.cachedAt !== 'number' ||
+        !Number.isFinite(cachedValue.cachedAt) ||
+        Date.now() - cachedValue.cachedAt > CACHE_TTL_MS ||
+        cachedValue.cachedAt > Date.now()
+      ) {
+        return;
+      }
+
+      return cachedValue.count;
+    } catch {
+      return;
+    }
+  }
+
+  let countRequest: Promise<number | undefined> | undefined;
+
+  function getStarCount(): Promise<number | undefined> {
+    if (countRequest) return countRequest;
+
+    countRequest = (async () => {
+      const cachedCount = readCachedCount();
+      if (cachedCount !== undefined) return cachedCount;
+
+      try {
+        const response = await fetch(API_URL, {
+          headers: { Accept: 'application/vnd.github+json' },
+        });
+        if (!response.ok) return;
+
+        const payload: unknown = await response.json();
+        if (
+          typeof payload !== 'object' ||
+          payload === null ||
+          !('stargazers_count' in payload) ||
+          !isValidCount(payload.stargazers_count)
+        ) {
+          return;
+        }
+
+        cacheCount(payload.stargazers_count);
+        return payload.stargazers_count;
+      } catch {
+        // Network, JSON, and browser-policy failures leave the static link intact.
+        return;
+      }
+    })();
+
+    return countRequest;
+  }
+
+  function cacheCount(count: number): void {
+    try {
+      const value: CachedStarCount = { count, cachedAt: Date.now() };
+      sessionStorage.setItem(CACHE_KEY, JSON.stringify(value));
+    } catch {
+      // Storage may be disabled or unavailable. The control still works without caching.
+    }
+  }
+
+  class ItervcGithubStar extends HTMLElement {
+    connectedCallback(): void {
+      if (this.dataset.initialized === 'true') return;
+      this.dataset.initialized = 'true';
+      void this.initializeCount();
+    }
+
+    private async initializeCount(): Promise<void> {
+      const count = await getStarCount();
+      if (count !== undefined) this.showCount(count);
+    }
+
+    private showCount(count: number): void {
+      const countElement = this.querySelector<HTMLElement>('[data-github-star-count]');
+      const link = this.querySelector<HTMLAnchorElement>('.itervc-github-star__link');
+      if (!countElement || !link) return;
+
+      const language = this.dataset.language || document.documentElement.lang || 'en';
+      const isSpanish = language.toLowerCase().startsWith('es');
+
+      try {
+        countElement.textContent = new Intl.NumberFormat(language, {
+          notation: 'compact',
+          maximumFractionDigits: 1,
+        }).format(count);
+        const fullCount = new Intl.NumberFormat(language).format(count);
+        countElement.setAttribute(
+          'aria-label',
+          isSpanish ? `${fullCount} estrellas en GitHub` : `${fullCount} GitHub stars`,
+        );
+      } catch {
+        countElement.textContent = String(count);
+        countElement.setAttribute(
+          'aria-label',
+          isSpanish ? `${count} estrellas en GitHub` : `${count} GitHub stars`,
+        );
+      }
+
+      const baseLabel = this.dataset.label || 'Star IterVC on GitHub';
+      link.setAttribute(
+        'aria-label',
+        `${baseLabel}; ${countElement.getAttribute('aria-label')}`,
+      );
+      countElement.hidden = false;
+    }
+  }
+
+  if (!customElements.get('itervc-github-star')) {
+    customElements.define('itervc-github-star', ItervcGithubStar);
+  }
+</script>

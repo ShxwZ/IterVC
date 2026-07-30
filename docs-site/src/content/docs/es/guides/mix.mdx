@@ -1,0 +1,58 @@
+---
+title: Mezcla
+description: Equilibre la ganancia compartida de aplicaciones, la amplificación del micrófono y su monitorización.
+---
+
+import Screenshot from '../../../../components/Screenshot.astro';
+
+## Qué controla la pestaña Mezcla
+
+La pestaña **Mezcla** contiene los controles para equilibrar el audio de aplicaciones enrutado y el micrófono procesado. Estos controles afectan a los niveles y a la monitorización; no seleccionan dispositivos de audio, aplicaciones ni activan la captura del micrófono.
+
+| Control | Qué afecta | Qué no afecta |
+| --- | --- | --- |
+| Ganancia de aplicaciones | El nivel conjunto del audio de las aplicaciones seleccionadas | El volumen individual de cada aplicación, los procesos seleccionados o el nivel del micrófono |
+| Amplificación del micrófono | El nivel del micrófono capturado después del procesamiento de la puerta de ruido | El audio de aplicaciones o la selección del dispositivo de micrófono |
+| Monitorización local | Si se escucha el micrófono procesado mediante la ruta de salida habitual; requiere captura de micrófono | Si activa la captura de micrófono o dónde se envía la mezcla enrutada |
+
+## Ganancia de aplicaciones
+
+La **ganancia de aplicaciones** se comparte entre todas las aplicaciones seleccionadas y va del **0 % al 300 %**. Al 100 %, la mezcla conjunta de aplicaciones se transmite a su nivel nominal. Los valores superiores al 100 % pueden ayudar con fuentes de volumen bajo, pero también reducen el margen disponible.
+
+Ajuste primero el volumen de la propia aplicación cuando solo una fuente tenga un volumen bajo. Use la ganancia compartida cuando necesite equilibrar toda la mezcla de aplicaciones. Para seleccionar y detectar procesos, consulte [Audio de aplicaciones](../application-audio/).
+
+## Amplificación del micrófono
+
+La **amplificación del micrófono** va de **0.5× a 3×**. Modifica el nivel final del micrófono capturado después de la captura y del procesamiento de la puerta de ruido. No cambia el dispositivo de micrófono seleccionado ni la mezcla de aplicaciones.
+
+Comience cerca de 1×, hable a su volumen habitual y aumente la amplificación solo si es necesario. Para la captura y el comportamiento del dispositivo de micrófono, consulte [Micrófono](../microphone/).
+
+<Screenshot
+  src="images/guides/mix.webp"
+  alt="Pestaña Mezcla de IterVC con ganancia de aplicaciones, amplificación del micrófono, monitorización local y medidores de nivel"
+  caption="La pestaña Mezcla reúne la ganancia de aplicaciones, la amplificación del micrófono y la monitorización local."
+  hint="Capture la pestaña Mezcla con ganancia de aplicaciones, amplificación del micrófono, monitorización y medidores de nivel activos si es posible."
+/>
+
+## Monitorización local del micrófono
+
+Active la **monitorización local del micrófono** para escuchar el micrófono procesado mediante la ruta de salida habitual mientras lo calibra. Previsualiza el micrófono después del procesamiento de la puerta de ruido y de la amplificación. La monitorización es independiente del enrutamiento virtual y de su destino, por lo que puede funcionar aunque el enrutamiento virtual esté detenido. Requiere que la captura del micrófono esté activada, pero no la activa por sí misma ni cambia el destino de la mezcla enrutada.
+
+Use auriculares al monitorizar un micrófono en directo. Los altavoces pueden crear un bucle de realimentación acústica, especialmente cuando la amplificación del micrófono es alta.
+
+## Calibración con los medidores
+
+Use los medidores de nivel para hacer ajustes pequeños y deliberados:
+
+1. Comience con la ganancia de aplicaciones al 100 % y la amplificación del micrófono cerca de 1×.
+2. Reproduzca audio habitual de las aplicaciones y hable a su volumen normal.
+3. Observe los medidores y mantenga los picos habituales por debajo de su nivel máximo.
+4. Ajuste un control cada vez y vuelva a escuchar antes de hacer otro cambio.
+
+Si un medidor alcanza su nivel máximo de forma repetida, la señal puede recortarse. Reduzca la ganancia o la amplificación correspondiente antes de continuar.
+
+## Evite el recorte y la realimentación
+
+El recorte puede distorsionar el audio de aplicaciones o la señal del micrófono. Es más probable cuando la ganancia de aplicaciones supera el 100 % o la amplificación del micrófono es alta. Reduzca el control que afecta al medidor sobrecargado en lugar de compensarlo con el otro control.
+
+Si escucha un pitido, ecos repetidos o un nivel que aumenta rápidamente mientras la monitorización local está activada, desactívela y use auriculares antes de volver a calibrar. No use altavoces para monitorizar un micrófono en directo salvo que haya comprobado que no puede producirse realimentación.

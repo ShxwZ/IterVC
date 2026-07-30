@@ -1,0 +1,22 @@
+---
+title: Microphone
+description: Enable, boost, monitor, and balance the physical microphone.
+---
+
+## Enable or disable microphone capture
+
+The microphone status control in the header enables or disables microphone capture. Disabling it keeps the selected physical device saved but removes microphone audio from the active route.
+
+This is different from stopping routing: selected application audio can continue routing while the microphone is disabled.
+
+## Microphone boost
+
+Microphone boost is configured in **Mix**, not on the microphone capture panel. Its 0.5×–3× range changes the final microphone level after noise-gate processing. For calibration and clipping guidance, see [Mix: Microphone boost](../mix/#microphone-boost).
+
+## Local monitoring
+
+Local monitoring is also configured in **Mix**. It previews the processed post-gate, post-boost microphone through the normal output path while calibrating. It requires microphone capture to be enabled, does not enable capture itself, and is independent of virtual routing and its destination. For feedback precautions and calibration guidance, see [Mix: Local microphone monitoring](../mix/#local-microphone-monitoring).
+
+## Global hotkey
+
+You can assign a global shortcut to toggle the microphone even when IterVC is not focused. See [Global hotkeys](../global-hotkeys/).
