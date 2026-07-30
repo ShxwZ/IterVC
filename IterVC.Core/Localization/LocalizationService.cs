@@ -124,6 +124,14 @@ public sealed class LocalizationService : ILocalizationService
         public const string TrayDoNotShowAgain = "tray.do_not_show_again";
         public const string TrayOpen = "tray.open";
         public const string TrayDismiss = "tray.dismiss";
+        public const string StartupTitle = "startup.title";
+        public const string StartupRegistrationEnabled = "startup.registration.enabled";
+        public const string StartupHideOnLaunch = "startup.hide_on_launch";
+        public const string StartupRegistrationStale = "startup.registration.stale";
+        public const string StartupRegistrationInvalid = "startup.registration.invalid";
+        public const string StartupRegistrationError = "startup.registration.error";
+        public const string StartupRegistrationPortableNotice = "startup.registration.portable_notice";
+        public const string StartupRegistrationPortableNoticeDismiss = "startup.registration.portable_notice.dismiss";
     }
 
     private readonly Dictionary<string, string> _es = new()
@@ -140,6 +148,14 @@ public sealed class LocalizationService : ILocalizationService
         [Keys.TrayDoNotShowAgain] = "No mostrar esto de nuevo",
         [Keys.TrayOpen] = "Abrir",
         [Keys.TrayDismiss] = "Aceptar",
+        [Keys.StartupTitle] = "INICIO DE WINDOWS",
+        [Keys.StartupRegistrationEnabled] = "Iniciar IterVC al iniciar Windows",
+        [Keys.StartupHideOnLaunch] = "Iniciar oculto en la bandeja del sistema",
+        [Keys.StartupRegistrationStale] = "La configuración de inicio apunta a una ubicación antigua. Desactive y active la opción para repararla.",
+        [Keys.StartupRegistrationInvalid] = "La configuración de inicio no es válida. Desactive y active la opción para repararla.",
+        [Keys.StartupRegistrationError] = "No se pudo actualizar la configuración de inicio. Compruebe los permisos e inténtelo de nuevo.",
+        [Keys.StartupRegistrationPortableNotice] = "IterVC es portable. Si mueve el ejecutable, Windows conservará la ruta anterior. Abra IterVC una vez desde la nueva ubicación para repararla.",
+        [Keys.StartupRegistrationPortableNoticeDismiss] = "Entendido",
         [Keys.AppTitle]             = "IterVC",
         [Keys.AppFooter]            = "IterVC - {0}",
         [Keys.StatusRouting]        = "ENRUTAMIENTO ACTIVO",
@@ -254,6 +270,14 @@ public sealed class LocalizationService : ILocalizationService
         [Keys.TrayDoNotShowAgain] = "Don't show this again",
         [Keys.TrayOpen] = "Open",
         [Keys.TrayDismiss] = "OK",
+        [Keys.StartupTitle] = "WINDOWS STARTUP",
+        [Keys.StartupRegistrationEnabled] = "Start IterVC when Windows starts",
+        [Keys.StartupHideOnLaunch] = "Start hidden in the system tray",
+        [Keys.StartupRegistrationStale] = "The startup entry points to an old location. Turn the option off and on to repair it.",
+        [Keys.StartupRegistrationInvalid] = "The startup entry is invalid. Turn the option off and on to repair it.",
+        [Keys.StartupRegistrationError] = "Could not update the startup entry. Check permissions and try again.",
+        [Keys.StartupRegistrationPortableNotice] = "IterVC is portable. If you move its executable, Windows keeps the old path. Open IterVC once from its new location to repair it.",
+        [Keys.StartupRegistrationPortableNoticeDismiss] = "Got it",
         [Keys.AppTitle]             = "IterVC",
         [Keys.AppFooter]            = "IterVC - {0}",
         [Keys.StatusRouting]        = "ROUTING ACTIVE",

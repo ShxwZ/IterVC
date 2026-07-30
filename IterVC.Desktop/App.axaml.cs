@@ -15,6 +15,10 @@ namespace IterVC.Desktop;
 public sealed class App : Application
 {
     private int _exitStarted;
+    private static SingleInstanceCoordinator? _primaryInstance;
+    internal static AppLaunchOptions LaunchOptions { get; set; }
+
+    internal static void ConfigurePrimaryInstance(SingleInstanceCoordinator instance) => _primaryInstance = instance;
     public override void Initialize()
     {
         AvaloniaXamlLoader.Load(this);
@@ -79,22 +83,31 @@ public sealed class App : Application
             globalHotkey.Failed += (_, error) => Avalonia.Threading.Dispatcher.UIThread.Post(() =>
                 mainViewModel.Settings.Hotkeys.RegistrationStatus =
                     string.Format(mainViewModel.Texts.HotkeyRegistrationFailed, error));
-            mainWindow.Opened += async (_, _) =>
+            async Task InitializeAsync()
             {
                 try
                 {
                     await Program.AppHost.StartAsync().ConfigureAwait(false);
                     await mainViewModel.InitializeAsync();
-                    await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(ConfigureHotkeys);
+                    await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
+                    {
+                        ConfigureHotkeys();
+                        if (!LaunchOptions.IsWindowsStartup || !Program.AppHost.Services
+                                .GetRequiredService<ISettingsService>().Current.StartHiddenOnWindowsStartup)
+                            mainWindow.Show();
+                    });
                     logger.LogInformation("Application initialization completed");
                 }
                 catch (Exception ex)
                 {
                     logger.LogCritical(ex, "Application initialization failed");
                     await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() =>
-                        mainViewModel.StatusMessage = $"Error: {ex.Message}");
+                    {
+                        mainViewModel.StatusMessage = $"Error: {ex.Message}";
+                        mainWindow.Show();
+                    });
                 }
-            };
+            }
 
             async Task ExitAsync()
             {
@@ -121,13 +134,14 @@ public sealed class App : Application
             desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
             lifecycle = new DesktopLifecycleCoordinator(
                 mainViewModel.Settings.Tray!,
+                mainViewModel.Settings.Startup!,
                 Program.AppHost.Services.GetRequiredService<ISettingsService>(),
                 Program.AppHost.Services.GetRequiredService<ILogger<DesktopLifecycleCoordinator>>(),
                 ExitAsync);
             lifecycle.Attach(mainWindow);
+            _primaryInstance?.StartListener(lifecycle.Restore);
+            _ = InitializeAsync();
             mainWindow.AttachLifecycle(lifecycle);
-            desktop.MainWindow = mainWindow;
-            mainWindow.Show();
 
             desktop.ShutdownRequested += (_, args) =>
             {

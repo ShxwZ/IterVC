@@ -107,4 +107,10 @@ public sealed class AppSettings
 
     /// <summary>Whether the first tray-hide notification has been dismissed.</summary>
     public bool TrayHideNotificationSuppressed { get; set; }
+
+    /// <summary>Whether a Windows startup launch should remain hidden after initialization.</summary>
+    public bool StartHiddenOnWindowsStartup { get; set; } = true;
+
+    /// <summary>Whether the portable Windows startup registration notice has been acknowledged.</summary>
+    public bool StartupRegistrationNoticeAcknowledged { get; set; }
 }
