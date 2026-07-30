@@ -15,6 +15,7 @@ namespace IterVC.Desktop.Services;
 internal sealed class DesktopLifecycleCoordinator : IDisposable
 {
     private readonly TraySettingsViewModel _settings;
+    private readonly StartupSettingsViewModel _startupSettings;
     private readonly ISettingsService _persistedSettings;
     private readonly ILogger<DesktopLifecycleCoordinator> _logger;
     private readonly Func<Task> _exit;
@@ -24,13 +25,16 @@ internal sealed class DesktopLifecycleCoordinator : IDisposable
     private MainWindow? _window;
     private WindowState _lastVisibleState = WindowState.Normal;
     private Task<bool>? _trayHideNotificationTask;
+    private Task? _startupRegistrationNoticeTask;
     private bool _disposed;
     private int _decisionInProgress;
 
-    public DesktopLifecycleCoordinator(TraySettingsViewModel settings, ISettingsService persistedSettings,
+    public DesktopLifecycleCoordinator(TraySettingsViewModel settings, StartupSettingsViewModel startupSettings,
+        ISettingsService persistedSettings,
         ILogger<DesktopLifecycleCoordinator> logger, Func<Task> exit)
     {
         _settings = settings;
+        _startupSettings = startupSettings;
         _persistedSettings = persistedSettings;
         _logger = logger;
         _exit = exit;
@@ -46,6 +50,7 @@ internal sealed class DesktopLifecycleCoordinator : IDisposable
         };
         RefreshLocalizedStrings();
         LocalizationService.Instance.Changed += OnLocalizationChanged;
+        _startupSettings.RegistrationEnabledSuccessfully += OnStartupRegistrationEnabledSuccessfully;
         _trayIcon.Clicked += (_, _) => Restore();
         TrayIcon.SetIcons(Application.Current!, [_trayIcon]);
     }
@@ -53,6 +58,35 @@ internal sealed class DesktopLifecycleCoordinator : IDisposable
     public void Attach(MainWindow window) => _window = window;
 
     private void OnLocalizationChanged(object? sender, EventArgs e) => RefreshLocalizedStrings();
+
+    private void OnStartupRegistrationEnabledSuccessfully(object? sender, EventArgs e)
+    {
+        if (_window is null || _persistedSettings.Current.StartupRegistrationNoticeAcknowledged
+            || _startupRegistrationNoticeTask is not null)
+            return;
+
+        var notification = _window.ShowStartupRegistrationNoticeAsync();
+        _startupRegistrationNoticeTask = notification;
+        _ = CompleteStartupRegistrationNoticeAsync(notification);
+    }
+
+    private async Task CompleteStartupRegistrationNoticeAsync(Task<bool> notification)
+    {
+        try
+        {
+            if (await notification)
+                await _persistedSettings.UpdateAsync(settings => settings.StartupRegistrationNoticeAcknowledged = true);
+        }
+        catch
+        {
+            // The notification must never block or destabilize startup settings.
+        }
+        finally
+        {
+            if (ReferenceEquals(notification, _startupRegistrationNoticeTask))
+                _startupRegistrationNoticeTask = null;
+        }
+    }
 
     private void RefreshLocalizedStrings()
     {
@@ -140,7 +174,7 @@ internal sealed class DesktopLifecycleCoordinator : IDisposable
         }
     }
 
-    private void Restore()
+    internal void Restore()
     {
         Dispatcher.UIThread.Post(() =>
         {
@@ -156,6 +190,7 @@ internal sealed class DesktopLifecycleCoordinator : IDisposable
         if (_disposed) return;
         _disposed = true;
         LocalizationService.Instance.Changed -= OnLocalizationChanged;
+        _startupSettings.RegistrationEnabledSuccessfully -= OnStartupRegistrationEnabledSuccessfully;
         _trayIcon.Dispose();
         TrayIcon.SetIcons(Application.Current!, null);
     }

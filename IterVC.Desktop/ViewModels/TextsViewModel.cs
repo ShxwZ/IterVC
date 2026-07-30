@@ -180,6 +180,9 @@ public sealed class TextsViewModel : ObservableObject
     public string HotkeyMicrophoneGroup { get => _hotkeyMicrophoneGroup; set => SetProperty(ref _hotkeyMicrophoneGroup, value); }
     public string MicrophoneEnable { get => _microphoneEnable; set => SetProperty(ref _microphoneEnable, value); }
     public string MicrophoneDisable { get => _microphoneDisable; set => SetProperty(ref _microphoneDisable, value); }
+    public string StartupTitle => G(LK.StartupTitle);
+    public string StartupRegistrationEnabled => G(LK.StartupRegistrationEnabled);
+    public string StartupHideOnLaunch => G(LK.StartupHideOnLaunch);
     public string HotkeyConflict => G(LK.HotkeyConflict);
     public string HotkeyCancel => G(LK.HotkeyCancel);
     public string HotkeyRegistrationFailed => G(LK.HotkeyRegistrationFailed);
@@ -303,6 +306,9 @@ public sealed class TextsViewModel : ObservableObject
         OnPropertyChanged(nameof(TrayMinimize));
         OnPropertyChanged(nameof(TrayExit));
         OnPropertyChanged(nameof(TrayMinimizeOnMinimize));
+        OnPropertyChanged(nameof(StartupTitle));
+        OnPropertyChanged(nameof(StartupRegistrationEnabled));
+        OnPropertyChanged(nameof(StartupHideOnLaunch));
     }
 
     private static string G(string key) => LocalizationService.Instance.Get(key);
@@ -409,6 +415,8 @@ public sealed class TextsViewModel : ObservableObject
         internal const string TrayMinimize = LocalizationService.Keys.TrayMinimize;
         internal const string TrayExit = LocalizationService.Keys.TrayExit;
         internal const string TrayMinimizeOnMinimize = LocalizationService.Keys.TrayMinimizeOnMinimize;
+        internal const string StartupTitle = LocalizationService.Keys.StartupTitle;
+        internal const string StartupRegistrationEnabled = LocalizationService.Keys.StartupRegistrationEnabled;
+        internal const string StartupHideOnLaunch = LocalizationService.Keys.StartupHideOnLaunch;
     }
 }
-

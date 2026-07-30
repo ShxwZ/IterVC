@@ -40,4 +40,5 @@ public sealed partial class MainWindow : Window
 
     internal Task<CloseBehaviorChoice?> ShowCloseBehaviorDialogAsync() => CloseBehaviorDialog.ShowAsync(this);
     internal Task<bool> ShowTrayHideNotificationAsync() => TrayHideNotificationWindow.ShowAsync(this);
+    internal Task<bool> ShowStartupRegistrationNoticeAsync() => StartupRegistrationNoticeWindow.ShowAsync(this);
 }
