@@ -19,6 +19,12 @@ export default defineConfig({
   ...(base ? { base } : {}),
   integrations: [
     starlight({
+      head:{
+        attrs: {
+          name: 'google-site-verification',
+          content: 'Nz3XLWekRwAt4PgHi7wUk2_gsO8Ypp4TT_n67xfc3V0',
+        },
+      },
       title: 'IterVC',
       description: 'Official documentation for IterVC, the lightweight Windows application audio router.',
       defaultLocale: 'root',
