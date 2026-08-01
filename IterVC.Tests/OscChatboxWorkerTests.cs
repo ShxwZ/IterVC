@@ -16,14 +16,14 @@ public sealed class OscChatboxWorkerTests
         var osc = new FakeOscMediaService();
         var worker = new OscChatboxWorker(sessions, osc, NullLogger<OscChatboxWorker>.Instance,
             TimeSpan.FromMilliseconds(5));
-        worker.Configure(true, "{title}|{status}|{time}");
+        worker.Configure(true, "{title}|{time}");
 
         await worker.StartAsync();
         await WaitUntilAsync(() => osc.Messages.Count > 0);
         await worker.StopAsync();
         await worker.StopAsync();
 
-        Assert.AreEqual("Artist - Track|Playing|01:02 / 03:04", osc.Messages[0]);
+        Assert.AreEqual("Artist - Track|01:02 / 03:04", osc.Messages[0]);
     }
 
     [TestMethod]
@@ -58,7 +58,7 @@ public sealed class OscChatboxWorkerTests
             CallCount++;
             return Task.FromResult<MediaInfo?>(new MediaInfo
             {
-                Title = "Artist - Track", Status = "Playing", TimeInfo = "01:02 / 03:04"
+                Title = "Artist - Track", TimeInfo = "01:02 / 03:04"
             });
         }
     }
@@ -66,7 +66,7 @@ public sealed class OscChatboxWorkerTests
     private sealed class FakeOscMediaService : IOscMediaService
     {
         public List<string> Messages { get; } = [];
-        public void SendMediaInfo(string? title, string? status, string template) => Messages.Add(template);
+        public void SendMediaInfo(string template) => Messages.Add(template);
         public void ClearChatbox() { }
     }
 }
