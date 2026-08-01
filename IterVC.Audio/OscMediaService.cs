@@ -10,13 +10,12 @@ public sealed class OscMediaService : IOscMediaService
 
     public OscMediaService(ILogger<OscMediaService> logger) => _logger = logger;
 
-    public void SendMediaInfo(string? title, string? status, string template)
+    public void SendMediaInfo(string? title, string template)
     {
         try
         {
             string message = template
                 .Replace("{title}", title ?? "Desconocido")
-                .Replace("{status}", status ?? "N/A")
                 .Replace("\r\n", "\v")
                 .Replace("\n", "\v");
             OscChatbox.SendMessage(message, direct: true);

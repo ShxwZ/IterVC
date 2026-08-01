@@ -58,7 +58,7 @@ public sealed class OscChatboxWorkerTests
             CallCount++;
             return Task.FromResult<MediaInfo?>(new MediaInfo
             {
-                Title = "Artist - Track", Status = "Playing", TimeInfo = "01:02 / 03:04"
+                Title = "Artist - Track", TimeInfo = "01:02 / 03:04"
             });
         }
     }
@@ -66,7 +66,7 @@ public sealed class OscChatboxWorkerTests
     private sealed class FakeOscMediaService : IOscMediaService
     {
         public List<string> Messages { get; } = [];
-        public void SendMediaInfo(string? title, string? status, string template) => Messages.Add(template);
+        public void SendMediaInfo(string? title, string template) => Messages.Add(template);
         public void ClearChatbox() { }
     }
 }
