@@ -8,7 +8,7 @@ namespace IterVC.Core.Interfaces
 {
     public interface IOscMediaService
     {
-        void SendMediaInfo(string? title, string template);
+        void SendMediaInfo(string template);
         void ClearChatbox();
     }
 }

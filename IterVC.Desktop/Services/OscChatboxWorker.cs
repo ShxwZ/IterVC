@@ -76,15 +76,15 @@ internal sealed class OscChatboxWorker : IOscChatboxWorker
                             .Replace("{title}", media.Title)
                             .Replace("{time}", media.TimeInfo)
                             .Replace("{wave}", NextWaveFrame());
-                        _oscMedia.SendMediaInfo(media.Title, message);
+                        _oscMedia.SendMediaInfo(message);
                     }
                     else
                     {
                         var message = _template
                             .Replace("{title}", "⏹️")
-                            .Replace("{time}", media.TimeInfo)
+                            .Replace("{time}", "00:00 / 00:00")
                             .Replace("{wave}", NextWaveFrame());
-                        _oscMedia.SendMediaInfo(media.Title, message);
+                        _oscMedia.SendMediaInfo(message);
                     }
                 }
                 await Task.Delay(_interval, cancellationToken).ConfigureAwait(false);
