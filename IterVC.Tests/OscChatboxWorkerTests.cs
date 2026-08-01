@@ -16,14 +16,14 @@ public sealed class OscChatboxWorkerTests
         var osc = new FakeOscMediaService();
         var worker = new OscChatboxWorker(sessions, osc, NullLogger<OscChatboxWorker>.Instance,
             TimeSpan.FromMilliseconds(5));
-        worker.Configure(true, "{title}|{status}|{time}");
+        worker.Configure(true, "{title}|{time}");
 
         await worker.StartAsync();
         await WaitUntilAsync(() => osc.Messages.Count > 0);
         await worker.StopAsync();
         await worker.StopAsync();
 
-        Assert.AreEqual("Artist - Track|Playing|01:02 / 03:04", osc.Messages[0]);
+        Assert.AreEqual("Artist - Track|01:02 / 03:04", osc.Messages[0]);
     }
 
     [TestMethod]
