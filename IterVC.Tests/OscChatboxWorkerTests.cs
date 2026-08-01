@@ -66,7 +66,7 @@ public sealed class OscChatboxWorkerTests
     private sealed class FakeOscMediaService : IOscMediaService
     {
         public List<string> Messages { get; } = [];
-        public void SendMediaInfo(string? title, string template) => Messages.Add(template);
+        public void SendMediaInfo(string template) => Messages.Add(template);
         public void ClearChatbox() { }
     }
 }
