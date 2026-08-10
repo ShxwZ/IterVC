@@ -65,78 +65,95 @@ public sealed class ProcessLoopbackCapture : IDisposable
 
     private async Task StartCoreAsync(int processId, bool includeProcessTree, ILogger? logger)
     {
-        // Release an activated client left behind by an earlier failed start.
-        if (_audioClient is not null)
+        Stop();
+
+        try
         {
-            try { Marshal.ReleaseComObject(_audioClient); }
-            catch { /* Best-effort cleanup of a COM object from a failed start. */ }
-            _audioClient = null;
-        }
 
-        var streamFlags = ProcessLoopbackNativeMethods.AUDCLNT_STREAMFLAGS_LOOPBACK
-                          | ProcessLoopbackNativeMethods.AUDCLNT_STREAMFLAGS_EVENTCALLBACK
-                          | ProcessLoopbackNativeMethods.AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM
-                          | ProcessLoopbackNativeMethods.AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY;
+            var streamFlags = ProcessLoopbackNativeMethods.AUDCLNT_STREAMFLAGS_LOOPBACK
+                              | ProcessLoopbackNativeMethods.AUDCLNT_STREAMFLAGS_EVENTCALLBACK
+                              | ProcessLoopbackNativeMethods.AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM
+                              | ProcessLoopbackNativeMethods.AUDCLNT_STREAMFLAGS_SRC_DEFAULT_QUALITY;
 
-        var requestedFormat = SelectRequestedFormat(_strategy,
-            () => ProcessRenderFormatDetector.Detect(processId, includeProcessTree, logger));
+            var requestedFormat = SelectRequestedFormat(_strategy,
+                () => ProcessRenderFormatDetector.Detect(processId, includeProcessTree, logger));
 
-        _audioClient = await ActivateAsync(processId, includeProcessTree);
-
-        // Shared, event-driven process loopback follows Microsoft's reference sample.
-        // A zero duration lets the audio engine choose its normal shared-mode buffer.
-        var hrInit = InitializeAudioClient(_audioClient, requestedFormat, streamFlags);
-
-        if (hrInit != 0 && requestedFormat.Channels > 2)
-        {
-            logger?.LogWarning(
-                "The {Channels}-channel process-loopback format was rejected (0x{HResult:X8}); falling back to stereo",
-                requestedFormat.Channels,
-                hrInit);
-
-            try { Marshal.ReleaseComObject(_audioClient); }
-            catch { /* Best-effort release before activating the fallback client. */ }
-
-            requestedFormat = ProcessRenderFormat.StereoFallback;
             _audioClient = await ActivateAsync(processId, includeProcessTree);
-            hrInit = InitializeAudioClient(_audioClient, requestedFormat, streamFlags);
-        }
 
-        Marshal.ThrowExceptionForHR(hrInit);
+            // Shared, event-driven process loopback follows Microsoft's reference sample.
+            // A zero duration lets the audio engine choose its normal shared-mode buffer.
+            var hrInit = InitializeAudioClient(_audioClient, requestedFormat, streamFlags);
 
-        WaveFormat = WaveFormat.CreateIeeeFloatWaveFormat(
-            requestedFormat.SampleRate,
-            requestedFormat.Channels);
+            if (hrInit != 0 && requestedFormat.Channels > 2)
+            {
+                logger?.LogWarning(
+                    "The {Channels}-channel process-loopback format was rejected (0x{HResult:X8}); falling back to stereo",
+                    requestedFormat.Channels,
+                    hrInit);
 
-        _channelSumSquares = requestedFormat.Channels > 2
-            ? new double[requestedFormat.Channels]
-            : null;
-        _channelLevelFrames = 0;
-        _channelLevelLogCount = 0;
+                ReleaseComObject(ref _audioClient);
 
-        _bufferEvent = new AutoResetEvent(false);
-        Marshal.ThrowExceptionForHR(
-            _audioClient.SetEventHandle(_bufferEvent.SafeWaitHandle.DangerousGetHandle()));
+                requestedFormat = ProcessRenderFormat.StereoFallback;
+                _audioClient = await ActivateAsync(processId, includeProcessTree);
+                hrInit = InitializeAudioClient(_audioClient, requestedFormat, streamFlags);
+            }
 
-        var iidCaptureClient = ProcessLoopbackNativeMethods.IID_IAudioCaptureClient;
-        Marshal.ThrowExceptionForHR(
-            _audioClient.GetService(ref iidCaptureClient, out var serviceObj));
-        _captureClient = (IAudioCaptureClient)serviceObj;
+            ThrowIfFailed(hrInit, "initializing the audio client", logger);
 
-        Marshal.ThrowExceptionForHR(_audioClient.Start());
+            WaveFormat = WaveFormat.CreateIeeeFloatWaveFormat(
+                requestedFormat.SampleRate,
+                requestedFormat.Channels);
 
-        _stopRequested = false;
-        _captureThread = new Thread(() => CaptureLoop(logger))
+            _channelSumSquares = requestedFormat.Channels > 2
+                ? new double[requestedFormat.Channels]
+                : null;
+            _channelLevelFrames = 0;
+            _channelLevelLogCount = 0;
+
+            _bufferEvent = new AutoResetEvent(false);
+            ThrowIfFailed(
+                _audioClient.SetEventHandle(_bufferEvent.SafeWaitHandle.DangerousGetHandle()),
+                "setting the capture event handle",
+                logger);
+
+            var iidCaptureClient = ProcessLoopbackNativeMethods.IID_IAudioCaptureClient;
+            ThrowIfFailed(
+                _audioClient.GetService(ref iidCaptureClient, out var serviceObj),
+                "getting the capture client service",
+                logger);
+            _captureClient = (IAudioCaptureClient)serviceObj;
+
+            ThrowIfFailed(_audioClient.Start(), "starting the audio client", logger);
+
+            _stopRequested = false;
+            _captureThread = new Thread(() => CaptureLoop(logger))
+            {
+                IsBackground = true,
+                Name = $"ProcessLoopback-{processId}"
+            };
+            _captureThread.Start();
+
+            logger?.LogInformation(
+                "Process-loopback capture started for {ProcessId} in {WaveFormat}",
+                processId,
+                WaveFormat);
+            }
+        catch
         {
-            IsBackground = true,
-            Name = $"ProcessLoopback-{processId}"
-        };
-        _captureThread.Start();
+            Stop();
+            throw;
+        }
+    }
 
-        logger?.LogInformation(
-            "Process-loopback capture started for {ProcessId} in {WaveFormat}",
-            processId,
-            WaveFormat);
+    private static void ThrowIfFailed(int hResult, string stage, ILogger? logger)
+    {
+        if (hResult == 0) return;
+
+        logger?.LogError(
+            "Process-loopback failed while {Stage} (0x{HResult:X8})",
+            stage,
+            hResult);
+        throw new COMException($"Process-loopback failed while {stage} (0x{hResult:X8})", hResult);
     }
 
     private static int InitializeAudioClient(
@@ -259,58 +276,65 @@ public sealed class ProcessLoopbackCapture : IDisposable
 
                 Debug.WriteLine($"[COM] Llamando ActivateAudioInterfaceAsync para proceso {processId}");
 
-                int hr = ProcessLoopbackNativeMethods.ActivateAudioInterfaceAsync(
-                    ProcessLoopbackNativeMethods.VirtualAudioDeviceProcessLoopback,
-                    ref iidAudioClient,
-                    ref propvariant,
-                    handler,
-                    out IntPtr _);
-
-                if (hr != 0)
+                IntPtr activationOperation = IntPtr.Zero;
+                try
                 {
-                    Marshal.FreeHGlobal(paramsPtr);
-                    tcs.TrySetException(Marshal.GetExceptionForHR(hr)
-                        ?? new COMException("ActivateAudioInterfaceAsync falló", hr));
-                    return;
-                }
+                    int hr = ProcessLoopbackNativeMethods.ActivateAudioInterfaceAsync(
+                        ProcessLoopbackNativeMethods.VirtualAudioDeviceProcessLoopback,
+                        ref iidAudioClient,
+                        ref propvariant,
+                        handler,
+                        out activationOperation);
 
-                GC.KeepAlive(handler);
-
-                // Message loop real — necesario para que Windows pueda dispatchar el COM callback
-                Debug.WriteLine("[COM] Iniciando message loop STA...");
-                var msg = new MSG();
-                var deadline = Environment.TickCount64 + 10_000; // 10s timeout
-
-                while (!handler.Result.IsCompleted)
-                {
-                    // PeekMessage procesa mensajes pendientes sin bloquear
-                    while (PeekMessage(out msg, IntPtr.Zero, 0, 0, PM_REMOVE))
+                    if (hr != 0)
                     {
-                        TranslateMessage(ref msg);
-                        DispatchMessage(ref msg);
-                    }
-
-                    if (handler.Result.IsCompleted) break;
-
-                    if (Environment.TickCount64 > deadline)
-                    {
-                        Debug.WriteLine("[COM] TIMEOUT — callback no llegó en 10s");
-                        tcs.TrySetException(new TimeoutException(
-                            $"ActivateAudioInterfaceAsync no respondió en 10s para proceso {processId}"));
-                        Marshal.FreeHGlobal(paramsPtr);
+                        tcs.TrySetException(Marshal.GetExceptionForHR(hr)
+                            ?? new COMException("ActivateAudioInterfaceAsync falló", hr));
                         return;
                     }
 
-                    // Espera corta para no quemar CPU
-                    Thread.Sleep(1);
+                    // Message loop real — necesario para que Windows pueda dispatchar el COM callback
+                    Debug.WriteLine("[COM] Iniciando message loop STA...");
+                    var msg = new MSG();
+                    var deadline = Environment.TickCount64 + 10_000; // 10s timeout
+
+                    while (!handler.Result.IsCompleted)
+                    {
+                        // PeekMessage procesa mensajes pendientes sin bloquear
+                        while (PeekMessage(out msg, IntPtr.Zero, 0, 0, PM_REMOVE))
+                        {
+                            TranslateMessage(ref msg);
+                            DispatchMessage(ref msg);
+                        }
+
+                        if (handler.Result.IsCompleted) break;
+
+                        if (Environment.TickCount64 > deadline)
+                        {
+                            Debug.WriteLine("[COM] TIMEOUT — callback no llegó en 10s");
+                            tcs.TrySetException(new TimeoutException(
+                                $"ActivateAudioInterfaceAsync no respondió en 10s para proceso {processId}"));
+                            return;
+                        }
+
+                        // Espera corta para no quemar CPU
+                        Thread.Sleep(1);
+                    }
+
+                    if (handler.Result.IsFaulted)
+                        tcs.TrySetException(handler.Result.Exception!.InnerExceptions);
+                    else
+                        tcs.TrySetResult(handler.Result.Result);
                 }
-
-                Marshal.FreeHGlobal(paramsPtr);
-
-                if (handler.Result.IsFaulted)
-                    tcs.TrySetException(handler.Result.Exception!.InnerExceptions);
-                else
-                    tcs.TrySetResult(handler.Result.Result);
+                finally
+                {
+                    // Windows keeps the completion handler alive until the caller releases
+                    // the activation operation returned by ActivateAudioInterfaceAsync.
+                    GC.KeepAlive(handler);
+                    if (activationOperation != IntPtr.Zero)
+                        Marshal.Release(activationOperation);
+                    Marshal.FreeHGlobal(paramsPtr);
+                }
             }
             catch (Exception ex)
             {
@@ -353,45 +377,52 @@ public sealed class ProcessLoopbackCapture : IDisposable
 
     private void CaptureLoop(ILogger? logger)
     {
-        while (!_stopRequested)
+        try
         {
-            _bufferEvent!.WaitOne(200);
-            if (_stopRequested) break;
-
-            try
+            while (!_stopRequested)
             {
-                while (true)
+                _bufferEvent!.WaitOne(200);
+                if (_stopRequested) break;
+
+                try
                 {
-                    var hrPacket = _captureClient!.GetNextPacketSize(out var packetLength);
-                    if (hrPacket != 0 || packetLength == 0) break;
-
-                    var hrBuffer = _captureClient.GetBuffer(out var dataPointer, out var numFrames, out var flags, out _, out _);
-                    if (hrBuffer != 0) break;
-
-                    try
+                    while (true)
                     {
-                        var byteCount = (int)numFrames * WaveFormat.BlockAlign;
-                        if (byteCount > 0)
-                        {
-                            var buffer = new byte[byteCount];
-                            if ((flags & ProcessLoopbackNativeMethods.AUDCLNT_BUFFERFLAGS_SILENT) == 0)
-                                Marshal.Copy(dataPointer, buffer, 0, byteCount);
+                        var hrPacket = _captureClient!.GetNextPacketSize(out var packetLength);
+                        if (hrPacket != 0 || packetLength == 0) break;
 
-                            AccumulateChannelLevels(buffer, logger);
-                            DataAvailable?.Invoke(this, buffer);
+                        var hrBuffer = _captureClient.GetBuffer(out var dataPointer, out var numFrames, out var flags, out _, out _);
+                        if (hrBuffer != 0) break;
+
+                        try
+                        {
+                            var byteCount = (int)numFrames * WaveFormat.BlockAlign;
+                            if (byteCount > 0)
+                            {
+                                var buffer = new byte[byteCount];
+                                if ((flags & ProcessLoopbackNativeMethods.AUDCLNT_BUFFERFLAGS_SILENT) == 0)
+                                    Marshal.Copy(dataPointer, buffer, 0, byteCount);
+
+                                AccumulateChannelLevels(buffer, logger);
+                                DataAvailable?.Invoke(this, buffer);
+                            }
+                        }
+                        finally
+                        {
+                            _captureClient.ReleaseBuffer(numFrames);
                         }
                     }
-                    finally
-                    {
-                        _captureClient.ReleaseBuffer(numFrames);
-                    }
+                }
+                catch (Exception ex)
+                {
+                    logger?.LogDebug(ex, "Captura de process-loopback finalizada");
+                    break;
                 }
             }
-            catch (Exception ex)
-            {
-                logger?.LogDebug(ex, "Captura de process-loopback finalizada");
-                break;
-            }
+        }
+        finally
+        {
+            ReleaseComObjects();
         }
     }
 
@@ -446,14 +477,34 @@ public sealed class ProcessLoopbackCapture : IDisposable
     {
         _stopRequested = true;
         _bufferEvent?.Set();
-        _captureThread?.Join(TimeSpan.FromMilliseconds(500));
+        var captureThread = _captureThread;
+        if (captureThread is not null && captureThread != Thread.CurrentThread)
+            captureThread.Join();
+        else if (captureThread is null)
+            ReleaseComObjects();
 
-        try { _audioClient?.Stop(); } catch { }
-
-        _captureClient = null;
-        _audioClient = null;
+        _captureThread = null;
         _bufferEvent?.Dispose();
         _bufferEvent = null;
+    }
+
+    private void ReleaseComObjects()
+    {
+        try { _audioClient?.Stop(); }
+        catch { /* The client may not have completed startup. */ }
+
+        ReleaseComObject(ref _captureClient);
+        ReleaseComObject(ref _audioClient);
+    }
+
+    private static void ReleaseComObject<T>(ref T? comObject) where T : class
+    {
+        var instance = comObject;
+        comObject = null;
+        if (instance is null) return;
+
+        try { Marshal.FinalReleaseComObject(instance); }
+        catch { /* Best-effort cleanup after partial startup or shutdown. */ }
     }
 
     public void Dispose() => Stop();

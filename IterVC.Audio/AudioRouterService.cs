@@ -39,6 +39,7 @@ public sealed class AudioRouterService : IAudioRouterService
     private volatile bool _isRouting;
 
     private readonly ConcurrentDictionary<int, AppSource> _appSources = new();
+    private readonly ConcurrentDictionary<int, SemaphoreSlim> _appSourceTransitions = new();
     private readonly MixingSampleProvider _applicationsMixer;
     private readonly LevelMeterSampleProvider _applicationsOutputMeter;
     private float _appsVolume = 1.0f;
@@ -154,6 +155,20 @@ public sealed class AudioRouterService : IAudioRouterService
 
     public async Task AddAppSourceAsync(int processId, bool useRawAudio)
     {
+        var transition = GetAppSourceTransition(processId);
+        await transition.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            await AddAppSourceCoreAsync(processId, useRawAudio).ConfigureAwait(false);
+        }
+        finally
+        {
+            transition.Release();
+        }
+    }
+
+    private async Task AddAppSourceCoreAsync(int processId, bool useRawAudio)
+    {
         // Kept for public API compatibility. Process loopback is endpoint-independent
         // and does not support the endpoint RAW stream option.
         _ = useRawAudio;
@@ -237,17 +252,28 @@ public sealed class AudioRouterService : IAudioRouterService
         return completion.Task;
     }
 
-    public Task RemoveAppSourceAsync(int processId)
+    public async Task RemoveAppSourceAsync(int processId)
     {
-        if (_appSources.TryRemove(processId, out var source))
+        var transition = GetAppSourceTransition(processId);
+        await transition.WaitAsync().ConfigureAwait(false);
+        try
         {
-            _applicationsMixer.RemoveMixerInput(source.Meter);
-            _bufferDiagnostics.Remove(source.DiagnosticsKey);
-            source.Capture.Dispose();
-            Debug.WriteLine($"[Router] Proceso {processId} eliminado del mixer");
+            if (_appSources.TryRemove(processId, out var source))
+            {
+                _applicationsMixer.RemoveMixerInput(source.Meter);
+                _bufferDiagnostics.Remove(source.DiagnosticsKey);
+                source.Capture.Dispose();
+                Debug.WriteLine($"[Router] Proceso {processId} eliminado del mixer");
+            }
         }
-        return Task.CompletedTask;
+        finally
+        {
+            transition.Release();
+        }
     }
+
+    private SemaphoreSlim GetAppSourceTransition(int processId) =>
+        _appSourceTransitions.GetOrAdd(processId, static _ => new SemaphoreSlim(1, 1));
 
     public void SetMonitorMicrophone(bool enabled)
     {
