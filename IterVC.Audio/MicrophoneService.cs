@@ -16,7 +16,7 @@ public sealed class MicrophoneService : IMicrophoneService
     private readonly object _processingLock = new();
     private readonly Queue<float> _pendingSuppressionSamples = new();
     private WasapiCapture? _capture;
-    private WebRtcNoiseSuppressor? _noiseSuppressor;
+    private DeepFilterNetNoiseSuppressor? _noiseSuppressor;
     private EventHandler<StoppedEventArgs>? _recordingStoppedHandler;
     private volatile bool _noiseSuppressionEnabled = true;
     private bool _suppressionFaulted;
@@ -63,15 +63,15 @@ public sealed class MicrophoneService : IMicrophoneService
 
                 try
                 {
-                    _noiseSuppressor = new WebRtcNoiseSuppressor();
+                    _noiseSuppressor = new DeepFilterNetNoiseSuppressor();
                     _suppressionFaulted = false;
-                    _logger.LogInformation("WebRTC APM microphone noise suppression initialized at {SampleRate} Hz", SampleRate);
+                    _logger.LogInformation("DeepFilterNet3 microphone speech enhancement initialized at {SampleRate} Hz", SampleRate);
                 }
                 catch (Exception ex)
                 {
                     DisposeNoiseSuppressor();
                     _suppressionFaulted = true;
-                    _logger.LogWarning(ex, "WebRTC APM unavailable; continuing without microphone noise suppression");
+                    _logger.LogWarning(ex, "DeepFilterNet3 unavailable; continuing without microphone noise suppression");
                 }
 
                 capture.StartRecording();
@@ -119,7 +119,6 @@ public sealed class MicrophoneService : IMicrophoneService
         {
             if (!_noiseSuppressionEnabled || _noiseSuppressor is null || _suppressionFaulted)
             {
-                // No buffered partial frame should survive a disabled/faulted transition.
                 _pendingSuppressionSamples.Clear();
                 fallbackRaw = true;
             }
@@ -156,7 +155,7 @@ public sealed class MicrophoneService : IMicrophoneService
                 {
                     _suppressionFaulted = true;
                     _pendingSuppressionSamples.Clear();
-                    _logger.LogWarning(ex, "WebRTC APM processing failed; falling back to raw microphone audio");
+                    _logger.LogWarning(ex, "DeepFilterNet3 processing failed; falling back to raw microphone audio");
                     fallbackRaw = true;
                 }
             }
