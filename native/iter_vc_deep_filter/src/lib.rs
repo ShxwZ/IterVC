@@ -2,7 +2,7 @@ use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::slice;
 
 use deep_filter::tract::{DfParams, DfTract, RuntimeParams};
-use ndarray::{ArrayView2, ArrayViewMut2};
+use tract_core::ndarray::{ArrayView2, ArrayViewMut2};
 
 struct DeepFilterRuntime {
     filter: DfTract,
@@ -80,7 +80,7 @@ pub unsafe extern "C" fn ivc_dfn_process_frame(
             state.input_planar.as_slice(),
         )
         .map_err(|_| ())?;
-        let mut enhanced = ArrayViewMut2::from_shape(
+        let enhanced = ArrayViewMut2::from_shape(
             (state.channels, state.frame_length),
             state.output_planar.as_mut_slice(),
         )
