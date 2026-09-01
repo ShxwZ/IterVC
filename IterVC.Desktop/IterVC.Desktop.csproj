@@ -36,4 +36,11 @@
     <ProjectReference Include="..\IterVC.Audio\IterVC.Audio.csproj" />
   </ItemGroup>
 
+  <Target Name="CopyDeepFilterNetNativeToPublish" BeforeTargets="Publish" Condition="'$(OS)' == 'Windows_NT' and '$(IterVCSkipDeepFilter)' != 'true'">
+    <Copy SourceFiles="..\IterVC.Audio\bin\$(Configuration)\net8.0-windows10.0.19041.0\iter_vc_deep_filter.dll"
+          DestinationFiles="$(PublishDir)iter_vc_deep_filter.dll"
+          SkipUnchangedFiles="true"
+          Condition="Exists('..\IterVC.Audio\bin\$(Configuration)\net8.0-windows10.0.19041.0\iter_vc_deep_filter.dll')" />
+  </Target>
+
 </Project>
