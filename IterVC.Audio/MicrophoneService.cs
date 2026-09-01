@@ -20,6 +20,11 @@ public sealed class MicrophoneService : IMicrophoneService
     private EventHandler<StoppedEventArgs>? _recordingStoppedHandler;
     private volatile bool _noiseSuppressionEnabled = true;
     private bool _suppressionFaulted;
+    private long _processedFrames;
+    private long _diagnosticFrames;
+    private double _diagnosticInputEnergy;
+    private double _diagnosticOutputEnergy;
+    private float _diagnosticLastLsnr;
 
     public bool IsCapturing { get; private set; }
     public WaveFormat? WaveFormat => _capture?.WaveFormat;
@@ -31,9 +36,30 @@ public sealed class MicrophoneService : IMicrophoneService
     {
         lock (_processingLock)
         {
+            if (_noiseSuppressionEnabled == enabled)
+                return;
+
             _noiseSuppressionEnabled = enabled;
-            if (!enabled)
-                _pendingSuppressionSamples.Clear();
+            _pendingSuppressionSamples.Clear();
+            ResetDiagnostics();
+
+            if (enabled && _noiseSuppressor is not null && !_suppressionFaulted)
+            {
+                try
+                {
+                    _noiseSuppressor.Reset();
+                    _logger.LogInformation("DeepFilterNet3 noise suppression enabled and processing state reset");
+                }
+                catch (Exception ex)
+                {
+                    _suppressionFaulted = true;
+                    _logger.LogWarning(ex, "Could not reset DeepFilterNet3; microphone will continue without suppression");
+                }
+            }
+            else
+            {
+                _logger.LogInformation("DeepFilterNet3 noise suppression {State}", enabled ? "enabled" : "disabled");
+            }
         }
     }
 
@@ -65,7 +91,12 @@ public sealed class MicrophoneService : IMicrophoneService
                 {
                     _noiseSuppressor = new DeepFilterNetNoiseSuppressor();
                     _suppressionFaulted = false;
-                    _logger.LogInformation("DeepFilterNet3 microphone speech enhancement initialized at {SampleRate} Hz", SampleRate);
+                    ResetDiagnostics();
+                    _logger.LogInformation(
+                        "DeepFilterNet3 initialized at {SampleRate} Hz, {Channels} channels, {FrameSize} samples/channel",
+                        SampleRate,
+                        Channels,
+                        _noiseSuppressor.FrameSizePerChannel);
                 }
                 catch (Exception ex)
                 {
@@ -146,7 +177,8 @@ public sealed class MicrophoneService : IMicrophoneService
                         for (var i = 0; i < frameSamples; i++)
                             frameInput[i] = _pendingSuppressionSamples.Dequeue();
 
-                        _noiseSuppressor.ProcessFrame(frameInput, frameOutput);
+                        var lsnr = _noiseSuppressor.ProcessFrame(frameInput, frameOutput);
+                        RecordDiagnostics(frameInput, frameOutput, lsnr);
                         Array.Copy(frameOutput, 0, processedOutput, outputCount, frameSamples);
                         outputCount += frameSamples;
                     }
@@ -173,6 +205,46 @@ public sealed class MicrophoneService : IMicrophoneService
         var outputBytes = new byte[outputCount * sizeof(float)];
         Buffer.BlockCopy(processedOutput, 0, outputBytes, 0, outputBytes.Length);
         DataAvailable?.Invoke(this, new AudioDataEventArgs(outputBytes, outputBytes.Length));
+    }
+
+    private void RecordDiagnostics(float[] input, float[] output, float lsnr)
+    {
+        _processedFrames++;
+        _diagnosticFrames++;
+        _diagnosticLastLsnr = lsnr;
+
+        for (var i = 0; i < input.Length; i++)
+        {
+            _diagnosticInputEnergy += input[i] * input[i];
+            _diagnosticOutputEnergy += output[i] * output[i];
+        }
+
+        if (_diagnosticFrames < 100)
+            return;
+
+        var inputRms = Math.Sqrt(_diagnosticInputEnergy / (_diagnosticFrames * input.Length));
+        var outputRms = Math.Sqrt(_diagnosticOutputEnergy / (_diagnosticFrames * output.Length));
+        var inputDb = inputRms > 1e-9 ? 20 * Math.Log10(inputRms) : -180;
+        var outputDb = outputRms > 1e-9 ? 20 * Math.Log10(outputRms) : -180;
+
+        _logger.LogDebug(
+            "DeepFilterNet3 processed {Frames} frames: input {InputDb:F1} dBFS, output {OutputDb:F1} dBFS, delta {DeltaDb:F1} dB, LSNR {Lsnr:F1} dB",
+            _diagnosticFrames,
+            inputDb,
+            outputDb,
+            outputDb - inputDb,
+            _diagnosticLastLsnr);
+
+        ResetDiagnostics();
+    }
+
+    private void ResetDiagnostics()
+    {
+        _processedFrames = 0;
+        _diagnosticFrames = 0;
+        _diagnosticInputEnergy = 0;
+        _diagnosticOutputEnergy = 0;
+        _diagnosticLastLsnr = 0;
     }
 
     private void OnRecordingStopped(object? sender, StoppedEventArgs e)
@@ -220,6 +292,7 @@ public sealed class MicrophoneService : IMicrophoneService
         lock (_processingLock)
             _pendingSuppressionSamples.Clear();
         IsCapturing = false;
+        ResetDiagnostics();
     }
 
     private void DisposeNoiseSuppressor()
