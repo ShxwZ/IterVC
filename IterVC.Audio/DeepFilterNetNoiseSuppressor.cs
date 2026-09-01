@@ -9,7 +9,6 @@ namespace IterVC.Audio;
 /// </summary>
 internal sealed class DeepFilterNetNoiseSuppressor : IDisposable
 {
-    private const int SampleRate = 48000;
     private const int Channels = 2;
 
     private readonly IntPtr _runtime;
@@ -23,25 +22,24 @@ internal sealed class DeepFilterNetNoiseSuppressor : IDisposable
         if (!OperatingSystem.IsWindows())
             throw new PlatformNotSupportedException("DeepFilterNet native audio processing is currently supported only on Windows.");
 
-        _runtime = Native.ivc_dfn_create(Channels);
-        if (_runtime == IntPtr.Zero)
+        var runtime = Native.ivc_dfn_create(Channels);
+        if (runtime == IntPtr.Zero)
             throw new InvalidOperationException("DeepFilterNet3 native runtime could not be initialized.");
 
-        var frameLength = Native.ivc_dfn_get_frame_length(_runtime);
-        if (frameLength <= 0)
+        var frameLength = Native.ivc_dfn_get_frame_length(runtime);
+        if (frameLength == 0)
         {
-            Native.ivc_dfn_free(_runtime);
-            _runtime = IntPtr.Zero;
+            Native.ivc_dfn_free(runtime);
             throw new InvalidOperationException("DeepFilterNet3 returned an invalid frame length.");
         }
 
+        _runtime = runtime;
         _frameSizePerChannel = checked((int)frameLength);
         _inputFrame = new float[checked(_frameSizePerChannel * Channels)];
         _outputFrame = new float[_inputFrame.Length];
 
-        // DFN3's native model is a 48 kHz full-band voice enhancer. Keep a
-        // conservative attenuation limit while allowing the neural model to do
-        // the actual suppression.
+        // Keep a finite attenuation ceiling while letting DFN3 perform the
+        // actual neural speech enhancement.
         Native.ivc_dfn_set_attenuation_limit(_runtime, 35.0f);
         Native.ivc_dfn_set_post_filter_beta(_runtime, 0.0f);
     }
@@ -81,8 +79,7 @@ internal sealed class DeepFilterNetNoiseSuppressor : IDisposable
             return;
 
         _disposed = true;
-        if (_runtime != IntPtr.Zero)
-            Native.ivc_dfn_free(_runtime);
+        Native.ivc_dfn_free(_runtime);
         GC.SuppressFinalize(this);
     }
 
