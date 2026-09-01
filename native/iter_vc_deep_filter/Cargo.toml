@@ -9,15 +9,7 @@ publish = false
 crate-type = ["cdylib"]
 
 [dependencies]
-# DeepFilterNet's pinned source revision was written against the 0.21.4
-# tract/ndarray generation. Newer tract releases moved to ndarray 0.16,
-# while DeepFilterNet 0.5.7-pre still uses ndarray 0.15. Keep the complete
-# tract family on 0.21.4 so Axis/Tensor types remain identical.
 deep_filter = { git = "https://github.com/Rikorose/DeepFilterNet.git", rev = "d375b2d8309e0935d165700c91da9de862a99c31", package = "deep_filter", default-features = false, features = ["tract", "default-model", "logging"] }
-tract-core = "=0.21.4"
-tract-onnx = "=0.21.4"
-tract-pulse = "=0.21.4"
-tract-hir = "=0.21.4"
 
 [profile.release]
 lto = true
