@@ -4,7 +4,7 @@ use std::slice;
 use deep_filter::tract::{DfParams, DfTract, RuntimeParams};
 use tract_core::ndarray::{ArrayView2, ArrayViewMut2};
 
-struct DeepFilterRuntime {
+pub struct DeepFilterRuntime {
     filter: DfTract,
     channels: usize,
     frame_length: usize,
@@ -22,8 +22,8 @@ pub extern "C" fn ivc_dfn_create(channels: u32) -> *mut DeepFilterRuntime {
 
         let params = RuntimeParams::default_with_ch(channels)
             .with_atten_lim(35.0)
-            .with_thresholds(-15.0, 35.0, 35.0)
-            .with_post_filter(0.0)
+            .with_thresholds(-10.0, 30.0, 20.0)
+            .with_post_filter(0.02)
             .with_mask_reduce(deep_filter::tract::ReduceMask::MEAN);
 
         let model = DfParams::default();
@@ -51,6 +51,15 @@ pub unsafe extern "C" fn ivc_dfn_get_frame_length(runtime: *const DeepFilterRunt
         return 0;
     }
     (*runtime).frame_length
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn ivc_dfn_reset(runtime: *mut DeepFilterRuntime) -> bool {
+    if runtime.is_null() {
+        return false;
+    }
+
+    catch_unwind(AssertUnwindSafe(|| (*runtime).filter.init().is_ok())).unwrap_or(false)
 }
 
 #[no_mangle]
