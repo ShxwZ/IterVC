@@ -17,18 +17,18 @@ public sealed partial class SettingsPanel : UserControl
 
     private void AddNoiseSuppressionToggle()
     {
-        // Keep the existing XAML/layout intact. Add the RNNoise option to the
+        // Keep the existing XAML/layout intact. Add the WebRTC APM option to the
         // existing third tab (Noise Gate) instead of replacing the settings UI.
         var noiseGateTab = SettingsTabs.Items.OfType<TabItem>().ElementAtOrDefault(2);
         if (noiseGateTab?.Content is not ScrollViewer { Content: StackPanel panel })
             return;
 
-        if (panel.Children.OfType<Border>().Any(b => b.Tag as string == "rnnoise-toggle"))
+        if (panel.Children.OfType<Border>().Any(b => b.Tag as string == "noise-suppression-toggle"))
             return;
 
         var toggle = new CheckBox
         {
-            Content = "Supresión de ruido (RNNoise)",
+            Content = "Supresión de ruido (WebRTC APM)",
             [!CheckBox.IsCheckedProperty] = new Binding("Audio.NoiseGate.NoiseSuppressionEnabled", BindingMode.TwoWay)
         };
 
@@ -41,7 +41,7 @@ public sealed partial class SettingsPanel : UserControl
 
         var card = new Border
         {
-            Tag = "rnnoise-toggle",
+            Tag = "noise-suppression-toggle",
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(6),
             Padding = new Thickness(10, 8),
