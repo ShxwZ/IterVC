@@ -34,11 +34,14 @@ public sealed partial class NoiseGateViewModel : ViewModelBase
 
     [ObservableProperty] private bool _isEnabled;
     [ObservableProperty] private float _thresholdDb = -45f;
-    [ObservableProperty] private float _attackMilliseconds = 10f;
-    [ObservableProperty] private float _releaseMilliseconds = 150f;
+    [ObservableProperty] [NotifyPropertyChangedFor(nameof(AttackMs))] private float _attackMilliseconds = 10f;
+    [ObservableProperty] [NotifyPropertyChangedFor(nameof(ReleaseMs))] private float _releaseMilliseconds = 150f;
     [ObservableProperty] private float _outputLevelDb = -80f;
     [ObservableProperty] private bool _isOpen;
     [ObservableProperty] private bool _isCalibrating;
+
+    public float AttackMs { get => AttackMilliseconds; set => AttackMilliseconds = value; }
+    public float ReleaseMs { get => ReleaseMilliseconds; set => ReleaseMilliseconds = value; }
 
     public void Hydrate(AppSettings settings)
     {
