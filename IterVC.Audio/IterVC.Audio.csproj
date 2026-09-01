@@ -24,8 +24,4 @@
     <Exec Command="pwsh -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\Build-DeepFilterNet.ps1&quot; -OutputDirectory &quot;$(TargetDir)&quot;" />
   </Target>
 
-  <Target Name="CopyDeepFilterNetNativeToOutput" AfterTargets="Build" Condition="'$(OS)' == 'Windows_NT' and Exists('$(TargetDir)iter_vc_deep_filter.dll')">
-    <Copy SourceFiles="$(TargetDir)iter_vc_deep_filter.dll" DestinationFolder="$(TargetPath)\.." SkipUnchangedFiles="true" />
-  </Target>
-
 </Project>
