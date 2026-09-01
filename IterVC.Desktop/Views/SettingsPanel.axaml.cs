@@ -36,15 +36,12 @@ public sealed partial class SettingsPanel : UserControl
         {
             Text = "Reduce ruido constante del micrófono antes de aplicar la puerta de ruido.",
             FontSize = 9.5,
-            TextWrapping = TextWrapping.Wrap,
-            Foreground = (IBrush?)this.FindResource("TextMutedBrush")
+            TextWrapping = TextWrapping.Wrap
         };
 
         var card = new Border
         {
             Tag = "rnnoise-toggle",
-            Background = (IBrush?)this.FindResource("SurfaceRaisedBrush"),
-            BorderBrush = (IBrush?)this.FindResource("BorderDefaultBrush"),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(6),
             Padding = new Thickness(10, 8),
