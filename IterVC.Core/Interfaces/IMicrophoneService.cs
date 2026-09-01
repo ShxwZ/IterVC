@@ -16,6 +16,9 @@ public interface IMicrophoneService : IDisposable
 
     Task SetDeviceAsync(string microphoneDeviceId);
 
+    /// <summary>Enable or disable the real-time RNNoise stage.</summary>
+    void SetNoiseSuppressionEnabled(bool enabled);
+
     /// <summary>Datos PCM capturados en crudo, listos para ser inyectados en el mixer.</summary>
     event EventHandler<AudioDataEventArgs>? DataAvailable;
 }
