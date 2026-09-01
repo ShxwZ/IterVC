@@ -10,6 +10,9 @@ namespace IterVC.Audio;
 
 public sealed class MicrophoneService : IMicrophoneService
 {
+    private const int SampleRate = 48000;
+    private const int Channels = 2;
+    private const int RnNoiseFrameSamples = 480;
     private readonly ILogger<MicrophoneService> _logger;
     private readonly MMDeviceEnumerator _enumerator = new();
     private WasapiCapture? _capture;
@@ -32,7 +35,7 @@ public sealed class MicrophoneService : IMicrophoneService
             try
             {
                 var capture = new WasapiCapture(device, useEventSync: true, audioBufferMillisecondsLength: latency)
-                { WaveFormat = WaveFormat.CreateIeeeFloatWaveFormat(48000, 2) };
+                { WaveFormat = WaveFormat.CreateIeeeFloatWaveFormat(SampleRate, Channels) };
                 _recordingStoppedHandler = OnRecordingStopped;
                 capture.DataAvailable += OnDataAvailable;
                 capture.RecordingStopped += _recordingStoppedHandler;
@@ -59,28 +62,60 @@ public sealed class MicrophoneService : IMicrophoneService
     private void OnDataAvailable(object? sender, WaveInEventArgs e)
     {
         if (e.BytesRecorded == 0) return;
-        if (_denoiser is not null) TryDenoiseStereoFloatBuffer(e.Buffer, e.BytesRecorded);
+
+        // RNNoise expects exactly 480 mono samples at 48 kHz per frame (10 ms).
+        // WASAPI may deliver 10 ms or 20 ms packets, so process every complete frame
+        // independently and leave any incomplete tail untouched rather than feeding
+        // an arbitrary buffer length into the native denoiser.
+        if (_denoiser is not null)
+            TryDenoiseStereoFloatBuffer(e.Buffer, e.BytesRecorded);
+
         DataAvailable?.Invoke(this, new AudioDataEventArgs(e.Buffer, e.BytesRecorded));
     }
 
     private bool TryDenoiseStereoFloatBuffer(byte[] buffer, int bytesRecorded)
     {
-        if (bytesRecorded <= 0 || bytesRecorded % (sizeof(float) * 2) != 0) return false;
-        var samples = MemoryMarshal.Cast<byte, float>(buffer.AsSpan(0, bytesRecorded));
-        if (samples.Length == 0 || (samples.Length & 1) != 0) return false;
-        var mono = new float[samples.Length / 2];
-        for (var i = 0; i < mono.Length; i++) mono[i] = (samples[i * 2] + samples[i * 2 + 1]) * 0.5f;
+        const int bytesPerStereoSample = sizeof(float) * Channels;
+        const int frameBytes = RnNoiseFrameSamples * bytesPerStereoSample;
+        var completeBytes = bytesRecorded - (bytesRecorded % frameBytes);
+        if (completeBytes < frameBytes) return false;
+
+        var samples = MemoryMarshal.Cast<byte, float>(buffer.AsSpan(0, completeBytes));
+        var mono = new float[RnNoiseFrameSamples];
+
         try
         {
-            var processed = _denoiser!.Denoise(mono.AsSpan(), finish: false);
-            if (processed != mono.Length) return false;
-            for (var i = 0; i < mono.Length; i++) { samples[i * 2] = mono[i]; samples[i * 2 + 1] = mono[i]; }
+            for (var offset = 0; offset < samples.Length; offset += RnNoiseFrameSamples * Channels)
+            {
+                for (var i = 0; i < RnNoiseFrameSamples; i++)
+                    mono[i] = (samples[offset + i * Channels] + samples[offset + i * Channels + 1]) * 0.5f;
+
+                var processed = _denoiser!.Denoise(mono.AsSpan(), finish: false);
+                if (processed != RnNoiseFrameSamples)
+                    return false;
+
+                for (var i = 0; i < RnNoiseFrameSamples; i++)
+                {
+                    var sample = mono[i];
+                    samples[offset + i * Channels] = sample;
+                    samples[offset + i * Channels + 1] = sample;
+                }
+            }
+
             return true;
         }
-        catch (Exception ex) { _logger.LogWarning(ex, "RNNoise failed; keeping original microphone buffer"); return false; }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "RNNoise failed; keeping original microphone buffer");
+            return false;
+        }
     }
 
-    private void OnRecordingStopped(object? sender, StoppedEventArgs e) { if (e.Exception is not null) _logger.LogError(e.Exception, "Microphone capture stopped with an error"); IsCapturing = false; }
+    private void OnRecordingStopped(object? sender, StoppedEventArgs e)
+    {
+        if (e.Exception is not null) _logger.LogError(e.Exception, "Microphone capture stopped with an error");
+        IsCapturing = false;
+    }
 
     private void StopInternal()
     {
@@ -97,7 +132,11 @@ public sealed class MicrophoneService : IMicrophoneService
             if (_recordingStoppedHandler is not null) _capture.RecordingStopped -= _recordingStoppedHandler;
             _capture.Dispose();
         }
-        _capture = null; _recordingStoppedHandler = null; _denoiser?.Dispose(); _denoiser = null; IsCapturing = false;
+        _capture = null;
+        _recordingStoppedHandler = null;
+        _denoiser?.Dispose();
+        _denoiser = null;
+        IsCapturing = false;
     }
 
     public void Dispose() { StopInternal(); _enumerator.Dispose(); }
