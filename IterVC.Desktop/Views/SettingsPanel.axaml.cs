@@ -17,7 +17,7 @@ public sealed partial class SettingsPanel : UserControl
 
     private void AddNoiseSuppressionToggle()
     {
-        // Keep the existing XAML/layout intact. Add the WebRTC APM option to the
+        // Keep the existing XAML/layout intact. Add DeepFilterNet3 to the
         // existing third tab (Noise Gate) instead of replacing the settings UI.
         var noiseGateTab = SettingsTabs.Items.OfType<TabItem>().ElementAtOrDefault(2);
         if (noiseGateTab?.Content is not ScrollViewer { Content: StackPanel panel })
@@ -28,13 +28,13 @@ public sealed partial class SettingsPanel : UserControl
 
         var toggle = new CheckBox
         {
-            Content = "Supresión de ruido (WebRTC APM)",
+            Content = "Supresión de ruido (DeepFilterNet 3)",
             [!CheckBox.IsCheckedProperty] = new Binding("Audio.NoiseGate.NoiseSuppressionEnabled", BindingMode.TwoWay)
         };
 
         var description = new TextBlock
         {
-            Text = "Reduce ruido constante del micrófono antes de aplicar la puerta de ruido.",
+            Text = "Mejora la voz y reduce ruido de fondo del micrófono antes de aplicar la puerta de ruido.",
             FontSize = 9.5,
             TextWrapping = TextWrapping.Wrap
         };
