@@ -10,6 +10,8 @@ namespace IterVC.Audio;
 internal sealed class DeepFilterNetNoiseSuppressor : IDisposable
 {
     private const int Channels = 2;
+    private const float AttenuationLimitDb = 35f;
+    private const float PostFilterBeta = 0.02f;
 
     private readonly IntPtr _runtime;
     private readonly int _frameSizePerChannel;
@@ -38,15 +40,23 @@ internal sealed class DeepFilterNetNoiseSuppressor : IDisposable
         _inputFrame = new float[checked(_frameSizePerChannel * Channels)];
         _outputFrame = new float[_inputFrame.Length];
 
-        // Keep a finite attenuation ceiling while letting DFN3 perform the
-        // actual neural speech enhancement.
-        Native.ivc_dfn_set_attenuation_limit(_runtime, 35.0f);
-        Native.ivc_dfn_set_post_filter_beta(_runtime, 0.0f);
+        Native.ivc_dfn_set_attenuation_limit(_runtime, AttenuationLimitDb);
+        Native.ivc_dfn_set_post_filter_beta(_runtime, PostFilterBeta);
     }
 
     public int FrameSizePerChannel => _frameSizePerChannel;
 
-    public void ProcessFrame(ReadOnlySpan<float> interleavedInput, Span<float> interleavedOutput)
+    public void Reset()
+    {
+        ThrowIfDisposed();
+        if (!Native.ivc_dfn_reset(_runtime))
+            throw new InvalidOperationException("DeepFilterNet3 could not reset its processing state.");
+
+        Array.Clear(_inputFrame);
+        Array.Clear(_outputFrame);
+    }
+
+    public float ProcessFrame(ReadOnlySpan<float> interleavedInput, Span<float> interleavedOutput)
     {
         ThrowIfDisposed();
         if (interleavedInput.Length != _inputFrame.Length || interleavedOutput.Length != _outputFrame.Length)
@@ -62,10 +72,11 @@ internal sealed class DeepFilterNetNoiseSuppressor : IDisposable
                 var lsnr = Native.ivc_dfn_process_frame(_runtime, input, output);
                 if (float.IsNaN(lsnr) || float.IsInfinity(lsnr))
                     throw new InvalidOperationException("DeepFilterNet3 failed to process an audio frame.");
+
+                _outputFrame.AsSpan().CopyTo(interleavedOutput);
+                return lsnr;
             }
         }
-
-        _outputFrame.AsSpan().CopyTo(interleavedOutput);
     }
 
     private void ThrowIfDisposed()
@@ -90,6 +101,10 @@ internal sealed class DeepFilterNetNoiseSuppressor : IDisposable
 
         [DllImport("iter_vc_deep_filter", CallingConvention = CallingConvention.Cdecl)]
         internal static extern nuint ivc_dfn_get_frame_length(IntPtr runtime);
+
+        [DllImport("iter_vc_deep_filter", CallingConvention = CallingConvention.Cdecl)]
+        [return: MarshalAs(UnmanagedType.I1)]
+        internal static extern bool ivc_dfn_reset(IntPtr runtime);
 
         [DllImport("iter_vc_deep_filter", CallingConvention = CallingConvention.Cdecl)]
         internal static extern unsafe float ivc_dfn_process_frame(IntPtr runtime, float* interleavedInput, float* interleavedOutput);
