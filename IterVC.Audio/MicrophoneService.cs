@@ -18,12 +18,15 @@ public sealed class MicrophoneService : IMicrophoneService
     private WasapiCapture? _capture;
     private Denoiser? _denoiser;
     private EventHandler<StoppedEventArgs>? _recordingStoppedHandler;
+    private volatile bool _noiseSuppressionEnabled = true;
 
     public bool IsCapturing { get; private set; }
     public WaveFormat? WaveFormat => _capture?.WaveFormat;
     public event EventHandler<AudioDataEventArgs>? DataAvailable;
 
     public MicrophoneService(ILogger<MicrophoneService> logger) => _logger = logger;
+
+    public void SetNoiseSuppressionEnabled(bool enabled) => _noiseSuppressionEnabled = enabled;
 
     public Task StartAsync(string microphoneDeviceId, CancellationToken cancellationToken = default)
     {
@@ -62,14 +65,8 @@ public sealed class MicrophoneService : IMicrophoneService
     private void OnDataAvailable(object? sender, WaveInEventArgs e)
     {
         if (e.BytesRecorded == 0) return;
-
-        // RNNoise expects exactly 480 mono samples at 48 kHz per frame (10 ms).
-        // WASAPI may deliver 10 ms or 20 ms packets, so process every complete frame
-        // independently and leave any incomplete tail untouched rather than feeding
-        // an arbitrary buffer length into the native denoiser.
-        if (_denoiser is not null)
+        if (_noiseSuppressionEnabled && _denoiser is not null)
             TryDenoiseStereoFloatBuffer(e.Buffer, e.BytesRecorded);
-
         DataAvailable?.Invoke(this, new AudioDataEventArgs(e.Buffer, e.BytesRecorded));
     }
 
@@ -82,7 +79,6 @@ public sealed class MicrophoneService : IMicrophoneService
 
         var samples = MemoryMarshal.Cast<byte, float>(buffer.AsSpan(0, completeBytes));
         var mono = new float[RnNoiseFrameSamples];
-
         try
         {
             for (var offset = 0; offset < samples.Length; offset += RnNoiseFrameSamples * Channels)
@@ -91,8 +87,7 @@ public sealed class MicrophoneService : IMicrophoneService
                     mono[i] = (samples[offset + i * Channels] + samples[offset + i * Channels + 1]) * 0.5f;
 
                 var processed = _denoiser!.Denoise(mono.AsSpan(), finish: false);
-                if (processed != RnNoiseFrameSamples)
-                    return false;
+                if (processed != RnNoiseFrameSamples) return false;
 
                 for (var i = 0; i < RnNoiseFrameSamples; i++)
                 {
@@ -101,7 +96,6 @@ public sealed class MicrophoneService : IMicrophoneService
                     samples[offset + i * Channels + 1] = sample;
                 }
             }
-
             return true;
         }
         catch (Exception ex)
