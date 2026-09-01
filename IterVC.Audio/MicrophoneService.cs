@@ -13,15 +13,13 @@ public sealed class MicrophoneService : IMicrophoneService
     private const int SampleRate = 48000;
     private const int Channels = 2;
     private const int RnNoiseFrameSamples = 480;
-    private const int BytesPerStereoSample = sizeof(float) * Channels;
-    private const int RnNoiseFrameBytes = RnNoiseFrameSamples * BytesPerStereoSample;
+    private const int RnNoiseFrameBytes = RnNoiseFrameSamples * sizeof(float) * Channels;
     private readonly ILogger<MicrophoneService> _logger;
     private readonly MMDeviceEnumerator _enumerator = new();
     private readonly object _processingLock = new();
     private WasapiCapture? _capture;
     private Denoiser? _denoiser;
     private EventHandler<StoppedEventArgs>? _recordingStoppedHandler;
-    private byte[] _pendingBytes = Array.Empty<byte>();
     private volatile bool _noiseSuppressionEnabled = true;
 
     public bool IsCapturing { get; private set; }
@@ -49,7 +47,6 @@ public sealed class MicrophoneService : IMicrophoneService
                 _capture = capture;
                 try { _denoiser = new Denoiser(); }
                 catch (Exception ex) { _denoiser = null; _logger.LogWarning(ex, "RNNoise unavailable; continuing without suppression"); }
-                lock (_processingLock) _pendingBytes = Array.Empty<byte>();
                 capture.StartRecording();
                 IsCapturing = true;
                 return Task.CompletedTask;
@@ -71,45 +68,22 @@ public sealed class MicrophoneService : IMicrophoneService
     {
         if (e.BytesRecorded == 0) return;
 
-        if (!_noiseSuppressionEnabled || _denoiser is null)
-        {
+        if (!_noiseSuppressionEnabled || _denoiser is null || !TryDenoiseStereoFloatBuffer(e.Buffer, e.BytesRecorded))
             DataAvailable?.Invoke(this, new AudioDataEventArgs(e.Buffer, e.BytesRecorded));
-            return;
-        }
-
-        if (!TryDenoiseStereoFloatBuffer(e.Buffer, e.BytesRecorded, out var processedBytes))
-        {
+        else
             DataAvailable?.Invoke(this, new AudioDataEventArgs(e.Buffer, e.BytesRecorded));
-            return;
-        }
-
-        DataAvailable?.Invoke(this, new AudioDataEventArgs(e.Buffer, processedBytes));
     }
 
-    private bool TryDenoiseStereoFloatBuffer(byte[] buffer, int bytesRecorded, out int processedBytes)
+    private bool TryDenoiseStereoFloatBuffer(byte[] buffer, int bytesRecorded)
     {
-        processedBytes = 0;
+        var completeBytes = bytesRecorded - (bytesRecorded % RnNoiseFrameBytes);
+        if (completeBytes < RnNoiseFrameBytes) return false;
+
         lock (_processingLock)
         {
             try
             {
-                var input = new byte[_pendingBytes.Length + bytesRecorded];
-                Buffer.BlockCopy(_pendingBytes, 0, input, 0, _pendingBytes.Length);
-                Buffer.BlockCopy(buffer, 0, input, _pendingBytes.Length, bytesRecorded);
-
-                var completeBytes = input.Length - (input.Length % RnNoiseFrameBytes);
-                if (completeBytes == 0)
-                {
-                    _pendingBytes = input;
-                    return false;
-                }
-
-                var remainderBytes = input.Length - completeBytes;
-                var output = new byte[completeBytes];
-                Buffer.BlockCopy(input, 0, output, 0, completeBytes);
-                _pendingBytes = remainderBytes == 0 ? Array.Empty<byte>() : input[^remainderBytes..];
-
-                var samples = MemoryMarshal.Cast<byte, float>(output.AsSpan());
+                var samples = MemoryMarshal.Cast<byte, float>(buffer.AsSpan(0, completeBytes));
                 var mono = new float[RnNoiseFrameSamples];
 
                 for (var offset = 0; offset < samples.Length; offset += RnNoiseFrameSamples * Channels)
@@ -129,17 +103,11 @@ public sealed class MicrophoneService : IMicrophoneService
                     }
                 }
 
-                // Keep the processed bytes in the original WASAPI buffer so existing
-                // downstream routing and meter code continues to receive the same buffer type.
-                Buffer.BlockCopy(output, 0, buffer, 0, output.Length);
-                processedBytes = output.Length;
                 return true;
             }
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "RNNoise failed; keeping original microphone buffer");
-                _pendingBytes = Array.Empty<byte>();
-                processedBytes = 0;
                 return false;
             }
         }
@@ -170,7 +138,6 @@ public sealed class MicrophoneService : IMicrophoneService
         _recordingStoppedHandler = null;
         _denoiser?.Dispose();
         _denoiser = null;
-        lock (_processingLock) _pendingBytes = Array.Empty<byte>();
         IsCapturing = false;
     }
 
