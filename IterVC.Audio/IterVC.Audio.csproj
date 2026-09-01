@@ -21,7 +21,7 @@
   </ItemGroup>
 
   <Target Name="BuildDeepFilterNetNative" BeforeTargets="Compile" Condition="'$(OS)' == 'Windows_NT' and '$(IterVCSkipDeepFilter)' != 'true' and !Exists('$(TargetDir)iter_vc_deep_filter.dll')">
-    <Exec Command="pwsh -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\Build-DeepFilterNet.ps1&quot; -OutputDirectory &quot;$(TargetDir)&quot;" />
+    <Exec Command="pwsh -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\Build-DeepFilterNet.ps1&quot; -OutputDirectory &quot;$([System.String]::Copy('$(TargetDir)').TrimEnd('\'))&quot;" />
   </Target>
 
 </Project>
