@@ -9,6 +9,7 @@ namespace IterVC.Desktop.ViewModels;
 public sealed partial class NoiseGateViewModel : ViewModelBase
 {
     private readonly IAudioRouterService _router;
+    private readonly IMicrophoneService? _microphone;
     private readonly ISettingsService _settings;
     private readonly ILogger<NoiseGateViewModel> _logger;
     private readonly Func<TimeSpan, CancellationToken, Task> _delay;
@@ -20,25 +21,31 @@ public sealed partial class NoiseGateViewModel : ViewModelBase
     private int _stopped;
 
     public NoiseGateViewModel(IAudioRouterService router, ISettingsService settings,
-        ILogger<NoiseGateViewModel> logger)
-        : this(router, settings, logger, Task.Delay) { }
+        ILogger<NoiseGateViewModel> logger, IMicrophoneService? microphone = null)
+        : this(router, settings, logger, Task.Delay, microphone) { }
 
     internal NoiseGateViewModel(IAudioRouterService router, ISettingsService settings,
-        ILogger<NoiseGateViewModel> logger, Func<TimeSpan, CancellationToken, Task> delay)
+        ILogger<NoiseGateViewModel> logger, Func<TimeSpan, CancellationToken, Task> delay,
+        IMicrophoneService? microphone = null)
     {
         _router = router;
+        _microphone = microphone;
         _settings = settings;
         _logger = logger;
         _delay = delay;
     }
 
     [ObservableProperty] private bool _isEnabled;
+    [ObservableProperty] private bool _noiseSuppressionEnabled = true;
     [ObservableProperty] private float _thresholdDb = -45f;
-    [ObservableProperty] private float _attackMilliseconds = 10f;
-    [ObservableProperty] private float _releaseMilliseconds = 150f;
+    [ObservableProperty] [NotifyPropertyChangedFor(nameof(AttackMs))] private float _attackMilliseconds = 10f;
+    [ObservableProperty] [NotifyPropertyChangedFor(nameof(ReleaseMs))] private float _releaseMilliseconds = 150f;
     [ObservableProperty] private float _outputLevelDb = -80f;
     [ObservableProperty] private bool _isOpen;
     [ObservableProperty] private bool _isCalibrating;
+
+    public float AttackMs { get => AttackMilliseconds; set => AttackMilliseconds = value; }
+    public float ReleaseMs { get => ReleaseMilliseconds; set => ReleaseMilliseconds = value; }
 
     public void Hydrate(AppSettings settings)
     {
@@ -46,6 +53,7 @@ public sealed partial class NoiseGateViewModel : ViewModelBase
         try
         {
             IsEnabled = settings.NoiseGateEnabled;
+            NoiseSuppressionEnabled = settings.NoiseSuppressionEnabled;
             ThresholdDb = settings.NoiseGateThresholdDb;
             AttackMilliseconds = settings.NoiseGateAttackMilliseconds;
             ReleaseMilliseconds = settings.NoiseGateReleaseMilliseconds;
@@ -55,6 +63,11 @@ public sealed partial class NoiseGateViewModel : ViewModelBase
     }
 
     partial void OnIsEnabledChanged(bool value) => ApplyAndPersist();
+    partial void OnNoiseSuppressionEnabledChanged(bool value)
+    {
+        _microphone?.SetNoiseSuppressionEnabled(value);
+        if (!_hydrating) QueuePersistence(settings => settings.NoiseSuppressionEnabled = value);
+    }
     partial void OnThresholdDbChanged(float value) => ApplyAndPersist();
     partial void OnAttackMillisecondsChanged(float value) => ApplyAndPersist();
     partial void OnReleaseMillisecondsChanged(float value) => ApplyAndPersist();
@@ -63,29 +76,34 @@ public sealed partial class NoiseGateViewModel : ViewModelBase
     {
         if (_hydrating || Volatile.Read(ref _stopped) != 0) return;
         ApplySettings();
-        lock (_persistenceLock)
-            _persistenceTask = PersistAfterAsync(_persistenceTask);
+        QueuePersistence(settings =>
+        {
+            settings.NoiseGateEnabled = IsEnabled;
+            settings.NoiseGateThresholdDb = ThresholdDb;
+            settings.NoiseGateAttackMilliseconds = AttackMilliseconds;
+            settings.NoiseGateReleaseMilliseconds = ReleaseMilliseconds;
+        });
     }
 
-    private void ApplySettings() => _router.ConfigureNoiseGate(
-        IsEnabled, ThresholdDb, AttackMilliseconds, ReleaseMilliseconds);
+    private void ApplySettings()
+    {
+        _router.ConfigureNoiseGate(IsEnabled, ThresholdDb, AttackMilliseconds, ReleaseMilliseconds);
+        _microphone?.SetNoiseSuppressionEnabled(NoiseSuppressionEnabled);
+    }
 
-    private async Task PersistAfterAsync(Task previous)
+    private void QueuePersistence(Action<AppSettings> mutation)
+    {
+        lock (_persistenceLock)
+            _persistenceTask = PersistAfterAsync(_persistenceTask, mutation);
+    }
+
+    private async Task PersistAfterAsync(Task previous, Action<AppSettings> mutation)
     {
         try { await previous; }
         catch { }
-        try
-        {
-            await _settings.UpdateAsync(settings =>
-            {
-                settings.NoiseGateEnabled = IsEnabled;
-                settings.NoiseGateThresholdDb = ThresholdDb;
-                settings.NoiseGateAttackMilliseconds = AttackMilliseconds;
-                settings.NoiseGateReleaseMilliseconds = ReleaseMilliseconds;
-            }, _lifetimeCancellation.Token);
-        }
+        try { await _settings.UpdateAsync(mutation, _lifetimeCancellation.Token); }
         catch (OperationCanceledException) when (_lifetimeCancellation.IsCancellationRequested) { }
-        catch (Exception exception) { _logger.LogError(exception, "Could not persist noise gate settings"); }
+        catch (Exception exception) { _logger.LogError(exception, "Could not persist noise processing settings"); }
     }
 
     [RelayCommand]

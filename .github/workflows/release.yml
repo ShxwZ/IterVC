@@ -22,6 +22,11 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
+      - name: Configurar Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
       - name: Compilar, Firmar y Empaquetar
         shell: pwsh
         env:
