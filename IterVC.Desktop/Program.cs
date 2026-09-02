@@ -130,6 +130,8 @@ internal static class Program
             sp.GetRequiredService<ISettingsService>(),
             sp.GetRequiredService<ILogger<ApplicationsViewModel>>(),
             sp.GetRequiredService<TextsViewModel>()));
+        services.AddSingleton<IMicrophoneService, MicrophoneService>();
+        services.AddSingleton<IAudioRouterService, AudioRouterService>();
         services.AddSingleton(sp => new MicrophoneViewModel(
             sp.GetRequiredService<IAudioRouterService>(),
             sp.GetRequiredService<IMicrophoneService>(),
@@ -139,7 +141,8 @@ internal static class Program
         services.AddSingleton(sp => new NoiseGateViewModel(
             sp.GetRequiredService<IAudioRouterService>(),
             sp.GetRequiredService<ISettingsService>(),
-            sp.GetRequiredService<ILogger<NoiseGateViewModel>>()));
+            sp.GetRequiredService<ILogger<NoiseGateViewModel>>(),
+            sp.GetRequiredService<IMicrophoneService>()));
         services.AddSingleton(sp => new AudioRoutingViewModel(
             sp.GetRequiredService<IAudioRouterService>(),
             sp.GetRequiredService<IDeviceService>(),
@@ -160,8 +163,6 @@ internal static class Program
             sp.GetRequiredService<IGlobalHotkeyService>(),
             sp.GetRequiredService<ISettingsService>(),
             sp.GetRequiredService<TextsViewModel>()));
-        services.AddSingleton<IMicrophoneService, MicrophoneService>();
-        services.AddSingleton<IAudioRouterService, AudioRouterService>();
         services.AddSingleton<MicrophoneRoutingCoordinator>();
         services.AddSingleton(new HttpClient { Timeout = TimeSpan.FromSeconds(10) });
         services.AddSingleton<IUpdateService>(sp => new GitHubUpdateService(sp.GetRequiredService<HttpClient>()));
