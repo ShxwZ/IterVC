@@ -33,6 +33,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\IterVC.Core\IterVC.Core.csproj" />
+    <ProjectReference Include="..\IterVC.UI\IterVC.UI.csproj" />
     <ProjectReference Include="..\IterVC.Audio\IterVC.Audio.csproj" />
   </ItemGroup>
 
