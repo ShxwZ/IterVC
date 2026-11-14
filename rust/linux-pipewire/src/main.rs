@@ -327,9 +327,14 @@ impl Drop for PipeWireSession {
     }
 }
 
-fn process_audio(
+fn process_audio(source: impl Read, destination: impl Write, duration: Duration) -> io::Result<u64> {
+    process_audio_with_monitor(source, destination, None, duration)
+}
+
+fn process_audio_with_monitor(
     mut source: impl Read,
     mut destination: impl Write,
+    mut monitor: Option<&mut dyn Write>,
     duration: Duration,
 ) -> io::Result<u64> {
     // 48 kHz, 2 channels, float32. One bounded ring for the Linux backend.
@@ -340,6 +345,9 @@ fn process_audio(
     let mut pending = Vec::with_capacity(incoming.len() + FRAME_BYTES);
     let mut forwarded_bytes = 0u64;
     let start = Instant::now();
+    let mut last_meter = Instant::now();
+    let mut accumulated_power = 0.0f64;
+    let mut accumulated_samples = 0usize;
 
     while !STOP.load(Ordering::Relaxed) && start.elapsed() < duration {
         let read = match source.read(&mut incoming) {
@@ -363,6 +371,26 @@ fn process_audio(
             let count = available.min(outbound.len());
             let written = ring.read(&mut outbound[..count]);
             destination.write_all(&outbound[..written])?;
+            if let Some(speaker) = monitor.as_deref_mut() {
+                if let Err(error) = speaker.write_all(&outbound[..written]) {
+                    eprintln!("IterVC monitoring disabled: {error}");
+                    monitor = None;
+                }
+            }
+            for sample in outbound[..written].chunks_exact(std::mem::size_of::<f32>()) {
+                let value = f32::from_le_bytes(sample.try_into().unwrap()) as f64;
+                if value.is_finite() {
+                    accumulated_power += value * value;
+                    accumulated_samples += 1;
+                }
+            }
+            if last_meter.elapsed() >= Duration::from_millis(100) && accumulated_samples > 0 {
+                let rms = (accumulated_power / accumulated_samples as f64).sqrt();
+                eprintln!("ITERVC_LEVEL:{rms:.5}");
+                last_meter = Instant::now();
+                accumulated_power = 0.0;
+                accumulated_samples = 0;
+            }
             forwarded_bytes += written as u64;
         }
     }
@@ -378,15 +406,18 @@ fn process_audio(
     Ok(forwarded_bytes)
 }
 
-fn run(input: &str, seconds: u64) -> Result<(), String> {
+fn run(input: &str, seconds: u64, monitor_output: Option<&str>) -> Result<(), String> {
     check_dependencies()?;
     validate_input(input)?;
+    if let Some(output) = monitor_output {
+        validate_output(output)?;
+    }
     #[cfg(target_os = "linux")]
     shutdown::install();
 
     let mut session = PipeWireSession::new();
     session.create_virtual_microphone()?;
-    let (source, destination) = session.start_streams(input)?;
+    let (source, destination, monitor_pipe) = session.start_streams(input, monitor_output)?;
 
     eprintln!(
         "IterVC Rust prototype: '{}' -> '{}'; active for up to {} seconds.",
@@ -396,16 +427,21 @@ fn run(input: &str, seconds: u64) -> Result<(), String> {
 
     // A silent or disconnected microphone may leave capture blocked in read().
     // Supervise it independently so timeout and shutdown still clean up.
-    let duration = Duration::from_secs(seconds);
-    let deadline = Instant::now() + duration;
-    let worker = std::thread::spawn(move || process_audio(source, destination, duration));
+    let duration = if seconds == 0 { Duration::MAX } else { Duration::from_secs(seconds) };
+    let deadline = (seconds != 0).then(|| Instant::now() + duration);
+    let worker = std::thread::spawn(move || {
+        let mut monitor_pipe = monitor_pipe;
+        process_audio_with_monitor(source, destination,
+            monitor_pipe.as_mut().map(|pipe| pipe as &mut dyn Write), duration)
+    });
     while !worker.is_finished()
         && !STOP.load(Ordering::Relaxed)
-        && Instant::now() < deadline
+        && !deadline.is_some_and(|cutoff| Instant::now() >= cutoff)
     {
         std::thread::sleep(STOP_POLL_INTERVAL);
     }
-    let interrupted = STOP.load(Ordering::Relaxed) || Instant::now() >= deadline;
+    let interrupted = STOP.load(Ordering::Relaxed)
+        || deadline.is_some_and(|cutoff| Instant::now() >= cutoff);
     if !worker.is_finished() {
         session.stop_streams();
     }
@@ -423,6 +459,10 @@ fn main() {
             Ok(())
         }
         Ok(Mode::Check) => check_dependencies().map(|_| println!("PipeWire tools and session ready.")),
+        Ok(Mode::ListOutputs) => available_outputs().map(|outputs| {
+            if outputs.is_empty() { println!("No speaker outputs were found."); }
+            else { for output in outputs { println!("{output}"); } }
+        }),
         Ok(Mode::ListInputs) => available_inputs().map(|sources| {
             if sources.is_empty() {
                 println!("No physical microphones were found.");
@@ -432,7 +472,8 @@ fn main() {
                 }
             }
         }),
-        Ok(Mode::Run { input, seconds }) => run(&input, seconds),
+        Ok(Mode::Run { input, seconds, monitor_output }) =>
+            run(&input, seconds, monitor_output.as_deref()),
         Err(error) => Err(error),
     };
     if let Err(error) = result {
@@ -463,10 +504,11 @@ mod tests {
             parse(&["--input", "alsa_input.usb-microphone", "--seconds", "5"]).unwrap(),
             Mode::Run {
                 input: "alsa_input.usb-microphone".into(),
-                seconds: 5
+                seconds: 5,
+                monitor_output: None
             }
         );
-        assert!(parse(&["--input", "mic", "--seconds", "0"]).is_err());
+        assert!(parse(&["--input", "mic", "--seconds", "0"]).is_ok());
         assert!(parse(&["--input", "mic", "--seconds", "3601"]).is_err());
     }
 
@@ -504,6 +546,26 @@ mod tests {
         assert!(!is_physical_input("itervc_rust_sink.monitor"));
         assert!(!is_physical_input(" "));
         assert!(is_physical_input("alsa_input.usb_microphone"));
+    }
+
+    #[test]
+    fn monitor_selection_is_optional_and_checked() {
+        assert!(parse(&["--input", "physical", "--monitor-output", "itervc_rust_sink"]).is_err());
+        assert_eq!(parse(&["--input", "physical", "--monitor-output", "alsa_output.speakers"]).unwrap(),
+            Mode::Run { input: "physical".into(), seconds: 30,
+                monitor_output: Some("alsa_output.speakers".into()) });
+    }
+
+    #[test]
+    fn offline_monitor_matches_virtual_output() {
+        let data: Vec<u8> = (0..8192).map(|i| (i % 251) as u8).collect();
+        let mut virtual_output = Vec::new();
+        let mut speaker_output = Vec::new();
+        let count = process_audio_with_monitor(&data[..], &mut virtual_output,
+            Some(&mut speaker_output), Duration::from_secs(3)).unwrap();
+        assert_eq!(count, data.len() as u64);
+        assert_eq!(virtual_output, data);
+        assert_eq!(speaker_output, data);
     }
 
     #[test]
