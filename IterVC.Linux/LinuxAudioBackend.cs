@@ -62,7 +62,8 @@ internal sealed class LinuxAudioBackend : IDisposable
         return text;
     }
 
-    public void Start(string microphone, string? monitoringOutput)
+    public void Start(string microphone, string? monitoringOutput,
+        uint? applicationStreamId = null, double appVolume = 1.0)
     {
         ThrowIfDisposed();
         if (_session is { HasExited: false })
@@ -74,6 +75,15 @@ internal sealed class LinuxAudioBackend : IDisposable
         {
             process.StartInfo.ArgumentList.Add("--monitor-output");
             process.StartInfo.ArgumentList.Add(monitoringOutput);
+        }
+        if (applicationStreamId is uint streamId)
+        {
+            if (double.IsNaN(appVolume) || appVolume < 0 || appVolume > 2)
+                throw new ArgumentOutOfRangeException(nameof(appVolume));
+            process.StartInfo.ArgumentList.Add("--app-stream");
+            process.StartInfo.ArgumentList.Add(streamId.ToString(CultureInfo.InvariantCulture));
+            process.StartInfo.ArgumentList.Add("--app-volume");
+            process.StartInfo.ArgumentList.Add(appVolume.ToString("0.00", CultureInfo.InvariantCulture));
         }
         process.StartInfo.RedirectStandardError = true;
         process.EnableRaisingEvents = true;
