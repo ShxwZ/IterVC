@@ -112,6 +112,7 @@ pub fn find_output_port_ids(port_listing: &str, node_id: u32) -> Option<(u32, u3
 /// Read raw 48 kHz stereo float32 PCM from the isolated app tap, apply
 /// independent mix gain, and copy to the final virtual microphone. PipeWire
 /// simultaneously preserves the application's original speaker connections.
+#[cfg(test)]
 pub fn forward_app(
     source: impl Read,
     virtual_output: impl Write,
@@ -153,17 +154,23 @@ pub fn forward_app_live(
         if !gain.is_finite() || !(0.0..=2.0).contains(&gain) {
             return Err(io::Error::new(io::ErrorKind::InvalidInput, "Invalid live app gain"));
         }
-        for (out, input) in altered[..count]
-            .chunks_exact_mut(std::mem::size_of::<f32>())
-            .zip(pending[..count].chunks_exact(std::mem::size_of::<f32>()))
-        {
-            let sample = f32::from_le_bytes(input.try_into().unwrap());
-            let processed = if sample.is_finite() {
-                (sample * gain).clamp(-1.0, 1.0)
-            } else {
-                0.0
-            };
-            out.copy_from_slice(&processed.to_le_bytes());
+        if gain == 0.0 {
+            // Write canonical PCM silence, not negative zero (which is also
+            // a valid IEEE float but breaks byte-exact mute checks).
+            altered[..count].fill(0);
+        } else {
+            for (out, input) in altered[..count]
+                .chunks_exact_mut(std::mem::size_of::<f32>())
+                .zip(pending[..count].chunks_exact(std::mem::size_of::<f32>()))
+            {
+                let sample = f32::from_le_bytes(input.try_into().unwrap());
+                let processed = if sample.is_finite() {
+                    (sample * gain).clamp(-1.0, 1.0)
+                } else {
+                    0.0
+                };
+                out.copy_from_slice(&processed.to_le_bytes());
+            }
         }
 
         virtual_output.write_all(&altered[..count])?;

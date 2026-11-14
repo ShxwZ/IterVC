@@ -572,6 +572,7 @@ fn process_audio_with_monitor(
     process_audio_configured(source, destination, monitor, duration, MicrophoneConfig::default())
 }
 
+#[cfg(test)]
 fn process_audio_configured(
     source: impl Read, destination: impl Write,
     monitor: Option<&mut dyn Write>, duration: Duration,
