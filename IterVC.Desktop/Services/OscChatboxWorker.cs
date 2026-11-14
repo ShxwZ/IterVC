@@ -72,10 +72,19 @@ internal sealed class OscChatboxWorker : IOscChatboxWorker
                     var media = await _mediaSessions.GetActiveMediaInfoAsync(cancellationToken).ConfigureAwait(false);
                     if (media is { Title.Length: > 0 })
                     {
-                        var message = _template.Replace("{title}", media.Title)
-                            .Replace("{status}", media.Status).Replace("{time}", media.TimeInfo)
+                        var message = _template
+                            .Replace("{title}", media.Title)
+                            .Replace("{time}", media.TimeInfo)
                             .Replace("{wave}", NextWaveFrame());
-                        _oscMedia.SendMediaInfo(media.Title, media.Status, message);
+                        _oscMedia.SendMediaInfo(message);
+                    }
+                    else
+                    {
+                        var message = _template
+                            .Replace("{title}", "⏹️")
+                            .Replace("{time}", "00:00 / 00:00")
+                            .Replace("{wave}", NextWaveFrame());
+                        _oscMedia.SendMediaInfo(message);
                     }
                 }
                 await Task.Delay(_interval, cancellationToken).ConfigureAwait(false);

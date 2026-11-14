@@ -34,7 +34,6 @@ internal sealed class WindowsMediaSessionService(ILogger<WindowsMediaSessionServ
             return new MediaInfo
             {
                 Title = FormatTitle(properties.Artist, properties.Title),
-                Status = LocalizationService.Instance.Get(LocalizationService.Keys.MediaPlayingStatus),
                 TimeInfo = timeline is null ? "00:00 / 00:00" : FormatTime(position, timeline.EndTime)
             };
         }
