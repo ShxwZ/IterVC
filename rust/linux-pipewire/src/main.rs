@@ -186,6 +186,7 @@ struct PipeWireSession {
     recorder: Option<Child>,
     playback: Option<Child>,
     monitor_playback: Option<Child>,
+    final_recorder: Option<Child>,
 }
 
 impl PipeWireSession {
@@ -195,6 +196,7 @@ impl PipeWireSession {
             recorder: None,
             playback: None,
             monitor_playback: None,
+            final_recorder: None,
         }
     }
 
@@ -228,7 +230,7 @@ impl PipeWireSession {
     }
 
     fn start_streams(&mut self, input: &str, monitor_output: Option<&str>)
-        -> Result<(ChildStdout, ChildStdin, Option<ChildStdin>), String> {
+        -> Result<(ChildStdout, ChildStdin, ChildStdout, Option<ChildStdin>), String> {
         let target = format!("--target={input}");
         let mut recorder = Command::new("pw-cat")
             .args([
@@ -269,6 +271,17 @@ impl PipeWireSession {
         let audio_output = playback.stdin.take().ok_or("Missing playback stdin")?;
         self.playback = Some(playback);
 
+        // Capture the *actual mixed sink monitor*, not just the microphone
+        // input. Additional application streams share the exact same sink.
+        let final_source = format!("--target={SINK_NAME}.monitor");
+        let mut final_recorder = Command::new("pw-cat")
+            .args(["--record", "--raw", "--format=f32", "--rate=48000",
+                "--channels=2", "--latency=20ms", final_source.as_str(), "-"])
+            .stdout(Stdio::piped()).stderr(Stdio::inherit()).spawn()
+            .map_err(|error| format!("Could not capture the final mixed output: {error}"))?;
+        let final_input = final_recorder.stdout.take().ok_or("Missing final sink monitor stdout")?;
+        self.final_recorder = Some(final_recorder);
+
         let monitor_pipe = if let Some(output) = monitor_output {
             let target = format!("--target={output}");
             let mut monitor = Command::new("pw-cat")
@@ -282,11 +295,11 @@ impl PipeWireSession {
         } else {
             None
         };
-        Ok((audio_input, audio_output, monitor_pipe))
+        Ok((audio_input, audio_output, final_input, monitor_pipe))
     }
     // Stop both subprocesses to unblock any pending pipe I/O on cancellation.
     fn stop_streams(&mut self) {
-        for child in [&mut self.recorder, &mut self.playback, &mut self.monitor_playback].into_iter().flatten() {
+        for child in [&mut self.recorder, &mut self.playback, &mut self.monitor_playback, &mut self.final_recorder].into_iter().flatten() {
             let _ = child.kill();
             let _ = child.wait();
         }
@@ -319,12 +332,62 @@ impl Drop for PipeWireSession {
             let _ = monitor.kill();
             let _ = monitor.wait();
         }
+        if let Some(recorder) = self.final_recorder.as_mut() {
+            let _ = recorder.kill();
+            let _ = recorder.wait();
+        }
         for id in self.modules.drain(..).rev() {
             let _ = Command::new("pactl")
                 .args(["unload-module", &id.to_string()])
                 .status();
         }
     }
+}
+
+/// This stream comes from the final PipeWire sink monitor, after every
+/// playback stream has been mixed. The speaker monitor and output meters
+/// therefore see the exact signal presented to the virtual microphone.
+fn monitor_final_stream(mut capture: impl Read, mut speaker: Option<impl Write>) -> io::Result<()> {
+    let mut bytes = [0u8; 4096];
+    let mut pending = Vec::with_capacity(4096 + FRAME_BYTES);
+    let mut samples = 0usize;
+    let mut power = 0.0f64;
+    let mut last_report = Instant::now();
+
+    loop {
+        let received = match capture.read(&mut bytes) {
+            Ok(0) => break,
+            Ok(n) => n,
+            Err(error) if error.kind() == io::ErrorKind::Interrupted => continue,
+            Err(error) => return Err(error),
+        };
+        pending.extend_from_slice(&bytes[..received]);
+        let length = pending.len() / FRAME_BYTES * FRAME_BYTES;
+        if length == 0 {
+            continue;
+        }
+        if let Some(playback) = speaker.as_mut() {
+            if let Err(error) = playback.write_all(&pending[..length]) {
+                eprintln!("IterVC speaker monitoring stopped: {error}");
+                speaker = None; // Virtual microphone stays active.
+            }
+        }
+        for chunk in pending[..length].chunks_exact(std::mem::size_of::<f32>()) {
+            let value = f32::from_le_bytes(chunk.try_into().unwrap()) as f64;
+            if value.is_finite() {
+                power += value * value;
+                samples += 1;
+            }
+        }
+        pending.drain(..length);
+        if last_report.elapsed() >= Duration::from_millis(100) && samples > 0 {
+            eprintln!("ITERVC_LEVEL:{:.5}", (power / samples as f64).sqrt());
+            power = 0.0;
+            samples = 0;
+            last_report = Instant::now();
+        }
+    }
+    Ok(())
 }
 
 fn process_audio(source: impl Read, destination: impl Write, duration: Duration) -> io::Result<u64> {
@@ -417,7 +480,8 @@ fn run(input: &str, seconds: u64, monitor_output: Option<&str>) -> Result<(), St
 
     let mut session = PipeWireSession::new();
     session.create_virtual_microphone()?;
-    let (source, destination, monitor_pipe) = session.start_streams(input, monitor_output)?;
+    let (source, destination, mixed_monitor, monitor_pipe) =
+        session.start_streams(input, monitor_output)?;
 
     eprintln!(
         "IterVC Rust prototype: '{}' -> '{}'; active for up to {} seconds.",
@@ -429,11 +493,8 @@ fn run(input: &str, seconds: u64, monitor_output: Option<&str>) -> Result<(), St
     // Supervise it independently so timeout and shutdown still clean up.
     let duration = if seconds == 0 { Duration::MAX } else { Duration::from_secs(seconds) };
     let deadline = (seconds != 0).then(|| Instant::now() + duration);
-    let worker = std::thread::spawn(move || {
-        let mut monitor_pipe = monitor_pipe;
-        process_audio_with_monitor(source, destination,
-            monitor_pipe.as_mut().map(|pipe| pipe as &mut dyn Write), duration)
-    });
+    let monitor_worker = std::thread::spawn(move || monitor_final_stream(mixed_monitor, monitor_pipe));
+    let worker = std::thread::spawn(move || process_audio(source, destination, duration));
     while !worker.is_finished()
         && !STOP.load(Ordering::Relaxed)
         && !deadline.is_some_and(|cutoff| Instant::now() >= cutoff)
@@ -446,8 +507,12 @@ fn run(input: &str, seconds: u64, monitor_output: Option<&str>) -> Result<(), St
         session.stop_streams();
     }
     let result = worker.join().map_err(|_| "PipeWire audio worker panicked".to_owned())?;
+    session.stop_streams(); // Unblock the final sink monitor reader on shutdown.
+    let monitor_result = monitor_worker.join()
+        .map_err(|_| "Final sink monitor worker panicked".to_owned())?;
     if !interrupted {
         result.map_err(|error| format!("PipeWire audio transport error: {error}"))?;
+        monitor_result.map_err(|error| format!("PipeWire output monitor error: {error}"))?;
     }
     Ok(())
 }
