@@ -33,6 +33,9 @@ internal sealed class MainWindow : Window
     private readonly Slider _gateThreshold = new() { Minimum = -80, Maximum = -15, Width = 250 };
     private readonly CheckBox _oscEnabled = new();
     private readonly TextBox _oscTemplate = new() { MinWidth = 340 };
+    private readonly Button _previousTrack = new();
+    private readonly Button _playPause = new();
+    private readonly Button _nextTrack = new();
     private readonly CheckBox _monitor = new();
     private readonly Button _refresh = new();
     private readonly Button _start = new();
@@ -72,6 +75,9 @@ internal sealed class MainWindow : Window
             "Send music to the OSC chatbox (VRChat)");
         _oscEnabled.IsChecked = _settings.EnableOscChatbox;
         _oscTemplate.Text = _settings.OscTemplate;
+        _previousTrack.Content = L("Anterior", "Previous");
+        _playPause.Content = L("Reproducir / pausar", "Play / pause");
+        _nextTrack.Content = L("Siguiente", "Next");
         _includeApplication.Content = L("Mezclar audio de aplicaciones", "Mix application audio");
         _includeApplication.IsChecked = _settings.IncludedProcessNames.Count > 0;
         _applicationVolume.Value = Math.Clamp(_settings.AppsVolume, 0, 1);
@@ -122,6 +128,11 @@ internal sealed class MainWindow : Window
         root.Children.Add(_oscEnabled);
         root.Children.Add(new TextBlock { Text = L("Plantilla del mensaje", "Message template") });
         root.Children.Add(_oscTemplate);
+        var mediaControls = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        mediaControls.Children.Add(_previousTrack);
+        mediaControls.Children.Add(_playPause);
+        mediaControls.Children.Add(_nextTrack);
+        root.Children.Add(mediaControls);
         root.Children.Add(new TextBlock { Text = L("Requiere playerctl para detectar música mediante MPRIS.",
             "Requires playerctl to detect music through MPRIS."),
             FontSize = 11, TextWrapping = TextWrapping.Wrap });
@@ -169,6 +180,12 @@ internal sealed class MainWindow : Window
                     await ToggleMicrophoneMuteAsync();
                 else if (command == "toggle-applications-mute")
                     await ToggleApplicationMuteAsync();
+                else if (command == "media-play-pause")
+                    await RunMediaCommandAsync("play-pause");
+                else if (command == "media-next")
+                    await RunMediaCommandAsync("next");
+                else if (command == "media-previous")
+                    await RunMediaCommandAsync("previous");
             }));
         }
         catch (Exception error) { _status.Text = error.Message; }
@@ -205,6 +222,9 @@ internal sealed class MainWindow : Window
         _oscEnabled.Checked += (_, _) => { SavePreferences(); UpdateOsc(); };
         _oscEnabled.Unchecked += (_, _) => { SavePreferences(); UpdateOsc(); };
         _oscTemplate.TextChanged += (_, _) => { SavePreferences(); UpdateOsc(); };
+        _previousTrack.Click += async (_, _) => await RunMediaCommandAsync("previous");
+        _playPause.Click += async (_, _) => await RunMediaCommandAsync("play-pause");
+        _nextTrack.Click += async (_, _) => await RunMediaCommandAsync("next");
         _refresh.Click += async (_, _) => await RefreshAsync();
         _start.Click += async (_, _) => await StartAsync();
         _stop.Click += async (_, _) => await StopAsync();
@@ -284,6 +304,17 @@ internal sealed class MainWindow : Window
             _status.Text = L("No se pudo guardar la configuración: ",
                 "Unable to save settings: ") + error.Message;
         }
+    }
+
+    private async Task RunMediaCommandAsync(string command)
+    {
+        try
+        {
+            if (!await LinuxOscChatboxService.ControlPlaybackAsync(command))
+                _status.Text = L("No hay reproductor MPRIS o falta playerctl.",
+                    "No active MPRIS player or playerctl is unavailable.");
+        }
+        catch (Exception error) { _status.Text = error.Message; }
     }
 
     private void UpdateOsc() => _osc.SetEnabled(_oscEnabled.IsChecked == true,
