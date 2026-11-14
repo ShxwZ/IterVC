@@ -46,7 +46,7 @@ mod shutdown {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq)]
 enum Mode {
     Help,
     ListInputs,
@@ -569,7 +569,8 @@ fn process_audio_with_monitor(
     Ok(forwarded_bytes)
 }
 
-fn run(input: &str, seconds: u64, monitor_output: Option<&str>) -> Result<(), String> {
+fn run(input: &str, seconds: u64, monitor_output: Option<&str>,
+    app_stream: Option<u32>, app_volume: f32) -> Result<(), String> {
     check_dependencies()?;
     validate_input(input)?;
     if let Some(output) = monitor_output {
@@ -582,6 +583,11 @@ fn run(input: &str, seconds: u64, monitor_output: Option<&str>) -> Result<(), St
     session.create_virtual_microphone()?;
     let (source, destination, mixed_monitor, monitor_pipe) =
         session.start_streams(input, monitor_output)?;
+    let app_pipes = if let Some(stream_id) = app_stream {
+        Some(session.start_application(stream_id)?)
+    } else {
+        None
+    };
 
     eprintln!(
         "IterVC Rust prototype: '{}' -> '{}'; active for up to {} seconds.",
@@ -594,6 +600,9 @@ fn run(input: &str, seconds: u64, monitor_output: Option<&str>) -> Result<(), St
     let duration = if seconds == 0 { Duration::MAX } else { Duration::from_secs(seconds) };
     let deadline = (seconds != 0).then(|| Instant::now() + duration);
     let monitor_worker = std::thread::spawn(move || monitor_final_stream(mixed_monitor, monitor_pipe));
+    let app_worker = app_pipes.map(|(source, virtual_output, speaker_output)|
+        std::thread::spawn(move || app_audio::forward_app(
+            source, virtual_output, speaker_output, app_volume)));
     let worker = std::thread::spawn(move || process_audio(source, destination, duration));
     while !worker.is_finished()
         && !STOP.load(Ordering::Relaxed)
@@ -610,9 +619,15 @@ fn run(input: &str, seconds: u64, monitor_output: Option<&str>) -> Result<(), St
     session.stop_streams(); // Unblock the final sink monitor reader on shutdown.
     let monitor_result = monitor_worker.join()
         .map_err(|_| "Final sink monitor worker panicked".to_owned())?;
+    let app_result = if let Some(worker) = app_worker {
+        Some(worker.join().map_err(|_| "App audio worker panicked".to_owned())?)
+    } else { None };
     if !interrupted {
         result.map_err(|error| format!("PipeWire audio transport error: {error}"))?;
         monitor_result.map_err(|error| format!("PipeWire output monitor error: {error}"))?;
+        if let Some(result) = app_result {
+            result.map_err(|error| format!("PipeWire application routing error: {error}"))?;
+        }
     }
     Ok(())
 }
@@ -624,6 +639,8 @@ fn main() {
             Ok(())
         }
         Ok(Mode::Check) => check_dependencies().map(|_| println!("PipeWire tools and session ready.")),
+        Ok(Mode::ListApps) => command_output("pactl", &["--format=json", "list", "sink-inputs"])
+            .map(|streams| println!("{streams}")),
         Ok(Mode::ListOutputs) => available_outputs().map(|outputs| {
             if outputs.is_empty() { println!("No speaker outputs were found."); }
             else { for output in outputs { println!("{output}"); } }
@@ -637,8 +654,8 @@ fn main() {
                 }
             }
         }),
-        Ok(Mode::Run { input, seconds, monitor_output }) =>
-            run(&input, seconds, monitor_output.as_deref()),
+        Ok(Mode::Run { input, seconds, monitor_output, app_stream, app_volume }) =>
+            run(&input, seconds, monitor_output.as_deref(), app_stream, app_volume),
         Err(error) => Err(error),
     };
     if let Err(error) = result {
@@ -670,11 +687,24 @@ mod tests {
             Mode::Run {
                 input: "alsa_input.usb-microphone".into(),
                 seconds: 5,
-                monitor_output: None
+                monitor_output: None,
+                app_stream: None,
+                app_volume: 1.0
             }
         );
         assert!(parse(&["--input", "mic", "--seconds", "0"]).is_ok());
         assert!(parse(&["--input", "mic", "--seconds", "3601"]).is_err());
+    }
+
+    #[test]
+    fn app_capture_is_opt_in_and_gain_is_validated() {
+        assert_eq!(parse(&["--input", "mic", "--app-stream", "42", "--app-volume", "0.75"]).unwrap(),
+            Mode::Run { input: "mic".into(), seconds: 30, monitor_output: None,
+                app_stream: Some(42), app_volume: 0.75 });
+        assert!(parse(&["--input", "mic", "--app-stream", "unknown"]).is_err());
+        assert!(parse(&["--input", "mic", "--app-volume", "0.2"]).is_err());
+        assert!(parse(&["--input", "mic", "--app-stream", "2", "--app-volume", "nan"]).is_err());
+        assert_eq!(parse(&["--list-apps"]).unwrap(), Mode::ListApps);
     }
 
     #[test]
@@ -718,7 +748,8 @@ mod tests {
         assert!(parse(&["--input", "physical", "--monitor-output", "itervc_rust_sink"]).is_err());
         assert_eq!(parse(&["--input", "physical", "--monitor-output", "alsa_output.speakers"]).unwrap(),
             Mode::Run { input: "physical".into(), seconds: 30,
-                monitor_output: Some("alsa_output.speakers".into()) });
+                monitor_output: Some("alsa_output.speakers".into()),
+                app_stream: None, app_volume: 1.0 });
     }
 
     #[test]
