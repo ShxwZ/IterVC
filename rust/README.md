@@ -89,6 +89,11 @@ so shortcuts work without intercepting arbitrary keyboard input or requiring
 root permissions. They must be registered in the desktop environment once,
 not through the Wayland portal. An automatic consent-based portal integration
 and customizable key combinations within IterVC remain future work.
+The idle GUI refreshes its selectable application streams every four seconds,
+preserving saved selections when a player goes offline. When routing starts,
+the GUI resolves application names to current stream IDs, so a player closing
+just before Start cannot prevent the virtual microphone from starting.
+
 Previously selected applications can now rejoin the capture automatically
 if they restart and expose a new PipeWire playback stream. IterVC prepares the
 capture sink even if those applications are not running when routing starts;
