@@ -116,7 +116,7 @@ internal sealed partial class MainWindow : Window
             _shortcuts = new ShortcutControlServer(command => Dispatcher.UIThread.Post(async () =>
             {
                 if (command == "exit")
-                    Close();
+                    RequestTerminalExit();
                 else if (command == "show-window")
                     RestoreFromTray();
                 else if (command == "toggle-routing")
@@ -693,10 +693,47 @@ internal sealed partial class MainWindow : Window
 
     private async void OnClosing(object? sender, WindowClosingEventArgs e)
     {
-        if (_closing) { _appWatchTimer.Stop(); _osc.Dispose(); _shortcuts?.Dispose(); _audio.Dispose(); return; }
+        if (_closing)
+        {
+            _appWatchTimer.Stop();
+            _osc.Dispose();
+            _shortcuts?.Dispose();
+            _audio.Dispose();
+            return;
+        }
         e.Cancel = true;
-        _closing = true;
-        await StopAsync();
-        Close();
+        if (_closePromptOpen) return;
+        _closePromptOpen = true;
+        try
+        {
+            var behavior = _forceExit ? CloseBehavior.Exit : _settings.CloseBehavior;
+            _forceExit = false;
+            if (behavior == CloseBehavior.Ask)
+            {
+                var choice = await PromptCloseBehaviorAsync();
+                if (choice is null) return;
+                behavior = choice.Value;
+            }
+            if (behavior == CloseBehavior.MinimizeToTray)
+            {
+                if (!TrayConfigured)
+                {
+                    _status.Text = L("Tu entorno de escritorio no ofrece bandeja del sistema. Selecciona Salir.",
+                        "Your desktop has no system tray. Select Exit instead.");
+                    return;
+                }
+                HideInTray();
+                return;
+            }
+            _closing = true;
+            await StopAsync();
+            Close();
+        }
+        catch (Exception error)
+        {
+            _status.Text = L("No se pudo cerrar correctamente: ",
+                "Could not close cleanly: ") + error.Message;
+        }
+        finally { _closePromptOpen = false; }
     }
 }
