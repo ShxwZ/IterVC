@@ -115,6 +115,17 @@ internal static class Program
                     new[] { "voice chat", "PreviouslyClosedPlayer" });
                 if (activeSelection.Length != 1 || activeSelection[0].Id != 42)
                     throw new InvalidOperationException("Stale application selection was not filtered.");
+                // Hotkey bindings use the persisted Windows gesture syntax.
+                if (!LinuxHotkeyParser.IsMatch("Ctrl+Shift+R", Avalonia.Input.Key.R,
+                    Avalonia.Input.KeyModifiers.Control | Avalonia.Input.KeyModifiers.Shift) ||
+                    !LinuxHotkeyParser.IsMatch("Alt+F10", Avalonia.Input.Key.F10,
+                        Avalonia.Input.KeyModifiers.Alt) ||
+                    LinuxHotkeyParser.TryParse("Ctrl+Ctrl+R", out _) ||
+                    LinuxHotkeyParser.TryParse("Ctrl+Shift+NoSuchKey", out _) ||
+                    LinuxHotkeyParser.IsMatch("Ctrl+Shift+R", Avalonia.Input.Key.M,
+                        Avalonia.Input.KeyModifiers.Control | Avalonia.Input.KeyModifiers.Shift))
+                    throw new InvalidOperationException("Linux configurable shortcut parsing failed.");
+
                 // Theme contract: the Linux preview renders the original
                 // desktop semantic palette instead of inventing new colors.
                 LinuxTheme.Validate();
