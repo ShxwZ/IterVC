@@ -20,7 +20,8 @@ internal static class Program
 
         var shortcut = args.FirstOrDefault(arg => arg is
             "--toggle-routing" or "--start-routing" or "--stop-routing"
-            or "--toggle-monitor" or "--toggle-microphone" or "--toggle-applications-mute");
+            or "--toggle-monitor" or "--toggle-microphone" or "--toggle-applications-mute"
+            or "--media-play-pause" or "--media-next" or "--media-previous");
         if (shortcut is not null)
         {
             try
