@@ -129,8 +129,8 @@ internal sealed partial class MainWindow
             {
                 _gateThreshold.Value = Math.Clamp(maximum + 6.0, -75.0, -15.0);
                 SavePreferences();
-                _status.Text = L("Calibración guardada. Reinicia el enrutamiento para aplicar el umbral.",
-                    "Calibration saved. Restart routing to apply the new threshold.");
+                _status.Text = L("Calibración aplicada al micrófono mientras está en marcha.",
+                    "Calibration applied to the microphone while routing.");
             }
         }
         finally
@@ -248,8 +248,8 @@ internal sealed partial class MainWindow
                 _calibrateGate,
                 SliderField(L("Ataque (ms)", "Attack (ms)"), _gateAttack),
                 SliderField(L("Liberación (ms)", "Release (ms)"), _gateRelease),
-                Label(L("Los ajustes de la puerta se aplican al iniciar el enrutamiento.",
-                    "Gate settings take effect when routing starts."), 10, "TextSubtleBrush")
+                Label(L("Los ajustes de la puerta se aplican al instante, también mientras está activo.",
+                    "Gate settings apply live, including while routing."), 10, "TextSubtleBrush")
             ));
         settings.Osc = ScrollableTab(
             Vertical(
