@@ -25,6 +25,13 @@ jobs:
         run: cargo build --locked --manifest-path rust/Cargo.toml -p itervc-linux-pipewire --release
       - name: Smoke test Linux CLI without a PipeWire session
         run: ./rust/target/release/itervc-linux-pipewire --help
+      - name: Upload experimental Linux binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: IterVC-Linux-PipeWire-prototype-x64
+          path: rust/target/release/itervc-linux-pipewire
+          if-no-files-found: error
+          retention-days: 7
 
   windows-native:
     name: Windows Rust buffer compatibility

@@ -269,10 +269,12 @@ fn process_audio(
         ring.write(&pending[..aligned]);
         pending.drain(..aligned);
         loop {
-            let written = ring.read(&mut outbound);
-            if written == 0 {
+            let available = ring.available_frames() * FRAME_BYTES;
+            if available == 0 {
                 break;
             }
+            let count = available.min(outbound.len());
+            let written = ring.read(&mut outbound[..count]);
             destination.write_all(&outbound[..written])?;
             forwarded_bytes += written as u64;
         }
