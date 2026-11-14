@@ -232,9 +232,19 @@ internal sealed class MainWindow : Window
             var enabled = !_running && _includeApplication.IsChecked == true;
             _applications.IsEnabled = enabled;
             _applicationVolume.IsEnabled = enabled;
+            if (!_loadingPreferences && _includeApplication.IsChecked == true)
+                _settings.IncludedProcessNames = SelectedApplicationNames();
             SavePreferences();
         };
-        _applications.SelectionChanged += (_, _) => SavePreferences();
+        _applications.SelectionChanged += (_, _) => {
+            // Explicit user edits replace the previous selection, including
+            // clearing it. Automatic catalogue refreshes never enter here.
+            // Otherwise a deselected application could still be captured by
+            // its saved name even though it is no longer highlighted.
+            if (!_loadingPreferences && _includeApplication.IsChecked == true)
+                _settings.IncludedProcessNames = SelectedApplicationNames();
+            SavePreferences();
+        };
         _applicationVolume.PropertyChanged += async (_, args) => {
             if (args.Property.Name == nameof(Slider.Value))
             {
@@ -459,6 +469,11 @@ internal sealed class MainWindow : Window
         finally { _refreshingApplicationStreams = false; }
     }
 
+    private List<string> SelectedApplicationNames() =>
+        _applications.SelectedItems?.OfType<ApplicationStream>()
+            .Select(app => app.Name)
+            .Distinct(StringComparer.OrdinalIgnoreCase).ToList() ?? new List<string>();
+
     private void SavePreferences()
     {
         if (_loadingPreferences) return;
@@ -466,15 +481,10 @@ internal sealed class MainWindow : Window
         _settings.OutputDeviceId = _speakers.SelectedItem as string;
         _settings.MonitorMicrophone = _monitor.IsChecked == true;
         _settings.MinimizeToTrayWhenMinimized = _minimizeToTray.IsChecked == true;
-        var selectedAppNames = _applications.SelectedItems?.OfType<ApplicationStream>()
-            .Select(app => app.Name).Distinct().ToList() ?? new List<string>();
         if (_includeApplication.IsChecked != true)
             _settings.IncludedProcessNames = new List<string>();
-        else if (selectedAppNames.Count > 0)
-            _settings.IncludedProcessNames = selectedAppNames;
-        // Preserve the selected process names when none are currently active.
-        // Clearing the saved selection on every mic-slider change would
-        // prevent the app from automatically reattaching after a restart.
+        // Only explicit app selection changes replace saved names. Unrelated
+        // slider changes must preserve apps that are temporarily offline.
         _settings.AppsVolume = (float)_applicationVolume.Value;
         _settings.MicrophoneVolume = (float)_microphoneVolume.Value;
         _settings.MicrophoneBoost = (float)_microphoneBoost.Value;
