@@ -28,7 +28,9 @@ if [ -z "$window" ]; then
   exit 1
 fi
 
-xdotool windowactivate --sync "$window"
+# Xvfb deliberately has no window manager. windowfocus uses XSetInputFocus
+# directly; windowactivate would require an EWMH-compliant window manager.
+xdotool windowfocus --sync "$window"
 xdotool key --clearmodifiers ctrl+shift+r
 sleep 0.5
 if ! kill -0 "$gui_pid" 2>/dev/null; then
