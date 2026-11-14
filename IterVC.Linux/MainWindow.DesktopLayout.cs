@@ -265,6 +265,8 @@ internal sealed partial class MainWindow
         settings.Preferences = ScrollableTab(
             Vertical(
                 _minimizeToTray,
+                Label(L("Comportamiento al cerrar", "Close behavior"), 12, "TextStrongBrush", true),
+                CloseSettingsControls(),
                 Label(L("Atajos de teclado", "Keyboard shortcuts"), 12, "TextStrongBrush", true),
                 Label(L("Con la ventana activa: Ctrl+Shift+R para iniciar/detener, Ctrl+Shift+M para escuchar, Ctrl+Shift+U para el micrófono y Ctrl+Shift+P para las aplicaciones.",
                     "With the window focused: Ctrl+Shift+R routing, Ctrl+Shift+M monitoring, Ctrl+Shift+U mic mute and Ctrl+Shift+P app mute."),
