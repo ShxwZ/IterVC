@@ -75,7 +75,7 @@ internal sealed class ShortcutControlServer : IDisposable
                         var command = await reader.ReadLineAsync(messageTimeout.Token);
                         if (command is "toggle-routing" or "start-routing" or "stop-routing"
                             or "toggle-monitor" or "toggle-microphone" or "toggle-applications-mute"
-                            or "media-play-pause" or "media-next" or "media-previous")
+                            or "media-play-pause" or "media-next" or "media-previous" or "show-window")
                             commandReceived(command);
                     }
                     catch (OperationCanceledException) { /* Unresponsive shortcut client */ }
@@ -88,7 +88,7 @@ internal sealed class ShortcutControlServer : IDisposable
     {
         if (command is not ("toggle-routing" or "start-routing" or "stop-routing"
             or "toggle-monitor" or "toggle-microphone" or "toggle-applications-mute"
-            or "media-play-pause" or "media-next" or "media-previous"))
+            or "media-play-pause" or "media-next" or "media-previous" or "show-window"))
             throw new ArgumentException("Unknown shortcut command.", nameof(command));
         using var socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));

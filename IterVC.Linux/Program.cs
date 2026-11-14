@@ -3,6 +3,9 @@ using System.Diagnostics;
 using System.Text;
 using IterVC.Core.Settings;
 using Avalonia.Controls.ApplicationLifetimes;
+using Avalonia.Controls;
+using Avalonia.Media.Imaging;
+using Avalonia.Platform;
 using Avalonia.Themes.Fluent;
 
 namespace IterVC.Linux;
@@ -21,7 +24,8 @@ internal static class Program
         var shortcut = args.FirstOrDefault(arg => arg is
             "--toggle-routing" or "--start-routing" or "--stop-routing"
             or "--toggle-monitor" or "--toggle-microphone" or "--toggle-applications-mute"
-            or "--media-play-pause" or "--media-next" or "--media-previous");
+            or "--media-play-pause" or "--media-next" or "--media-previous"
+            or "--show-window");
         if (shortcut is not null)
         {
             try
@@ -130,7 +134,31 @@ internal sealed class DesktopApp : Application
     public override void OnFrameworkInitializationCompleted()
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
-            desktop.MainWindow = new MainWindow();
+        {
+            var window = new MainWindow();
+            desktop.MainWindow = window;
+            try
+            {
+                using var stream = AssetLoader.Open(new Uri("avares://IterVC.Linux/Assets/icon.ico"));
+                var tray = new TrayIcon {
+                    Icon = new WindowIcon(new Bitmap(stream)),
+                    ToolTipText = "IterVC Linux"
+                };
+                var show = new NativeMenuItem("Mostrar IterVC / Show IterVC");
+                show.Click += (_, _) => window.RestoreFromTray();
+                var exit = new NativeMenuItem("Salir / Exit");
+                exit.Click += (_, _) => window.Close();
+                tray.Clicked += (_, _) => window.RestoreFromTray();
+                tray.Menu = new NativeMenu { show, new NativeMenuItemSeparator(), exit };
+                TrayIcon.SetIcons(this, new TrayIcons { tray });
+                window.TrayConfigured = true;
+            }
+            catch (Exception error)
+            {
+                System.Diagnostics.Trace.WriteLine("Tray icon unavailable: " + error.Message);
+                window.TrayConfigured = false;
+            }
+        }
         base.OnFrameworkInitializationCompleted();
     }
 }

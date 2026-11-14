@@ -16,6 +16,9 @@
     <PackageReference Include="Avalonia.Themes.Fluent" Version="11.1.3" />
     <PackageReference Include="Avalonia.Fonts.Inter" Version="11.1.3" />
   </ItemGroup>
+  <ItemGroup>
+    <AvaloniaResource Include="../IterVC.Desktop/Assets/icon.ico" Link="Assets/icon.ico" />
+  </ItemGroup>
   <!-- The Rust process is embedded into the .NET single-file executable. -->
   <ItemGroup>
     <EmbeddedResource Include="../rust/target/release/itervc-linux-pipewire"
