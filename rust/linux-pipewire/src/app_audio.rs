@@ -73,8 +73,9 @@ pub fn parse_pactl_process_id(text: &str, sink_input_id: u32) -> Option<u32> {
 
 /// PipeWire's own Port registry exposes stable, unique per-node output port
 /// IDs, even if several streams have the same display name (e.g. "pacat").
-/// A channel must be present exactly once; missing/ambiguous layouts fail
-/// closed rather than tapping the wrong application.
+/// Stereo needs uniquely identifiable FL/FR ports. A genuine mono port may
+/// feed *both* capture channels, yielding centered mono audio. Ambiguous
+/// layouts still fail closed rather than capturing the wrong application.
 pub fn find_output_port_ids(port_listing: &str, node_id: u32) -> Option<(u32, u32)> {
     #[derive(Default)]
     struct Port {
@@ -84,7 +85,8 @@ pub fn find_output_port_ids(port_listing: &str, node_id: u32) -> Option<(u32, u3
         name: String,
         channel: String,
     }
-    fn finish(port: &Port, expected_node: u32, left: &mut Vec<u32>, right: &mut Vec<u32>) {
+    fn finish(port: &Port, expected_node: u32, left: &mut Vec<u32>,
+        right: &mut Vec<u32>, mono: &mut Vec<u32>) {
         if port.node_id != Some(expected_node) || !port.direction_out {
             return;
         }
@@ -93,6 +95,8 @@ pub fn find_output_port_ids(port_listing: &str, node_id: u32) -> Option<(u32, u3
                 left.push(id);
             } else if port.name == "output_FR" || port.channel == "FR" {
                 right.push(id);
+            } else if port.name == "output_MONO" || port.channel == "MONO" {
+                mono.push(id);
             }
         }
     }
@@ -100,10 +104,11 @@ pub fn find_output_port_ids(port_listing: &str, node_id: u32) -> Option<(u32, u3
     let mut current = Port::default();
     let mut left = Vec::new();
     let mut right = Vec::new();
+    let mut mono = Vec::new();
     for line in port_listing.lines() {
         let trimmed = line.trim();
         if trimmed.starts_with("id ") && trimmed.contains("PipeWire:Interface:Port") {
-            finish(&current, node_id, &mut left, &mut right);
+            finish(&current, node_id, &mut left, &mut right, &mut mono);
             current = Port::default();
             current.id = trimmed.strip_prefix("id ")
                 .and_then(|value| value.split(',').next())
@@ -120,9 +125,11 @@ pub fn find_output_port_ids(port_listing: &str, node_id: u32) -> Option<(u32, u3
             _ => {}
         }
     }
-    finish(&current, node_id, &mut left, &mut right);
-    if left.len() == 1 && right.len() == 1 && left[0] != right[0] {
+    finish(&current, node_id, &mut left, &mut right, &mut mono);
+    if left.len() == 1 && right.len() == 1 && left[0] != right[0] && mono.is_empty() {
         Some((left[0], right[0]))
+    } else if mono.len() == 1 && left.is_empty() && right.is_empty() {
+        Some((mono[0], mono[0]))
     } else {
         None
     }
@@ -276,6 +283,15 @@ mod tests {
         assert_eq!(parse_pactl_process_id(text, 45), Some(4242));
         assert_eq!(parse_pactl_process_id(text, 62), Some(8080));
         assert_eq!(parse_pactl_process_id(text, 999), None);
+    }
+
+    #[test]
+    fn mono_application_port_is_copied_to_both_virtual_mix_channels() {
+        let ports = "id 35, type PipeWire:Interface:Port/3\n\
+                     node.id = \"42\"\n    port.name = \"output_MONO\"\n\
+                     port.direction = \"out\"\n    audio.channel = \"MONO\"\n";
+        assert_eq!(find_output_port_ids(ports, 42), Some((35, 35)));
+        assert_eq!(find_output_port_ids(ports, 99), None);
     }
 
     #[test]
