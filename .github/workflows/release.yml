@@ -44,11 +44,12 @@ jobs:
           name: Release ${{ env.RELEASE_VERSION }}
           # Update these notes before triggering the next release.
           body: |
-            - Se corrigió un error que impedía iniciar IterVC cuando VB-Cable estaba en uso por otra aplicación.
-            - Se mejoró la recuperación del micrófono cuando Windows bloquea el dispositivo de audio.
-            - Se añadieron avisos en los registros y se permite reintentar el audio sin reiniciar la aplicación.
-            - Se corrigieron fallos al usar los controles de audio después de un error de inicialización.
-            - Se añadió una versión portable para Windows x64: el ZIP incluye un único archivo IterVC.exe.
+            - Se añadió supresión de ruido experimental con RNNoise, activable desde los ajustes del micrófono.
+            - Se mejoró el procesamiento del micrófono para aplicar la supresión antes de la puerta de ruido y el control de ganancia.
+            - Se unificó el audio que reciben la monitorización, los medidores de nivel y VB-Cable.
+            - Se añadió procesamiento de ruido en segundo plano para no bloquear la captura del micrófono.
+            - Se incorporó recuperación del audio sin supresión si RNNoise deja de estar disponible.
+            - Se integró RNNoise en la versión portable para Windows x64, sin descargar modelos adicionales.
           draft: false
           prerelease: false
         env:
