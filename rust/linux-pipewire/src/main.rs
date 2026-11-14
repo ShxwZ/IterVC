@@ -5,6 +5,8 @@
 //! a per-application capture backend, or a replacement for Windows WASAPI.
 
 mod app_audio;
+mod mic_dsp;
+use mic_dsp::{MicrophoneConfig, MicrophoneProcessor};
 
 use itervc_audio_buffers::PcmRingBuffer;
 use app_audio::{StreamRoute, parse_sink_inputs, parse_sink_name, find_sink_id, should_restore};
@@ -54,7 +56,8 @@ enum Mode {
     ListApps,
     Check,
     Run { input: String, seconds: u64, monitor_output: Option<String>,
-        app_stream: Option<u32>, app_volume: f32 },
+        app_stream: Option<u32>, app_volume: f32, mic_volume: f32,
+        gate_enabled: bool, gate_threshold_db: f32 },
 }
 
 fn parse_args(args: impl IntoIterator<Item = String>) -> Result<Mode, String> {
@@ -64,6 +67,9 @@ fn parse_args(args: impl IntoIterator<Item = String>) -> Result<Mode, String> {
     let mut monitor_output = None;
     let mut app_stream = None;
     let mut app_volume = 1.0f32;
+    let mut mic_volume = 1.0f32;
+    let mut gate_enabled = false;
+    let mut gate_threshold_db = -45.0f32;
     let mut args = args.into_iter();
 
     while let Some(arg) = args.next() {
@@ -79,6 +85,21 @@ fn parse_args(args: impl IntoIterator<Item = String>) -> Result<Mode, String> {
             "--app-stream" => {
                 let raw = args.next().ok_or("Missing stream id after --app-stream")?;
                 app_stream = Some(raw.parse::<u32>().map_err(|_| "Invalid app stream id")?);
+            }
+            "--mic-volume" => {
+                let raw = args.next().ok_or("Missing value after --mic-volume")?;
+                mic_volume = raw.parse::<f32>().map_err(|_| "Invalid mic volume")?;
+                if !mic_volume.is_finite() || !(0.0..=3.0).contains(&mic_volume) {
+                    return Err("Mic volume must be in 0..3".into());
+                }
+            }
+            "--noise-gate" => gate_enabled = true,
+            "--gate-threshold" => {
+                let raw = args.next().ok_or("Missing dB after --gate-threshold")?;
+                gate_threshold_db = raw.parse::<f32>().map_err(|_| "Invalid gate threshold")?;
+                if !gate_threshold_db.is_finite() || !(-100.0..=0.0).contains(&gate_threshold_db) {
+                    return Err("Gate threshold must be between -100 and 0".into());
+                }
             }
             "--app-volume" => {
                 let raw = args.next().ok_or("Missing volume after --app-volume")?;
@@ -102,7 +123,8 @@ fn parse_args(args: impl IntoIterator<Item = String>) -> Result<Mode, String> {
     }
 
     if let Some(mode) = mode {
-        if input.is_some() || monitor_output.is_some() || app_stream.is_some() || app_volume != 1.0 {
+        if input.is_some() || monitor_output.is_some() || app_stream.is_some() ||
+            app_volume != 1.0 || mic_volume != 1.0 || gate_enabled || gate_threshold_db != -45.0 {
             return Err("--input cannot be combined with a query option".into());
         }
         return Ok(mode);
@@ -118,7 +140,8 @@ fn parse_args(args: impl IntoIterator<Item = String>) -> Result<Mode, String> {
     if app_stream.is_none() && app_volume != 1.0 {
         return Err("--app-volume needs --app-stream".into());
     }
-    Ok(Mode::Run { input, seconds, monitor_output, app_stream, app_volume })
+    Ok(Mode::Run { input, seconds, monitor_output, app_stream, app_volume,
+        mic_volume, gate_enabled, gate_threshold_db })
 }
 
 fn print_help() {
@@ -135,7 +158,8 @@ fn print_help() {
          An optional app stream is temporarily redirected to a capture sink\n\
          and restored when the routing session exits.\n\
          --seconds 0 runs until stopped. --monitor-output is optional.\n\
-         --app-stream ID selects one running application; --app-volume 0..2."
+         --app-stream ID selects one running application; --app-volume 0..2.\n\
+         --mic-volume 0..3, --noise-gate and --gate-threshold -100..0."
     );
 }
 
@@ -513,14 +537,21 @@ fn process_audio(source: impl Read, destination: impl Write, duration: Duration)
 }
 
 fn process_audio_with_monitor(
-    mut source: impl Read,
-    mut destination: impl Write,
-    mut monitor: Option<&mut dyn Write>,
-    duration: Duration,
+    source: impl Read, destination: impl Write,
+    monitor: Option<&mut dyn Write>, duration: Duration,
+) -> io::Result<u64> {
+    process_audio_configured(source, destination, monitor, duration, MicrophoneConfig::default())
+}
+
+fn process_audio_configured(
+    mut source: impl Read, mut destination: impl Write,
+    mut monitor: Option<&mut dyn Write>, duration: Duration,
+    settings: MicrophoneConfig,
 ) -> io::Result<u64> {
     // 48 kHz, 2 channels, float32. One bounded ring for the Linux backend.
     let mut ring = PcmRingBuffer::new(RATE * RING_MS / 1000, FRAME_BYTES)
         .expect("Fixed ring configuration is valid");
+    let mut processor = MicrophoneProcessor::new(settings)?;
     let mut incoming = [0u8; 4096];
     let mut outbound = [0u8; 4096];
     let mut pending = Vec::with_capacity(incoming.len() + FRAME_BYTES);
@@ -547,6 +578,7 @@ fn process_audio_with_monitor(
             }
             let count = available.min(outbound.len());
             let written = ring.read(&mut outbound[..count]);
+            processor.apply(&mut outbound[..written]);
             destination.write_all(&outbound[..written])?;
             if let Some(speaker) = monitor.as_deref_mut() {
                 if let Err(error) = speaker.write_all(&outbound[..written]) {
@@ -570,7 +602,8 @@ fn process_audio_with_monitor(
 }
 
 fn run(input: &str, seconds: u64, monitor_output: Option<&str>,
-    app_stream: Option<u32>, app_volume: f32) -> Result<(), String> {
+    app_stream: Option<u32>, app_volume: f32,
+    mic_volume: f32, gate_enabled: bool, gate_threshold_db: f32) -> Result<(), String> {
     check_dependencies()?;
     validate_input(input)?;
     if let Some(output) = monitor_output {
@@ -603,7 +636,10 @@ fn run(input: &str, seconds: u64, monitor_output: Option<&str>,
     let app_worker = app_pipes.map(|(source, virtual_output, speaker_output)|
         std::thread::spawn(move || app_audio::forward_app(
             source, virtual_output, speaker_output, app_volume)));
-    let worker = std::thread::spawn(move || process_audio(source, destination, duration));
+    let mic_settings = MicrophoneConfig { volume: mic_volume, gate_enabled,
+        gate_threshold_db, ..MicrophoneConfig::default() };
+    let worker = std::thread::spawn(move ||
+        process_audio_configured(source, destination, None, duration, mic_settings));
     while !worker.is_finished()
         && !STOP.load(Ordering::Relaxed)
         && !deadline.is_some_and(|cutoff| Instant::now() >= cutoff)
@@ -654,8 +690,10 @@ fn main() {
                 }
             }
         }),
-        Ok(Mode::Run { input, seconds, monitor_output, app_stream, app_volume }) =>
-            run(&input, seconds, monitor_output.as_deref(), app_stream, app_volume),
+        Ok(Mode::Run { input, seconds, monitor_output, app_stream, app_volume,
+            mic_volume, gate_enabled, gate_threshold_db }) =>
+            run(&input, seconds, monitor_output.as_deref(), app_stream, app_volume,
+                mic_volume, gate_enabled, gate_threshold_db),
         Err(error) => Err(error),
     };
     if let Err(error) = result {
@@ -689,7 +727,8 @@ mod tests {
                 seconds: 5,
                 monitor_output: None,
                 app_stream: None,
-                app_volume: 1.0
+                app_volume: 1.0,
+                mic_volume: 1.0, gate_enabled: false, gate_threshold_db: -45.0
             }
         );
         assert!(parse(&["--input", "mic", "--seconds", "0"]).is_ok());
@@ -700,11 +739,23 @@ mod tests {
     fn app_capture_is_opt_in_and_gain_is_validated() {
         assert_eq!(parse(&["--input", "mic", "--app-stream", "42", "--app-volume", "0.75"]).unwrap(),
             Mode::Run { input: "mic".into(), seconds: 30, monitor_output: None,
-                app_stream: Some(42), app_volume: 0.75 });
+                app_stream: Some(42), app_volume: 0.75,
+                mic_volume: 1.0, gate_enabled: false, gate_threshold_db: -45.0 });
         assert!(parse(&["--input", "mic", "--app-stream", "unknown"]).is_err());
         assert!(parse(&["--input", "mic", "--app-volume", "0.2"]).is_err());
         assert!(parse(&["--input", "mic", "--app-stream", "2", "--app-volume", "nan"]).is_err());
         assert_eq!(parse(&["--list-apps"]).unwrap(), Mode::ListApps);
+    }
+
+    #[test]
+    fn microphone_dsp_flags_are_opt_in() {
+        assert_eq!(parse(&["--input", "mic", "--mic-volume", "1.25",
+            "--noise-gate", "--gate-threshold", "-38"]).unwrap(),
+            Mode::Run { input: "mic".into(), seconds: 30, monitor_output: None,
+                app_stream: None, app_volume: 1.0,
+                mic_volume: 1.25, gate_enabled: true, gate_threshold_db: -38.0 });
+        assert!(parse(&["--input", "mic", "--mic-volume", "5"]).is_err());
+        assert!(parse(&["--input", "mic", "--gate-threshold", "nan"]).is_err());
     }
 
     #[test]
@@ -749,7 +800,8 @@ mod tests {
         assert_eq!(parse(&["--input", "physical", "--monitor-output", "alsa_output.speakers"]).unwrap(),
             Mode::Run { input: "physical".into(), seconds: 30,
                 monitor_output: Some("alsa_output.speakers".into()),
-                app_stream: None, app_volume: 1.0 });
+                app_stream: None, app_volume: 1.0,
+                mic_volume: 1.0, gate_enabled: false, gate_threshold_db: -45.0 });
     }
 
     #[test]
