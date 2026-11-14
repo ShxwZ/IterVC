@@ -45,16 +45,6 @@ internal sealed partial class MainWindow
         Child = child
     };
 
-    private static Border AppCard(Control child) => new()
-    {
-        Background = C("SurfaceRaisedBrush"),
-        BorderBrush = C("BorderSubtleBrush"),
-        BorderThickness = new Thickness(1),
-        CornerRadius = new CornerRadius(6),
-        Padding = new Thickness(12, 9),
-        Child = child
-    };
-
     private static Button ActionButton(string text, bool primary = false) => new()
     {
         Content = text,
@@ -324,19 +314,23 @@ internal sealed partial class MainWindow
 
         foreach (var app in active)
         {
-            var check = new CheckBox {
-                IsChecked = enabled && _settings.IncludedProcessNames.Contains(app.Name,
-                    StringComparer.OrdinalIgnoreCase),
-                IsEnabled = enabled && !_running,
-                VerticalContentAlignment = VerticalAlignment.Center,
-                Content = Vertical(
-                    Label(app.Name, 13, "TextStrongBrush", true),
-                    Label("PipeWire stream #" + app.Id, 10, "TextMutedBrush"))
-            };
-            check.IsCheckedChanged += (_, _) =>
+            var card = new IterVC.UI.ApplicationCard
             {
-                if (_loadingPreferences || _running) return;
-                var selected = check.IsChecked == true;
+                Title = app.Name,
+                Subtitle = L("Reproducción PipeWire", "PipeWire playback"),
+                IdentifierLabel = "Stream",
+                Identifier = app.Id.ToString(CultureInfo.InvariantCulture),
+                IsIncluded = enabled && _settings.IncludedProcessNames.Contains(app.Name,
+                    StringComparer.OrdinalIgnoreCase),
+                // Rust currently exposes only the final mix RMS. Deliberately
+                // keep individual app meters inactive, never synthesize levels.
+                MeterActive = false,
+                IsEnabled = enabled && !_running
+            };
+            card.PointerPressed += (_, e) =>
+            {
+                if (_loadingPreferences || _running || !enabled) return;
+                var selected = !card.IsIncluded;
                 _loadingPreferences = true;
                 try
                 {
@@ -353,32 +347,39 @@ internal sealed partial class MainWindow
                             name.Equals(app.Name, StringComparison.OrdinalIgnoreCase));
                         _applications.SelectedItems?.Remove(app);
                     }
+                    card.IsIncluded = selected;
                 }
                 finally { _loadingPreferences = false; }
                 SavePreferences();
+                e.Handled = true;
             };
-            _appCards.Children.Add(AppCard(check));
+            _appCards.Children.Add(card);
         }
 
-        // Keep previously selected but closed players visible, so users can
-        // explicitly remove one without having to relaunch it.
+        // The same app-card component also represents saved, offline apps.
+        // Clicking a disconnected card removes that choice explicitly.
         foreach (var name in _settings.IncludedProcessNames.Where(n => !current.Contains(n)).ToArray())
         {
-            var remove = ActionButton(L("Quitar", "Remove"));
-            remove.Click += (_, _) =>
+            var offline = new IterVC.UI.ApplicationCard
             {
+                Title = name,
+                Subtitle = L("Sin conexión · pulsa para quitar", "Offline · click to remove"),
+                IdentifierLabel = "Stream",
+                Identifier = "—",
+                IsIncluded = true,
+                MeterActive = false,
+                IsEnabled = enabled && !_running
+            };
+            offline.PointerPressed += (_, e) =>
+            {
+                if (_running || _loadingPreferences || !enabled) return;
                 _settings.IncludedProcessNames.RemoveAll(item =>
                     item.Equals(name, StringComparison.OrdinalIgnoreCase));
                 SavePreferences();
                 RenderApplicationCards(active);
+                e.Handled = true;
             };
-            var offline = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto") };
-            offline.Children.Add(Vertical(
-                Label(name, 12, "TextSecondaryBrush", true),
-                Label(L("Esperando a que se abra", "Waiting for application"), 10, "TextSubtleBrush")));
-            Grid.SetColumn(remove, 1);
-            offline.Children.Add(remove);
-            _appCards.Children.Add(AppCard(offline));
+            _appCards.Children.Add(offline);
         }
 
         if (_appCards.Children.Count == 0)
