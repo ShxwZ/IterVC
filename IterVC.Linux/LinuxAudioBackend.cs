@@ -34,7 +34,9 @@ internal sealed class LinuxAudioBackend : IDisposable
         }
     }
 
-    public event Action<double>? LevelChanged;
+    public event Action<double>? LevelChanged; // Combined virtual microphone mix.
+    public event Action<double>? MicrophoneInputLevelChanged;
+    public event Action<double>? MicrophoneOutputLevelChanged;
     public event Action<string>? MessageReceived;
     public event Action? SessionExited;
 
@@ -129,8 +131,19 @@ internal sealed class LinuxAudioBackend : IDisposable
                 return;
             if (line.StartsWith("ITERVC_LEVEL:", StringComparison.Ordinal) &&
                 double.TryParse(line.AsSpan("ITERVC_LEVEL:".Length),
-                    NumberStyles.Float, CultureInfo.InvariantCulture, out var rms))
+                    NumberStyles.Float, CultureInfo.InvariantCulture, out var rms) &&
+                double.IsFinite(rms))
                 LevelChanged?.Invoke(rms);
+            else if (line.StartsWith("ITERVC_MIC_INPUT_LEVEL:", StringComparison.Ordinal) &&
+                double.TryParse(line.AsSpan("ITERVC_MIC_INPUT_LEVEL:".Length),
+                    NumberStyles.Float, CultureInfo.InvariantCulture, out var micInputRms) &&
+                double.IsFinite(micInputRms))
+                MicrophoneInputLevelChanged?.Invoke(micInputRms);
+            else if (line.StartsWith("ITERVC_MIC_OUTPUT_LEVEL:", StringComparison.Ordinal) &&
+                double.TryParse(line.AsSpan("ITERVC_MIC_OUTPUT_LEVEL:".Length),
+                    NumberStyles.Float, CultureInfo.InvariantCulture, out var micOutputRms) &&
+                double.IsFinite(micOutputRms))
+                MicrophoneOutputLevelChanged?.Invoke(micOutputRms);
             else
                 MessageReceived?.Invoke(line);
         };
