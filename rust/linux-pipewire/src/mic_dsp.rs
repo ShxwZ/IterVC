@@ -77,6 +77,25 @@ impl MicrophoneProcessor {
         Ok(())
     }
 
+    /// Update the full gate state between PCM buffers, without restarting
+    /// PipeWire or discarding microphone buffers. Settings are validated as
+    /// a single unit so invalid live controls cannot corrupt DSP state.
+    pub fn set_gate(&mut self, enabled: bool, threshold_db: f32,
+                    attack_ms: f32, release_ms: f32) -> io::Result<()> {
+        let next = MicrophoneConfig {
+            volume: self.settings.volume,
+            gate_enabled: enabled,
+            gate_threshold_db: threshold_db,
+            attack_ms,
+            release_ms,
+        }.validate()?;
+        self.settings = next;
+        self.threshold = 10f32.powf(threshold_db / 20.0);
+        self.attack_rate = 1.0 / (SAMPLE_RATE * attack_ms / 1000.0);
+        self.release_rate = 1.0 / (SAMPLE_RATE * release_ms / 1000.0);
+        Ok(())
+    }
+
     /// Process interleaved 48 kHz stereo float32 little-endian frames.
     /// Bypass is byte-for-byte transparent to avoid changing audio when
     /// the user has not enabled gate or gain.
@@ -147,6 +166,38 @@ mod tests {
         let mut pcm = stereo(0.6, 8);
         MicrophoneProcessor::new(config).unwrap().apply(&mut pcm);
         assert!((first(&pcm) - 0.3).abs() < 1e-6);
+    }
+
+    #[test]
+    fn live_gate_controls_are_validated_and_apply_without_restart() {
+        let mut processor = MicrophoneProcessor::new(MicrophoneConfig::default()).unwrap();
+        let mut pcm = stereo(0.02, 600);
+        processor.apply(&mut pcm);
+        assert!((first(&pcm) - 0.02).abs() < 1e-6);
+
+        processor.set_gate(true, -10.0, 2.0, 30.0).unwrap();
+        let mut quiet = stereo(0.02, 3000);
+        processor.apply(&mut quiet);
+        let tail = f32::from_le_bytes(
+            quiet[quiet.len() - 8..quiet.len() - 4].try_into().unwrap());
+        assert_eq!(tail, 0.0);
+
+        // Change the threshold while running: the same input now opens it.
+        processor.set_gate(true, -45.0, 2.0, 30.0).unwrap();
+        let mut loud = stereo(0.02, 500);
+        processor.apply(&mut loud);
+        let tail = f32::from_le_bytes(
+            loud[loud.len() - 8..loud.len() - 4].try_into().unwrap());
+        assert!((tail - 0.02).abs() < 0.001);
+
+        assert!(processor.set_gate(true, f32::NAN, 2.0, 30.0).is_err());
+        assert!(processor.set_gate(true, -20.0, 0.0, 30.0).is_err());
+        assert!(processor.set_gate(true, -20.0, 2.0, f32::INFINITY).is_err());
+        processor.set_gate(false, -45.0, 2.0, 30.0).unwrap();
+        let mut dry = stereo(0.001, 700);
+        processor.apply(&mut dry);
+        assert!((f32::from_le_bytes(
+            dry[dry.len() - 8..dry.len() - 4].try_into().unwrap()) - 0.001).abs() < 0.0001);
     }
 
     #[test]
