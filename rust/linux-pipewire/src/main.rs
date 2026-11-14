@@ -765,6 +765,18 @@ mod tests {
     }
 
     #[test]
+    fn final_mixed_sink_monitor_and_speaker_receive_same_pcm() {
+        // Raw audio is supplied by PipeWire's final sink monitor. We must
+        // neither alter it nor accidentally use the raw microphone buffer.
+        let samples: Vec<u8> = (0..2400u32)
+            .flat_map(|sample| ((sample as f32 / 2400.0) - 0.5).to_le_bytes())
+            .collect();
+        let mut local_monitor = Vec::new();
+        monitor_final_stream(&samples[..], Some(&mut local_monitor)).unwrap();
+        assert_eq!(local_monitor, samples);
+    }
+
+    #[test]
     fn help_and_list_do_not_require_capture_device() {
         assert_eq!(parse(&["--help"]).unwrap(), Mode::Help);
         assert_eq!(parse(&["--list-inputs"]).unwrap(), Mode::ListInputs);
