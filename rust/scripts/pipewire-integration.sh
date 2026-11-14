@@ -140,11 +140,11 @@ fi
 
 "$app" --list-apps | grep -q "\"index\""
 "$app" --input itervc_ci_test_microphone --app-stream "$stream_id" --app-volume 0.75 \
-  --seconds 3 >"$test_dir/app-session.log" 2>&1 &
+  --seconds 0 >"$test_dir/app-session.log" 2>&1 &
 app_pid="$!"
 
 moved=0
-for _ in $(seq 1 40); do
+for _ in $(seq 1 90); do
   capture_sink="$(pactl list short sinks | awk '$2=="itervc_rust_apps_sink" {print $1}')"
   current_sink="$(pactl list short sink-inputs | awk -v id="$stream_id" '$1==id {print $2}')"
   if [ -n "$capture_sink" ] && [ "$current_sink" = "$capture_sink" ]; then
@@ -160,6 +160,7 @@ if [ "$moved" != 1 ]; then
   exit 1
 fi
 
+kill -TERM "$app_pid"
 wait "$app_pid"
 app_pid=""
 
@@ -195,11 +196,11 @@ fi
 
 "$app" --input itervc_ci_test_microphone \
   --app-stream "$stream_id" --app-stream "$stream_2_id" \
-  --app-volume 0.8 --seconds 3 >"$test_dir/multi-app.log" 2>&1 &
+  --app-volume 0.8 --seconds 0 >"$test_dir/multi-app.log" 2>&1 &
 app_pid="$!"
 
 both_moved=0
-for _ in $(seq 1 45); do
+for _ in $(seq 1 90); do
   capture_sink="$(pactl list short sinks | awk '$2=="itervc_rust_apps_sink" {print $1}')"
   current_1="$(pactl list short sink-inputs | awk -v id="$stream_id" '$1==id {print $2}')"
   current_2="$(pactl list short sink-inputs | awk -v id="$stream_2_id" '$1==id {print $2}')"
@@ -216,6 +217,7 @@ if [ "$both_moved" != 1 ]; then
   echo "Not all selected application streams were captured" >&2
   exit 1
 fi
+kill -TERM "$app_pid"
 wait "$app_pid"
 app_pid=""
 for id in "$stream_id" "$stream_2_id"; do
