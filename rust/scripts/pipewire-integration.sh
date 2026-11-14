@@ -202,8 +202,8 @@ fi
 
 # Record the *actual* virtual microphone while the selected app is running.
 # This fails if the links exist but no audio makes it to the mixed output.
-pacat --record --device=itervc_rust_microphone --raw --format=float32le \
-  --rate=48000 --channels=2 >"$test_dir/mixed-output.pcm" \
+pw-cat --record --raw --format=f32 --rate=48000 --channels=2 \
+  --target=itervc_rust_microphone - >"$test_dir/mixed-output.pcm" \
   2>"$test_dir/mixed-record.log" &
 output_capture_pid="$!"
 sleep 2
