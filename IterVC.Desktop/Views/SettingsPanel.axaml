@@ -2,7 +2,6 @@
 			 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 			 xmlns:vm="using:IterVC.Desktop.ViewModels"
 			 xmlns:views="using:IterVC.Desktop.Views"
-             xmlns:ui="using:IterVC.UI"
 			 xmlns:ui="using:IterVC.UI"
 			 x:Class="IterVC.Desktop.Views.SettingsPanel"
 			 x:DataType="vm:MainViewModel">
