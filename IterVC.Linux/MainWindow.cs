@@ -49,6 +49,7 @@ internal sealed class MainWindow : Window
     private readonly ProgressBar _level = new() { Minimum = 0, Maximum = 100, Height = 12 };
     private readonly TextBlock _levelText = new();
     private bool _running;
+    private bool _starting;
     private bool _closing;
     private bool _loadingPreferences;
     private bool _refreshingApplicationStreams;
@@ -314,7 +315,11 @@ internal sealed class MainWindow : Window
         });
         _audio.SessionExited += () => Dispatcher.UIThread.Post(() => SetRunning(false));
         UpdateOsc();
-        _appWatchTimer.Tick += async (_, _) => await DiscoverNewApplicationStreamsAsync();
+        _appWatchTimer.Tick += async (_, _) =>
+        {
+            if (_running) await DiscoverNewApplicationStreamsAsync();
+            else await RefreshIdleApplicationStreamsAsync();
+        };
         Opened += async (_, _) =>
         {
             await RefreshAsync();
@@ -411,6 +416,49 @@ internal sealed class MainWindow : Window
         finally { _refreshingApplicationStreams = false; }
     }
 
+    /// <summary>
+    /// Keep the idle app picker up to date when applications start or stop.
+    /// Reapply saved selections by *name*, since stream IDs are ephemeral.
+    /// Do not rewrite preferences while refreshing the ListBox.
+    /// </summary>
+    private async Task RefreshIdleApplicationStreamsAsync()
+    {
+        if (_refreshingApplicationStreams || _running || _closing || !_refresh.IsEnabled)
+            return;
+
+        _refreshingApplicationStreams = true;
+        try
+        {
+            var available = ApplicationStreamCatalog.Parse(
+                await _audio.QueryAsync("--list-apps"));
+            if (_running || _closing || !_refresh.IsEnabled) return;
+
+            var previous = _applications.ItemsSource?.OfType<ApplicationStream>().ToArray()
+                ?? Array.Empty<ApplicationStream>();
+            if (previous.SequenceEqual(available)) return;
+
+            _loadingPreferences = true;
+            try
+            {
+                var savedNames = _settings.IncludedProcessNames
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                _applications.ItemsSource = available;
+                _applications.SelectedItems?.Clear();
+                foreach (var app in available.Where(item => savedNames.Contains(item.Name)))
+                    _applications.SelectedItems?.Add(app);
+            }
+            finally { _loadingPreferences = false; }
+        }
+        catch (Exception error)
+        {
+            // A stopped PipeWire service should not replace the user's status
+            // message every four seconds. The manual Refresh button still
+            // reports the error directly.
+            System.Diagnostics.Trace.WriteLine("Idle application discovery: " + error);
+        }
+        finally { _refreshingApplicationStreams = false; }
+    }
+
     private void SavePreferences()
     {
         if (_loadingPreferences) return;
@@ -456,37 +504,50 @@ internal sealed class MainWindow : Window
     private void UpdateOsc() => _osc.SetEnabled(_oscEnabled.IsChecked == true,
         () => _oscTemplate.Text ?? "{title} - {status}");
 
-    private Task StartAsync()
+    private async Task StartAsync()
     {
-        if (_running) return Task.CompletedTask;
-        var mic = _microphone.SelectedItem as string;
-        if (string.IsNullOrWhiteSpace(mic))
-        {
-            _status.Text = L("Selecciona primero un micrófono.", "Select a microphone first.");
-            return Task.CompletedTask;
-        }
-        var speaker = _monitor.IsChecked == true ? _speakers.SelectedItem as string : null;
-        if (_monitor.IsChecked == true && speaker is null)
-        {
-            _status.Text = L("Selecciona unos altavoces para monitorizar.", "Choose speaker output for monitoring.");
-            return Task.CompletedTask;
-        }
-        var selectedApps = _includeApplication.IsChecked == true
-            ? _applications.SelectedItems?.OfType<ApplicationStream>().ToArray()
-                ?? Array.Empty<ApplicationStream>()
-            : Array.Empty<ApplicationStream>();
-        // A previously selected app may not be playing yet. Prepare the app
-        // capture sink now and auto-attach its stream when it reappears.
-        if (_includeApplication.IsChecked == true && selectedApps.Length == 0 &&
-            _settings.IncludedProcessNames.Count == 0)
-        {
-            _status.Text = L("Selecciona una aplicación para capturar su audio.",
-                "Choose an application to capture its audio.");
-            return Task.CompletedTask;
-        }
+        if (_running || _starting || _closing) return;
+        _starting = true;
+        _start.IsEnabled = false;
         try
         {
-            _audio.Start(mic, speaker, selectedApps.Select(app => app.Id).ToArray(),
+            var mic = _microphone.SelectedItem as string;
+            if (string.IsNullOrWhiteSpace(mic))
+            {
+                _status.Text = L("Selecciona primero un micrófono.", "Select a microphone first.");
+                return;
+            }
+            var speaker = _monitor.IsChecked == true ? _speakers.SelectedItem as string : null;
+            if (_monitor.IsChecked == true && speaker is null)
+            {
+                _status.Text = L("Selecciona unos altavoces para monitorizar.", "Choose speaker output for monitoring.");
+                return;
+            }
+            var selectedApps = _includeApplication.IsChecked == true
+                ? _applications.SelectedItems?.OfType<ApplicationStream>().ToArray()
+                    ?? Array.Empty<ApplicationStream>()
+                : Array.Empty<ApplicationStream>();
+            // A previously selected app may not be playing yet. Prepare the app
+            // capture sink now and auto-attach its stream when it reappears.
+            if (_includeApplication.IsChecked == true && selectedApps.Length == 0 &&
+                _settings.IncludedProcessNames.Count == 0)
+            {
+                _status.Text = L("Selecciona una aplicación para capturar su audio.",
+                    "Choose an application to capture its audio.");
+                return;
+            }
+
+            // A playback stream can disappear between the last GUI catalogue
+            // refresh and this click. Resolve current IDs rather than passing
+            // stale saved/ListBox IDs into the Rust process and failing startup.
+            var liveApps = _includeApplication.IsChecked == true
+                ? ApplicationStreamCatalog.SelectActive(
+                    await _audio.QueryAsync("--list-apps"),
+                    _settings.IncludedProcessNames.Concat(selectedApps.Select(app => app.Name)))
+                : Array.Empty<ApplicationStream>();
+            if (_closing) return;
+
+            _audio.Start(mic, speaker, liveApps.Select(app => app.Id).ToArray(),
                 _applicationMuted ? 0.0 : _applicationVolume.Value,
                 _microphoneMuted ? 0.0 : Math.Clamp(_microphoneVolume.Value * _microphoneBoost.Value, 0, 3),
                 _gate.IsChecked == true, _gateThreshold.Value,
@@ -494,14 +555,18 @@ internal sealed class MainWindow : Window
             _trackedAppStreams.Clear();
             _pendingAppStreams.Clear();
             _appRetryAfter.Clear();
-            foreach (var app in selectedApps)
+            foreach (var app in liveApps)
                 _trackedAppStreams.Add(app.Id);
             SetRunning(true);
             _status.Text = L("Enrutando al micrófono virtual «IterVC Rust Microphone».",
                 "Routing to virtual microphone «IterVC Rust Microphone».");
         }
         catch (Exception error) { _status.Text = error.Message; }
-        return Task.CompletedTask;
+        finally
+        {
+            _starting = false;
+            _start.IsEnabled = !_running && !_closing;
+        }
     }
 
     private async Task<bool> StopAsync()
