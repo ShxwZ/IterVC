@@ -146,6 +146,11 @@ internal sealed class DesktopApp : Application
     public override void Initialize()
     {
         Styles.Add(new FluentTheme());
+        // Shared UI XAML references these keys via DynamicResource; register the
+        // same palette as Windows before creating any visual controls.
+        foreach (var (key, brush) in LinuxTheme.AllBrushes)
+            Resources[key] = brush;
+        RequestedThemeVariant = Avalonia.Styling.ThemeVariant.Dark;
     }
 
     public override void OnFrameworkInitializationCompleted()
