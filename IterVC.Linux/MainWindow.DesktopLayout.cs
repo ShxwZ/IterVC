@@ -25,6 +25,12 @@ internal sealed partial class MainWindow
     private readonly Slider _gateAttack = new() { Minimum = 1, Maximum = 1000 };
     private readonly Slider _gateRelease = new() { Minimum = 1, Maximum = 2000 };
     private readonly TextBlock _dependencies = new() { TextWrapping = TextWrapping.Wrap };
+    private readonly IterVC.UI.CompactAudioMeter _micInputMeter = new();
+    private readonly IterVC.UI.CompactAudioMeter _micOutputMeter = new();
+    private readonly IterVC.UI.CompactAudioMeter _gateOutputMeter = new();
+    private readonly Button _calibrateGate = new();
+    private double _lastMicInputDb = -80.0;
+    private bool _gateCalibrating;
 
     private static IBrush C(string name) => LinuxTheme.Brush(name);
 
@@ -85,6 +91,55 @@ internal sealed partial class MainWindow
         VerticalScrollBarVisibility = ScrollBarVisibility.Auto
     };
 
+    private static void StyleMicMeter(IterVC.UI.CompactAudioMeter meter)
+    {
+        meter.Height = 7;
+        meter.TrackBrush = C("SurfaceEmphasisBrush");
+        meter.SafeLevelBrush = C("SuccessBrush");
+        meter.WarningLevelBrush = C("WarningBrush");
+        meter.CriticalLevelBrush = C("DangerBrush");
+        meter.PeakBrush = C("TextStrongBrush");
+        meter.ThresholdBrush = C("WarningBrush");
+    }
+
+    private async Task CalibrateGateAsync()
+    {
+        if (!_running || _gateCalibrating)
+        {
+            if (!_running)
+                _status.Text = L("Inicia primero el micrófono para calibrar el ruido ambiente.",
+                    "Start microphone routing before calibrating ambient noise.");
+            return;
+        }
+        _gateCalibrating = true;
+        _calibrateGate.IsEnabled = false;
+        _status.Text = L("Midiendo el ruido ambiente del micrófono durante dos segundos…",
+            "Measuring microphone ambient noise for two seconds…");
+        try
+        {
+            var maximum = -80.0;
+            // The sampled level is measured upstream of the gate and before
+            // the selected applications are added to the virtual microphone.
+            for (var sample = 0; sample < 40 && _running && !_closing; sample++)
+            {
+                maximum = Math.Max(maximum, _lastMicInputDb);
+                await Task.Delay(50);
+            }
+            if (_running && !_closing)
+            {
+                _gateThreshold.Value = Math.Clamp(maximum + 6.0, -75.0, -15.0);
+                SavePreferences();
+                _status.Text = L("Calibración guardada. Reinicia el enrutamiento para aplicar el umbral.",
+                    "Calibration saved. Restart routing to apply the new threshold.");
+            }
+        }
+        finally
+        {
+            _gateCalibrating = false;
+            _calibrateGate.IsEnabled = true;
+        }
+    }
+
     private Control BuildDesktopLayout()
     {
         Width = 1025;
@@ -92,6 +147,12 @@ internal sealed partial class MainWindow
         MinWidth = 900;
         MinHeight = 550;
         Background = C("AppBackgroundBrush");
+
+        foreach (var meter in new[] { _micInputMeter, _micOutputMeter, _gateOutputMeter })
+            StyleMicMeter(meter);
+        _calibrateGate.Content = L("Calibrar ruido ambiente", "Calibrate ambient noise");
+        StyleAction(_calibrateGate);
+        _calibrateGate.Click += async (_, _) => await CalibrateGateAsync();
 
         var status = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 9,
             VerticalAlignment = VerticalAlignment.Center };
@@ -151,6 +212,12 @@ internal sealed partial class MainWindow
             Vertical(
                 Label(L("Micrófono físico", "Physical microphone"), 11, "TextSecondaryBrush", true),
                 _microphone,
+                Label(L("Nivel de entrada del micrófono", "Microphone input level"),
+                    10, "TextSubtleBrush"),
+                _micInputMeter,
+                Label(L("Salida del micrófono a PipeWire", "Microphone output to PipeWire"),
+                    10, "TextSubtleBrush"),
+                _micOutputMeter,
                 Label(L("Salida para monitorización", "Monitoring speaker output"), 11, "TextSecondaryBrush", true),
                 _speakers,
                 _monitor,
@@ -170,8 +237,15 @@ internal sealed partial class MainWindow
             ));
         settings.Gate = ScrollableTab(
             Vertical(
+                Label(L("Supresión RNNoise · disponible en Windows; todavía no en Linux.",
+                    "RNNoise suppression · available on Windows, not yet on Linux."),
+                    10, "TextSubtleBrush"),
                 _gate,
+                Label(L("Nivel de salida de la puerta", "Noise gate output level"),
+                    11, "TextSecondaryBrush", true),
+                _gateOutputMeter,
                 SliderField(L("Umbral (dBFS)", "Threshold (dBFS)"), _gateThreshold),
+                _calibrateGate,
                 SliderField(L("Ataque (ms)", "Attack (ms)"), _gateAttack),
                 SliderField(L("Liberación (ms)", "Release (ms)"), _gateRelease),
                 Label(L("Los ajustes de la puerta se aplican al iniciar el enrutamiento.",
