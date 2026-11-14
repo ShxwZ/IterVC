@@ -18,6 +18,9 @@ internal sealed class ShortcutControlServer : IDisposable
     {
         get
         {
+            var overridePath = Environment.GetEnvironmentVariable("ITERVC_CONTROL_SOCKET");
+            if (!string.IsNullOrWhiteSpace(overridePath))
+                return overridePath;
             var runtime = Environment.GetEnvironmentVariable("XDG_RUNTIME_DIR");
             var baseDirectory = !string.IsNullOrWhiteSpace(runtime) && Directory.Exists(runtime)
                 ? runtime

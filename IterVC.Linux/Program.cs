@@ -1,4 +1,5 @@
 using Avalonia;
+using System.Diagnostics;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Themes.Fluent;
 
@@ -43,7 +44,21 @@ internal static class Program
                 var received = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
                 using (var shortcuts = new ShortcutControlServer(command => received.TrySetResult(command), path))
                 {
-                    ShortcutControlServer.SendAsync("toggle-routing", path).GetAwaiter().GetResult();
+                    using var client = new Process
+                    {
+                        StartInfo = new ProcessStartInfo(Environment.ProcessPath!)
+                        {
+                            UseShellExecute = false,
+                            RedirectStandardError = true
+                        }
+                    };
+                    client.StartInfo.ArgumentList.Add("--toggle-routing");
+                    client.StartInfo.Environment["ITERVC_CONTROL_SOCKET"] = path;
+                    if (!client.Start())
+                        throw new InvalidOperationException("Could not invoke the shortcut command.");
+                    client.WaitForExit(3000);
+                    if (!client.HasExited || client.ExitCode != 0)
+                        throw new InvalidOperationException("Shortcut command process failed.");
                     var actual = received.Task.WaitAsync(TimeSpan.FromSeconds(3)).GetAwaiter().GetResult();
                     if (actual != "toggle-routing")
                         throw new InvalidOperationException("Linux shortcut IPC self-test failed.");
