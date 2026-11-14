@@ -68,7 +68,8 @@ internal sealed class LinuxAudioBackend : IDisposable
 
     public void Start(string microphone, string? monitoringOutput,
         IReadOnlyCollection<uint>? applicationStreamIds = null, double appVolume = 1.0,
-        double micVolume = 1.0, bool gateEnabled = false, double gateThresholdDb = -45)
+        double micVolume = 1.0, bool gateEnabled = false, double gateThresholdDb = -45,
+        bool includeApplicationCapture = false)
     {
         ThrowIfDisposed();
         if (_session is { HasExited: false })
@@ -81,11 +82,12 @@ internal sealed class LinuxAudioBackend : IDisposable
             process.StartInfo.ArgumentList.Add("--monitor-output");
             process.StartInfo.ArgumentList.Add(monitoringOutput);
         }
-        if (applicationStreamIds is { Count: > 0 })
+        if (includeApplicationCapture || applicationStreamIds is { Count: > 0 })
         {
+            process.StartInfo.ArgumentList.Add("--include-apps");
             if (!double.IsFinite(appVolume) || appVolume < 0 || appVolume > 2)
                 throw new ArgumentOutOfRangeException(nameof(appVolume));
-            foreach (var streamId in applicationStreamIds.Distinct())
+            foreach (var streamId in applicationStreamIds?.Distinct() ?? Enumerable.Empty<uint>())
             {
                 process.StartInfo.ArgumentList.Add("--app-stream");
                 process.StartInfo.ArgumentList.Add(streamId.ToString(CultureInfo.InvariantCulture));

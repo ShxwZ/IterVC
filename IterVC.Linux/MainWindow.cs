@@ -375,10 +375,15 @@ internal sealed class MainWindow : Window
         _settings.OutputDeviceId = _speakers.SelectedItem as string;
         _settings.MonitorMicrophone = _monitor.IsChecked == true;
         _settings.MinimizeToTrayWhenMinimized = _minimizeToTray.IsChecked == true;
-        _settings.IncludedProcessNames = _includeApplication.IsChecked == true
-            ? _applications.SelectedItems?.OfType<ApplicationStream>()
-                .Select(app => app.Name).Distinct().ToList() ?? new List<string>()
-            : new List<string>();
+        var selectedAppNames = _applications.SelectedItems?.OfType<ApplicationStream>()
+            .Select(app => app.Name).Distinct().ToList() ?? new List<string>();
+        if (_includeApplication.IsChecked != true)
+            _settings.IncludedProcessNames = new List<string>();
+        else if (selectedAppNames.Count > 0)
+            _settings.IncludedProcessNames = selectedAppNames;
+        // Preserve the selected process names when none are currently active.
+        // Clearing the saved selection on every mic-slider change would
+        // prevent the app from automatically reattaching after a restart.
         _settings.AppsVolume = (float)_applicationVolume.Value;
         _settings.MicrophoneVolume = (float)_microphoneVolume.Value;
         _settings.MicrophoneBoost = (float)_microphoneBoost.Value;
@@ -427,10 +432,13 @@ internal sealed class MainWindow : Window
             ? _applications.SelectedItems?.OfType<ApplicationStream>().ToArray()
                 ?? Array.Empty<ApplicationStream>()
             : Array.Empty<ApplicationStream>();
-        if (_includeApplication.IsChecked == true && selectedApps.Length == 0)
+        // A previously selected app may not be playing yet. Prepare the app
+        // capture sink now and auto-attach its stream when it reappears.
+        if (_includeApplication.IsChecked == true && selectedApps.Length == 0 &&
+            _settings.IncludedProcessNames.Count == 0)
         {
-            _status.Text = L("Selecciona una aplicación que esté reproduciendo sonido.",
-                "Select an application that is currently playing audio.");
+            _status.Text = L("Selecciona una aplicación para capturar su audio.",
+                "Choose an application to capture its audio.");
             return Task.CompletedTask;
         }
         try
@@ -438,7 +446,8 @@ internal sealed class MainWindow : Window
             _audio.Start(mic, speaker, selectedApps.Select(app => app.Id).ToArray(),
                 _applicationMuted ? 0.0 : _applicationVolume.Value,
                 _microphoneMuted ? 0.0 : Math.Clamp(_microphoneVolume.Value * _microphoneBoost.Value, 0, 3),
-                _gate.IsChecked == true, _gateThreshold.Value);
+                _gate.IsChecked == true, _gateThreshold.Value,
+                includeApplicationCapture: _includeApplication.IsChecked == true);
             _trackedAppStreams.Clear();
             foreach (var app in selectedApps)
                 _trackedAppStreams.Add(app.Id);
