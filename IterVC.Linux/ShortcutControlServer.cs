@@ -57,6 +57,11 @@ internal sealed class ShortcutControlServer : IDisposable
 
         _listener = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
         _listener.Bind(new UnixDomainSocketEndPoint(_socketPath));
+        // A desktop shortcut can toggle live microphone and app routing.
+        // Restrict the socket itself to this user even if the umask is lenient.
+        if (OperatingSystem.IsLinux())
+            File.SetUnixFileMode(_socketPath,
+                UnixFileMode.UserRead | UnixFileMode.UserWrite);
         _listener.Listen(4);
         _loop = Task.Run(async () =>
         {
