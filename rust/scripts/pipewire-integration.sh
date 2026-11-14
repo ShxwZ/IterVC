@@ -35,6 +35,7 @@ app_pid=""
 pulse_app_pid=""
 pulse_app_2_pid=""
 test_sink_module=""
+test_alt_sink_module=""
 test_microphone_sink_module=""
 test_source_module=""
 output_capture_pid=""
@@ -67,6 +68,9 @@ cleanup() {
   if [ -n "$test_microphone_sink_module" ]; then
     pactl unload-module "$test_microphone_sink_module" >/dev/null 2>&1 || true
   fi
+  if [ -n "$test_alt_sink_module" ]; then
+    pactl unload-module "$test_alt_sink_module" >/dev/null 2>&1 || true
+  fi
   if [ -n "$test_sink_module" ]; then
     pactl unload-module "$test_sink_module" >/dev/null 2>&1 || true
   fi
@@ -90,6 +94,7 @@ fi
 # Keep the synthetic microphone separate from application playback so we can
 # prove that app audio reaches the *mixed* virtual microphone, not the mic input.
 test_sink_module="$(pactl load-module module-null-sink sink_name=itervc_ci_audio_sink)"
+test_alt_sink_module="$(pactl load-module module-null-sink sink_name=itervc_ci_alt_audio_sink)"
 test_microphone_sink_module="$(pactl load-module module-null-sink sink_name=itervc_ci_microphone_source_sink)"
 test_source_module="$(pactl load-module module-remap-source master=itervc_ci_microphone_source_sink.monitor source_name=itervc_ci_test_microphone)"
 
@@ -322,12 +327,17 @@ cat "$test_dir/app-session.log"
 
 # Verify two independent application sink-inputs can be selected together
 # without duplicating playback through their shared original speaker.
-pacat --playback --raw --format=float32le --rate=48000 --channels=2 \
-  </dev/zero >"$test_dir/pacat2.log" 2>&1 &
+pacat --playback --device=itervc_ci_alt_audio_sink --raw --format=float32le \
+  --rate=48000 --channels=2 </dev/zero >"$test_dir/pacat2.log" 2>&1 &
 pulse_app_2_pid="$!"
+alternate_sink_id="$(pactl list short sinks | awk '$2=="itervc_ci_alt_audio_sink" {print $1; exit}')"
+if [ -z "$alternate_sink_id" ]; then
+  echo "Missing independent second speaker sink" >&2
+  exit 1
+fi
 stream_2_id=""
 for _ in $(seq 1 50); do
-  stream_2_id="$(pactl list short sink-inputs | awk -v sink="$original_sink_id" -v first="$stream_id" '$2==sink && $1!=first {print $1; exit}')"
+  stream_2_id="$(pactl list short sink-inputs | awk -v sink="$alternate_sink_id" '$2==sink {print $1; exit}')"
   if [ -n "$stream_2_id" ]; then break; fi
   if ! kill -0 "$pulse_app_2_pid" 2>/dev/null; then break; fi
   sleep 0.1
@@ -349,7 +359,7 @@ for _ in $(seq 1 100); do
   current_1="$(pactl list short sink-inputs | awk -v id="$stream_id" '$1==id {print $2}')"
   current_2="$(pactl list short sink-inputs | awk -v id="$stream_2_id" '$1==id {print $2}')"
   links="$(pw-link --links || true)"
-  if [ "$current_1" = "$original_sink_id" ] && [ "$current_2" = "$original_sink_id" ] \
+  if [ "$current_1" = "$original_sink_id" ] && [ "$current_2" = "$alternate_sink_id" ] \
     && printf '%s\n' "$links" | grep -Fq "itervc_rust_apps_sink"; then
     both_linked=1
     break
@@ -383,14 +393,13 @@ fi
 kill -TERM "$app_pid"
 wait "$app_pid"
 app_pid=""
-for id in "$stream_id" "$stream_2_id"; do
-  final_sink="$(pactl list short sink-inputs | awk -v stream="$id" '$1==stream {print $2}')"
-  if [ "$final_sink" != "$original_sink_id" ]; then
-    cat "$test_dir/multi-app.log" >&2
-    echo "Application $id speaker destination was modified" >&2
-    exit 1
-  fi
-done
+final_first="$(pactl list short sink-inputs | awk -v stream="$stream_id" '$1==stream {print $2}')"
+final_second="$(pactl list short sink-inputs | awk -v stream="$stream_2_id" '$1==stream {print $2}')"
+if [ "$final_first" != "$original_sink_id" ] || [ "$final_second" != "$alternate_sink_id" ]; then
+  cat "$test_dir/multi-app.log" >&2
+  echo "One of the original app speaker outputs was changed" >&2
+  exit 1
+fi
 if pactl list short sinks | grep -q "itervc_rust_apps_sink"; then
   echo "Temporary application capture sink was not removed" >&2
   exit 1
