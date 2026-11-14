@@ -53,6 +53,10 @@ internal static class Program
                 var received = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
                 using (var shortcuts = new ShortcutControlServer(command => received.TrySetResult(command), path))
                 {
+                    var permissions = File.GetUnixFileMode(path);
+                    if ((permissions & (UnixFileMode.GroupRead | UnixFileMode.GroupWrite
+                        | UnixFileMode.OtherRead | UnixFileMode.OtherWrite)) != 0)
+                        throw new InvalidOperationException("Linux shortcut socket permissions are too broad.");
                     using var client = new Process
                     {
                         StartInfo = new ProcessStartInfo(Environment.ProcessPath!)
