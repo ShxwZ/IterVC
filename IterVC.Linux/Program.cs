@@ -109,6 +109,12 @@ internal static class Program
                 if (parsedApps.Length != 2 || parsedApps[0].Id != 0 ||
                     parsedApps[1].Name != "Voice Chat")
                     throw new InvalidOperationException("Linux application stream parsing failed.");
+                // A stale saved stream must not be forwarded to Rust at startup.
+                // Resolve by name and ignore apps that have stopped playing.
+                var activeSelection = ApplicationStreamCatalog.SelectActive(appsJson,
+                    new[] { "voice chat", "PreviouslyClosedPlayer" });
+                if (activeSelection.Length != 1 || activeSelection[0].Id != 42)
+                    throw new InvalidOperationException("Stale application selection was not filtered.");
                 var packet = LinuxOscChatboxService.EncodeChatbox("IterVC test");
                 var text = Encoding.UTF8.GetString(packet);
                 if (packet.Length % 4 != 0 || !text.Contains("/chatbox/input") ||
