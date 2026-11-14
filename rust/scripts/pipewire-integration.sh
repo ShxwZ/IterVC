@@ -210,6 +210,18 @@ sleep 2
 kill -TERM "$output_capture_pid" 2>/dev/null || true
 wait "$output_capture_pid" 2>/dev/null || true
 output_capture_pid=""
+if [ ! -s "$test_dir/mixed-output.pcm" ]; then
+  echo "Virtual microphone returned no bytes; PipeWire diagnostics follow" >&2
+  cat "$test_dir/mixed-record.log" >&2 || true
+  cat "$test_dir/app-session.log" >&2 || true
+  echo "--- Sources ---" >&2
+  pactl list short sources >&2 || true
+  echo "--- Playback streams ---" >&2
+  pactl list short sink-inputs >&2 || true
+  echo "--- Native port links ---" >&2
+  pw-link --links >&2 || true
+  exit 1
+fi
 python3 - "$test_dir/mixed-output.pcm" <<'PY'
 from array import array
 import os
