@@ -15,6 +15,9 @@ pipewire >"$test_dir/pipewire.log" 2>&1 &
 pipewire_pid="$!"
 pipewire-pulse >"$test_dir/pipewire-pulse.log" 2>&1 &
 pulse_pid="$!"
+# WirePlumber is required to connect PulseAudio playback streams to sinks.
+wireplumber >"$test_dir/wireplumber.log" 2>&1 &
+session_manager_pid="$!"
 app_pid=""
 pulse_app_pid=""
 test_sink_module=""
@@ -35,8 +38,8 @@ cleanup() {
   if [ -n "$test_sink_module" ]; then
     pactl unload-module "$test_sink_module" >/dev/null 2>&1 || true
   fi
-  kill "$pulse_pid" "$pipewire_pid" 2>/dev/null || true
-  wait "$pulse_pid" "$pipewire_pid" 2>/dev/null || true
+  kill "$session_manager_pid" "$pulse_pid" "$pipewire_pid" 2>/dev/null || true
+  wait "$session_manager_pid" "$pulse_pid" "$pipewire_pid" 2>/dev/null || true
   rm -rf "$test_dir"
 }
 trap cleanup EXIT
@@ -117,6 +120,7 @@ for _ in $(seq 1 50); do
 done
 if [ -z "$stream_id" ]; then
   cat "$test_dir/pacat.log" >&2
+  cat "$test_dir/wireplumber.log" >&2
   echo "-- PipeWire sinks --" >&2
   pactl list short sinks >&2 || true
   echo "-- PulseAudio playback streams --" >&2
