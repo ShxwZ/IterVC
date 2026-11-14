@@ -240,7 +240,7 @@ struct PipeWireSession {
     app_recorder: Option<Child>,
     app_playback: Option<Child>,
     app_speaker_playback: Option<Child>,
-    app_route: Option<StreamRoute>,
+    app_routes: Vec<StreamRoute>,
 }
 
 impl PipeWireSession {
@@ -254,7 +254,7 @@ impl PipeWireSession {
             app_recorder: None,
             app_playback: None,
             app_speaker_playback: None,
-            app_route: None,
+            app_routes: Vec::new(),
         }
     }
 
@@ -355,69 +355,79 @@ impl PipeWireSession {
         };
         Ok((audio_input, audio_output, final_input, monitor_pipe))
     }
-    /// Capture a single opted-in app stream and retain its original speaker
-    /// output. Each stream is addressed by sink-input ID, not an unreliable PID.
-    fn start_application(&mut self, stream_id: u32)
+    /// Capture several opted-in streams into one isolated sink. This preserves
+    /// the original speaker mix and avoids duplicate speaker playback.
+    /// Apps using different speakers cannot be safely captured together yet.
+    fn start_application(&mut self, stream_ids: &[u32])
         -> Result<(ChildStdout, ChildStdin, ChildStdin), String>
     {
-        let current_inputs = command_output("pactl", &["list", "short", "sink-inputs"])?;
-        let stream = parse_sink_inputs(&current_inputs)
-            .into_iter().find(|item| item.id == stream_id)
-            .ok_or_else(|| format!("App stream {stream_id} is no longer available"))?;
-
-        let current_sinks = command_output("pactl", &["list", "short", "sinks"])?;
-        let original_name = parse_sink_name(&current_sinks, stream.sink_id)
-            .ok_or_else(|| format!("Original app output {} is unavailable", stream.sink_id))?;
+        if stream_ids.is_empty() {
+            return Err("Select at least one application stream".into());
+        }
+        let available = parse_sink_inputs(
+            &command_output("pactl", &["list", "short", "sink-inputs"])?);
+        let selected: Vec<_> = stream_ids.iter().map(|id| {
+            available.iter().find(|stream| stream.id == *id)
+                .ok_or_else(|| format!("App stream {id} is unavailable"))
+        }).collect::<Result<_, _>>()?;
+        let original_sink_id = selected[0].sink_id;
+        if selected.iter().any(|stream| stream.sink_id != original_sink_id) {
+            return Err("Selected applications use different speaker outputs; select apps sharing one output".into());
+        }
+        let sinks = command_output("pactl", &["list", "short", "sinks"])?;
+        let original_name = parse_sink_name(&sinks, original_sink_id)
+            .ok_or_else(|| format!("Original app output {original_sink_id} is unavailable"))?;
         if original_name.starts_with("itervc_rust_") {
-            return Err("Refusing to capture IterVC's own audio output".into());
+            return Err("Refusing to capture IterVC's own playback stream".into());
         }
 
         let sink_arg = format!("sink_name={APP_SINK_NAME}");
         self.load_module(&["load-module", "module-null-sink", sink_arg.as_str(),
             "sink_properties=device.description=IterVC_App_Capture"])?;
-
         let sinks_after = command_output("pactl", &["list", "short", "sinks"])?;
         let capture_sink_id = find_sink_id(&sinks_after, APP_SINK_NAME)
             .ok_or("Could not locate the isolated application capture sink")?;
 
-        let target = format!("--target={APP_SINK_NAME}.monitor");
+        let monitor_target = format!("--target={APP_SINK_NAME}.monitor");
         let mut recorder = Command::new("pw-cat")
             .args(["--record", "--raw", "--format=f32", "--rate=48000",
-                "--channels=2", "--latency=20ms", target.as_str(), "-"])
+                "--channels=2", "--latency=20ms", monitor_target.as_str(), "-"])
             .stdout(Stdio::piped()).stderr(Stdio::inherit()).spawn()
-            .map_err(|error| format!("Could not capture application audio: {error}"))?;
-        let app_source = recorder.stdout.take().ok_or("Missing application capture stdout")?;
+            .map_err(|error| format!("Could not capture app audio: {error}"))?;
+        let app_source = recorder.stdout.take().ok_or("Missing app capture stdout")?;
         self.app_recorder = Some(recorder);
 
-        let target_virtual = format!("--target={SINK_NAME}");
-        let mut virtual_player = Command::new("pw-cat")
+        let mixer_target = format!("--target={SINK_NAME}");
+        let mut mixer = Command::new("pw-cat")
             .args(["--playback", "--raw", "--format=f32", "--rate=48000",
-                "--channels=2", "--latency=20ms", target_virtual.as_str(), "-"])
+                "--channels=2", "--latency=20ms", mixer_target.as_str(), "-"])
             .stdin(Stdio::piped()).stderr(Stdio::inherit()).spawn()
-            .map_err(|error| format!("Could not start app mixer playback: {error}"))?;
-        let virtual_pipe = virtual_player.stdin.take().ok_or("No app mixer stdin")?;
-        self.app_playback = Some(virtual_player);
+            .map_err(|error| format!("Could not start app mix playback: {error}"))?;
+        let virtual_pipe = mixer.stdin.take().ok_or("No app mix stdin")?;
+        self.app_playback = Some(mixer);
 
-        let target_speaker = format!("--target={original_name}");
-        let mut speaker_player = Command::new("pw-cat")
+        let speaker_target = format!("--target={original_name}");
+        let mut speaker = Command::new("pw-cat")
             .args(["--playback", "--raw", "--format=f32", "--rate=48000",
-                "--channels=2", "--latency=20ms", target_speaker.as_str(), "-"])
+                "--channels=2", "--latency=20ms", speaker_target.as_str(), "-"])
             .stdin(Stdio::piped()).stderr(Stdio::inherit()).spawn()
-            .map_err(|error| format!("Could not restore application speaker playback: {error}"))?;
-        let speaker_pipe = speaker_player.stdin.take().ok_or("No app speaker stdin")?;
-        self.app_speaker_playback = Some(speaker_player);
+            .map_err(|error| format!("Could not start speaker playback: {error}"))?;
+        let speaker_pipe = speaker.stdin.take().ok_or("No app speaker stdin")?;
+        self.app_speaker_playback = Some(speaker);
 
-        // No application is moved before every playback and capture pipe
-        // has been created. All routing changes are strictly opt-in.
-        command_output("pactl", &["move-sink-input", &stream_id.to_string(), APP_SINK_NAME])?;
-        self.app_route = Some(StreamRoute {
-            stream_id,
-            original_sink_id: stream.sink_id,
-            original_sink_name: original_name,
-            capture_sink_id,
-        });
-        eprintln!("Capturing application stream {stream_id}; original device {}",
-            stream.sink_id);
+        // Store routes as each stream is moved, allowing Drop to restore
+        // earlier routes even when a later stream move fails.
+        for id in stream_ids {
+            command_output("pactl", &["move-sink-input", &id.to_string(), APP_SINK_NAME])?;
+            self.app_routes.push(StreamRoute {
+                stream_id: *id,
+                original_sink_id,
+                original_sink_name: original_name.clone(),
+                capture_sink_id,
+            });
+        }
+        eprintln!("Capturing {} application streams from physical output {}",
+            stream_ids.len(), original_sink_id);
         Ok((app_source, virtual_pipe, speaker_pipe))
     }
 
@@ -464,7 +474,7 @@ impl Drop for PipeWireSession {
         // Restore the user's original application destination only if the
         // stream still belongs to our capture sink. Never override a new
         // destination selected by the user while IterVC was running.
-        if let Some(route) = self.app_route.take() {
+        for route in self.app_routes.drain(..).rev() {
             if let Ok(current) = command_output("pactl", &["list", "short", "sink-inputs"]) {
                 if should_restore(&current, &route) {
                     if let Err(error) = command_output("pactl", &["move-sink-input",
