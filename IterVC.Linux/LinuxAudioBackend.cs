@@ -184,15 +184,24 @@ internal sealed class LinuxAudioBackend : IDisposable
         term.StartInfo.ArgumentList.Add(process.Id.ToString(CultureInfo.InvariantCulture));
         try
         {
-            term.Start();
+            if (!term.Start())
+                throw new InvalidOperationException("Failed to request graceful Linux audio shutdown.");
             await term.WaitForExitAsync();
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(4));
             await process.WaitForExitAsync(timeout.Token);
         }
-        catch (OperationCanceledException)
+        catch (Exception error) when (error is OperationCanceledException
+            or System.ComponentModel.Win32Exception or InvalidOperationException)
         {
+            // A hung or unexpectedly stopped worker must not block app exit.
+            // Always reap the child after a forced shutdown; otherwise a quick
+            // restart can race against stale processes and temporary modules.
             if (!process.HasExited)
+            {
                 process.Kill(entireProcessTree: true);
+                await process.WaitForExitAsync();
+            }
+            MessageReceived?.Invoke("PipeWire shutdown required a forced cleanup: " + error.Message);
         }
     }
 
