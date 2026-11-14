@@ -203,24 +203,48 @@ internal sealed partial class MainWindow : Window
                 await UpdateLiveMicrophoneVolumeAsync();
             }
         };
-        _gateThreshold.PropertyChanged += (_, args) => {
-            if (args.Property.Name == nameof(Slider.Value))
+        _gateThreshold.PropertyChanged += async (_, args) =>
+        {
+            if (args.Property.Name != nameof(Slider.Value)) return;
+            _gateOutputMeter.ThresholdDb = (float)_gateThreshold.Value;
+            SavePreferences();
+            if (_running)
             {
-                _gateOutputMeter.ThresholdDb = (float)_gateThreshold.Value;
-                SavePreferences();
+                try { await _audio.SetGateThresholdAsync(_gateThreshold.Value); }
+                catch (Exception error) { _status.Text = error.Message; }
             }
         };
-        _gateAttack.PropertyChanged += (_, args) => {
-            if (args.Property.Name == nameof(Slider.Value)) SavePreferences();
-        };
-        _gateRelease.PropertyChanged += (_, args) => {
-            if (args.Property.Name == nameof(Slider.Value)) SavePreferences();
-        };
-        _gate.IsCheckedChanged += (_, _) => {
-            _gateThreshold.IsEnabled = !_running && _gate.IsChecked == true;
-            _gateAttack.IsEnabled = !_running && _gate.IsChecked == true;
-            _gateRelease.IsEnabled = !_running && _gate.IsChecked == true;
+        _gateAttack.PropertyChanged += async (_, args) =>
+        {
+            if (args.Property.Name != nameof(Slider.Value)) return;
             SavePreferences();
+            if (_running)
+            {
+                try { await _audio.SetGateAttackAsync(_gateAttack.Value); }
+                catch (Exception error) { _status.Text = error.Message; }
+            }
+        };
+        _gateRelease.PropertyChanged += async (_, args) =>
+        {
+            if (args.Property.Name != nameof(Slider.Value)) return;
+            SavePreferences();
+            if (_running)
+            {
+                try { await _audio.SetGateReleaseAsync(_gateRelease.Value); }
+                catch (Exception error) { _status.Text = error.Message; }
+            }
+        };
+        _gate.IsCheckedChanged += async (_, _) =>
+        {
+            _gateThreshold.IsEnabled = _gate.IsChecked == true;
+            _gateAttack.IsEnabled = _gate.IsChecked == true;
+            _gateRelease.IsEnabled = _gate.IsChecked == true;
+            SavePreferences();
+            if (_running)
+            {
+                try { await _audio.SetGateEnabledAsync(_gate.IsChecked == true); }
+                catch (Exception error) { _status.Text = error.Message; }
+            }
         };
         _oscEnabled.IsCheckedChanged += (_, _) => { SavePreferences(); UpdateOsc(); };
         _oscTemplate.TextChanged += (_, _) => { SavePreferences(); UpdateOsc(); };
@@ -653,13 +677,13 @@ internal sealed partial class MainWindow : Window
         _speakers.IsEnabled = !active && _monitor.IsChecked == true;
         _includeApplication.IsEnabled = !active;
         _applications.IsEnabled = !active && _includeApplication.IsChecked == true;
-        // Gains can be adjusted live; gate configuration and app selection
-        // still require a restart so they remain locked during routing.
+        // Gain and gate controls update the Rust microphone live; device and
+        // application source selection still require a routing restart.
         _applicationVolume.IsEnabled = _includeApplication.IsChecked == true;
         _microphoneVolume.IsEnabled = true;
         _microphoneBoost.IsEnabled = true;
-        _gate.IsEnabled = !active;
-        _gateThreshold.IsEnabled = !active && _gate.IsChecked == true;
+        _gate.IsEnabled = true;
+        _gateThreshold.IsEnabled = _gate.IsChecked == true;
         _gateOutputMeter.ThresholdDb = (float)_gateThreshold.Value;
         if (!active)
         {
@@ -671,8 +695,8 @@ internal sealed partial class MainWindow : Window
                 meter.PeakDb = -80;
             }
         }
-        _gateAttack.IsEnabled = !active && _gate.IsChecked == true;
-        _gateRelease.IsEnabled = !active && _gate.IsChecked == true;
+        _gateAttack.IsEnabled = _gate.IsChecked == true;
+        _gateRelease.IsEnabled = _gate.IsChecked == true;
         RenderApplicationCards(_applications.ItemsSource?.OfType<ApplicationStream>().ToArray()
             ?? Array.Empty<ApplicationStream>());
         UpdateDesktopStatus();
