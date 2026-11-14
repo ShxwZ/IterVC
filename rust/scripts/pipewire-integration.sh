@@ -35,6 +35,7 @@ pipewire-pulse >"$test_dir/pipewire-pulse.log" 2>&1 &
 pulse_pid="$!"
 app_pid=""
 gui_pid=""
+gui_autoplay_pid=""
 pulse_app_pid=""
 pulse_app_2_pid=""
 test_sink_module=""
@@ -45,6 +46,10 @@ output_capture_pid=""
 mic_input_pid=""
 
 cleanup() {
+  if [ -n "$gui_autoplay_pid" ]; then
+    kill -TERM "$gui_autoplay_pid" 2>/dev/null || true
+    wait "$gui_autoplay_pid" 2>/dev/null || true
+  fi
   if [ -n "$gui_pid" ]; then
     kill -TERM "$gui_pid" 2>/dev/null || true
     wait "$gui_pid" 2>/dev/null || true
@@ -143,6 +148,21 @@ cat "$test_dir/session.log"
 # End-to-end GUI + Rust + PipeWire test: the actual Avalonia window must
 # command the Rust worker through user-local IPC to create and remove a source.
 if [ -n "$gui" ]; then
+  # Preselect an app name that is deliberately not running yet, just as a
+  # user may keep an application enabled between system reboots.
+  export XDG_CONFIG_HOME="$test_dir/gui-settings"
+  mkdir -p "$XDG_CONFIG_HOME/IterVC"
+  python3 - "$XDG_CONFIG_HOME/IterVC/settings.json" <<'PY'
+import json
+import sys
+with open(sys.argv[1], "w") as file:
+    json.dump({
+        "MicrophoneDeviceId": "itervc_ci_test_microphone",
+        "IncludedProcessNames": ["IterVC-CI-AutoApp"],
+        "MicrophoneEnabled": True,
+        "AppsVolume": 0.75
+    }, file)
+PY
   "$gui" >"$test_dir/gui-session.log" 2>&1 &
   gui_pid="$!"
   gui_window=""
@@ -174,6 +194,91 @@ if [ -n "$gui" ]; then
     echo "Linux GUI could not create a PipeWire virtual microphone through its shortcut API" >&2
     exit 1
   fi
+  # The GUI started before this playback stream existed. Its 4-second
+  # device poll must find the stored application name and add its new node via
+  # the exact same Rust add-app IPC used in production.
+  if ! pactl list short sinks | grep -q "itervc_rust_apps_sink"; then
+    cat "$test_dir/gui-session.log" >&2
+    echo "GUI did not prepare application capture for the saved, currently absent app" >&2
+    exit 1
+  fi
+  python3 - "$test_dir/gui-autoapp.pcm" <<'PY'
+import struct
+import sys
+with open(sys.argv[1], "wb") as output:
+    output.write(struct.pack("<ff", 0.35, -0.35) * (48_000 * 25))
+PY
+  pactl set-default-sink itervc_ci_audio_sink
+  gui_original_sink="$(pactl list short sinks | awk '$2=="itervc_ci_audio_sink" {print $1}')"
+  pacat --playback --device=itervc_ci_audio_sink \
+    --client-name=IterVC-CI-AutoApp --stream-name=IterVC-CI-AutoApp \
+    --raw --format=float32le --rate=48000 --channels=2 \
+    <"$test_dir/gui-autoapp.pcm" >"$test_dir/gui-autoapp.log" 2>&1 &
+  gui_autoplay_pid="$!"
+  gui_playback_stream=""
+  for _ in $(seq 1 80); do
+    gui_playback_stream="$(pactl list short sink-inputs |
+      awk -v sink="$gui_original_sink" '$2==sink {print $1; exit}')"
+    if [ -n "$gui_playback_stream" ]; then break; fi
+    sleep 0.1
+  done
+  if [ -z "$gui_playback_stream" ]; then
+    cat "$test_dir/gui-autoapp.log" >&2
+    echo "Delayed application playback never appeared on its original sink" >&2
+    exit 1
+  fi
+  gui_audio_linked=0
+  for _ in $(seq 1 120); do
+    # This checks the physical stream and the extra tap co-exist, but an
+    # audio recording below verifies the fan-out carries actual samples.
+    if pw-link --links | grep -q "itervc_rust_apps_sink" &&
+      pactl list short sink-inputs | awk -v id="$gui_playback_stream" -v sink="$gui_original_sink" '$1==id && $2==sink {found=1} END {exit !found}'; then
+      # The first attempt may be during sink initialization. Give the GUI
+      # polling loop enough time to send its Rust app-linked command.
+      sleep 0.5
+      gui_audio_linked=1
+      break
+    fi
+    sleep 0.1
+  done
+  if [ "$gui_audio_linked" != 1 ]; then
+    cat "$test_dir/gui-session.log" >&2
+    pw-link --links >&2 || true
+    echo "Delayed app was not linked to the GUI-managed virtual microphone" >&2
+    exit 1
+  fi
+  pw-cat --record --raw --format=f32 --rate=48000 --channels=2 \
+    --target=itervc_rust_microphone - >"$test_dir/gui-autoapp-output.pcm" \
+    2>"$test_dir/gui-autoapp-record.log" &
+  output_capture_pid="$!"
+  sleep 2
+  kill -TERM "$output_capture_pid" 2>/dev/null || true
+  wait "$output_capture_pid" 2>/dev/null || true
+  output_capture_pid=""
+  python3 - "$test_dir/gui-autoapp-output.pcm" <<'PY'
+from array import array
+import os
+import sys
+path = sys.argv[1]
+if not os.path.isfile(path) or os.path.getsize(path) < 8192:
+    raise SystemExit("GUI auto-reattach produced no virtual microphone PCM")
+samples = array("f")
+with open(path, "rb") as recorded:
+    samples.frombytes(recorded.read())
+active = sum(abs(value) > 0.04 for value in samples)
+if active < 1000:
+    raise SystemExit("GUI failed to attach the delayed application to its virtual microphone")
+print(f"GUI automatic late-app capture: {active} audible samples.")
+PY
+  if ! kill -0 "$gui_pid" 2>/dev/null; then
+    cat "$test_dir/gui-session.log" >&2
+    echo "GUI crashed during delayed application capture" >&2
+    exit 1
+  fi
+  kill -TERM "$gui_autoplay_pid" 2>/dev/null || true
+  wait "$gui_autoplay_pid" 2>/dev/null || true
+  gui_autoplay_pid=""
+
   "$gui" --stop-routing
   gui_stopped=0
   for _ in $(seq 1 80); do
