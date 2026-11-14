@@ -76,11 +76,11 @@ jobs:
       - name: Install PipeWire, pipewire-pulse and pactl
         run: |
           sudo apt-get update
-          sudo apt-get install -y pipewire pipewire-pulse pipewire-bin pulseaudio-utils
+          sudo apt-get install -y pipewire pipewire-pulse pipewire-bin pulseaudio-utils dbus-user-session
       - name: Build Rust Linux backend
         run: cargo build --locked --manifest-path rust/Cargo.toml -p itervc-linux-pipewire --release
       - name: Test real PipeWire daemon with synthetic microphone
-        run: bash rust/scripts/pipewire-integration.sh
+        run: dbus-run-session -- bash rust/scripts/pipewire-integration.sh
 
   windows-native:
     name: Windows Rust buffer compatibility

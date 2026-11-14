@@ -13,11 +13,24 @@ chmod 700 "$XDG_RUNTIME_DIR"
 
 pipewire >"$test_dir/pipewire.log" 2>&1 &
 pipewire_pid="$!"
-pipewire-pulse >"$test_dir/pipewire-pulse.log" 2>&1 &
-pulse_pid="$!"
-# WirePlumber is required to connect PulseAudio playback streams to sinks.
+
+# The session manager needs both PipeWire and a D-Bus session already active.
+# Starting them simultaneously is racy on hosted CI VMs.
+pipewire_ready=0
+for _ in $(seq 1 90); do
+  if pw-cli info 0 >/dev/null 2>&1; then pipewire_ready=1; break; fi
+  sleep 0.1
+done
+if [ "$pipewire_ready" != 1 ]; then
+  cat "$test_dir/pipewire.log" >&2
+  echo "PipeWire core did not initialize" >&2
+  exit 1
+fi
+
 wireplumber >"$test_dir/wireplumber.log" 2>&1 &
 session_manager_pid="$!"
+pipewire-pulse >"$test_dir/pipewire-pulse.log" 2>&1 &
+pulse_pid="$!"
 app_pid=""
 pulse_app_pid=""
 pulse_app_2_pid=""
