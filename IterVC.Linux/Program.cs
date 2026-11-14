@@ -99,10 +99,14 @@ internal static class Program
                     if (Directory.Exists(settingsDirectory))
                         Directory.Delete(settingsDirectory, recursive: true);
                 }
-                var appsJson = "[{\"index\":41,\"properties\":{\"application.name\":\"Music Player\"}},"
-                    + "{\"index\":42,\"properties\":{\"application.name\":\"Voice Chat\"}}]";
+                // PulseAudio sink-input indices can legitimately start at 0.
+                // The catalogue must retain that stream but hide IterVC's own
+                // playback to avoid selecting a feedback loop.
+                var appsJson = "[{\"index\":0,\"properties\":{\"application.name\":\"Music Player\"}},"
+                    + "{\"index\":42,\"properties\":{\"application.name\":\"Voice Chat\"}},"
+                    + "{\"index\":43,\"properties\":{\"application.name\":\"IterVC Rust Microphone\"}}]";
                 var parsedApps = ApplicationStreamCatalog.Parse(appsJson);
-                if (parsedApps.Length != 2 || parsedApps[0].Id != 41 ||
+                if (parsedApps.Length != 2 || parsedApps[0].Id != 0 ||
                     parsedApps[1].Name != "Voice Chat")
                     throw new InvalidOperationException("Linux application stream parsing failed.");
                 var packet = LinuxOscChatboxService.EncodeChatbox("IterVC test");
