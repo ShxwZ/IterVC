@@ -97,6 +97,22 @@ internal sealed class LinuxOscChatboxService : IDisposable
         }
     }
 
+    /// <summary>Control the active MPRIS player without Windows media APIs.</summary>
+    public static async Task<bool> ControlPlaybackAsync(string command,
+        CancellationToken cancellationToken = default)
+    {
+        if (command is not ("play-pause" or "next" or "previous"))
+            throw new ArgumentException("Unsupported media command.", nameof(command));
+        try
+        {
+            return await RunPlayerctlAsync(cancellationToken, command) is not null;
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            return false; // playerctl is optional on Linux.
+        }
+    }
+
     private async Task RunAsync(Func<string> template, CancellationToken token)
     {
         try
