@@ -38,8 +38,13 @@ test_sink_module=""
 test_microphone_sink_module=""
 test_source_module=""
 output_capture_pid=""
+mic_input_pid=""
 
 cleanup() {
+  if [ -n "$mic_input_pid" ]; then
+    kill -TERM "$mic_input_pid" 2>/dev/null || true
+    wait "$mic_input_pid" 2>/dev/null || true
+  fi
   if [ -n "$app_pid" ]; then
     kill -TERM "$app_pid" 2>/dev/null || true
     wait "$app_pid" 2>/dev/null || true
@@ -391,5 +396,100 @@ if pactl list short sinks | grep -q "itervc_rust_apps_sink"; then
   exit 1
 fi
 cat "$test_dir/multi-app.log"
-echo "Real PipeWire virtual mic and non-invasive multi-app tap tests passed."
+
+# Verify microphone gain is adjustable without restarting the selected
+# capture source or the virtual microphone. The app playback sink is separate.
+python3 - "$test_dir/microphone-signal.pcm" <<'PY'
+import struct
+import sys
+with open(sys.argv[1], "wb") as stream:
+    stream.write(struct.pack("<ff", 0.3, -0.3) * (48_000 * 35))
+PY
+pacat --playback --device=itervc_ci_microphone_source_sink --raw \
+  --format=float32le --rate=48000 --channels=2 \
+  <"$test_dir/microphone-signal.pcm" >"$test_dir/mic-playback.log" 2>&1 &
+mic_input_pid="$!"
+
+mkfifo "$test_dir/live-mic-gain.fifo"
+exec 8<>"$test_dir/live-mic-gain.fifo"
+"$app" --input itervc_ci_test_microphone --seconds 0 \
+  <"$test_dir/live-mic-gain.fifo" >"$test_dir/mic-session.log" 2>&1 &
+app_pid="$!"
+
+mic_ready=0
+for _ in $(seq 1 80); do
+  if pactl list short sources | grep -q "itervc_rust_microphone"; then
+    mic_ready=1
+    break
+  fi
+  if ! kill -0 "$app_pid" 2>/dev/null; then break; fi
+  sleep 0.1
+done
+if [ "$mic_ready" != 1 ]; then
+  cat "$test_dir/mic-session.log" >&2
+  echo "Live microphone mute test could not start routing" >&2
+  exit 1
+fi
+
+capture_mic_virtual() {
+  local path="$1"
+  pw-cat --record --raw --format=f32 --rate=48000 --channels=2 \
+    --target=itervc_rust_microphone - >"$path" 2>"$path.log" &
+  output_capture_pid="$!"
+  sleep 1.1
+  kill -TERM "$output_capture_pid" 2>/dev/null || true
+  wait "$output_capture_pid" 2>/dev/null || true
+  output_capture_pid=""
+}
+check_virtual_level() {
+  python3 - "$1" "$2" <<'PY'
+from array import array
+import os
+import sys
+
+path, expected = sys.argv[1:3]
+if not os.path.isfile(path) or os.path.getsize(path) < 8192:
+    raise SystemExit("Live mic test did not record enough PCM")
+samples = array("f")
+with open(path, "rb") as stream:
+    samples.frombytes(stream.read())
+active = sum(abs(x) > 0.04 for x in samples)
+if expected == "sound" and active < 1000:
+    raise SystemExit("Microphone audio was absent from the virtual source")
+if expected == "silence" and active > 500:
+    raise SystemExit("Mic gain zero did not silence the virtual microphone")
+print(f"Live microphone gain: {expected} (active samples={active}).")
+PY
+}
+
+sleep 0.4
+capture_mic_virtual "$test_dir/mic-audible.pcm"
+check_virtual_level "$test_dir/mic-audible.pcm" sound
+printf 'mic-volume 0\n' >&8
+sleep 0.5
+capture_mic_virtual "$test_dir/mic-muted.pcm"
+check_virtual_level "$test_dir/mic-muted.pcm" silence
+if ! kill -0 "$app_pid" 2>/dev/null; then
+  echo "Muting microphone unexpectedly terminated routing" >&2
+  exit 1
+fi
+printf 'mic-volume 1\n' >&8
+sleep 0.5
+capture_mic_virtual "$test_dir/mic-restored.pcm"
+check_virtual_level "$test_dir/mic-restored.pcm" sound
+
+kill -TERM "$app_pid"
+wait "$app_pid"
+app_pid=""
+exec 8>&-
+exec 8<&-
+kill -TERM "$mic_input_pid" 2>/dev/null || true
+wait "$mic_input_pid" 2>/dev/null || true
+mic_input_pid=""
+if pactl list short sources | grep -q "itervc_rust_microphone"; then
+  echo "Live mic test did not unload virtual source" >&2
+  exit 1
+fi
+cat "$test_dir/mic-session.log"
+echo "Real PipeWire virtual mic, non-invasive app taps, and live mic/app gains passed."
 
