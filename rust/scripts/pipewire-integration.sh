@@ -247,6 +247,12 @@ if [ "$both_linked" != 1 ]; then
   pw-link --input >&2 || true
   echo "Current links:" >&2
   pw-link --links >&2 || true
+  echo "Detailed PulseAudio sink-input properties:" >&2
+  pactl list sink-inputs >&2 || true
+  echo "PipeWire global output port IDs:" >&2
+  pw-link --id --output >&2 || true
+  echo "PipeWire port node associations:" >&2
+  pw-cli ls Port >&2 || true
   echo "Selected apps did not connect to the capture sink" >&2
   exit 1
 fi
