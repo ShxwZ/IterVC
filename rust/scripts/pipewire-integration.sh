@@ -235,6 +235,12 @@ for _ in $(seq 1 100); do
 done
 if [ "$both_linked" != 1 ]; then
   cat "$test_dir/multi-app.log" >&2
+  echo "Detailed PulseAudio sink-inputs:" >&2
+  pactl list sink-inputs >&2 || true
+  echo "PipeWire global output port IDs:" >&2
+  pw-link --id --output >&2 || true
+  echo "PipeWire global port properties:" >&2
+  pw-cli ls Port >&2 || true
   echo "Available output ports:" >&2
   pw-link --output >&2 || true
   echo "Available input ports:" >&2
