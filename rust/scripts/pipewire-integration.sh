@@ -444,10 +444,16 @@ if [ -z "$stream_2_id" ]; then
   exit 1
 fi
 
+# Begin with the first app, then attach the second while the session
+# remains active. This exercises the exact hotplug command used by the GUI.
+mkfifo "$test_dir/hotplug-app.fifo"
+exec 7<>"$test_dir/hotplug-app.fifo"
 "$app" --input itervc_ci_test_microphone \
-  --app-stream "$stream_id" --app-stream "$stream_2_id" \
-  --app-volume 0.8 --seconds 0 >"$test_dir/multi-app.log" 2>&1 &
+  --app-stream "$stream_id" --app-volume 0.8 --seconds 0 \
+  <"$test_dir/hotplug-app.fifo" >"$test_dir/multi-app.log" 2>&1 &
 app_pid="$!"
+sleep 0.6
+printf 'add-app %s\n' "$stream_2_id" >&7
 
 both_linked=0
 for _ in $(seq 1 100); do
@@ -488,6 +494,8 @@ fi
 kill -TERM "$app_pid"
 wait "$app_pid"
 app_pid=""
+exec 7>&-
+exec 7<&-
 final_first="$(pactl list short sink-inputs | awk -v stream="$stream_id" '$1==stream {print $2}')"
 final_second="$(pactl list short sink-inputs | awk -v stream="$stream_2_id" '$1==stream {print $2}')"
 if [ "$final_first" != "$original_sink_id" ] || [ "$final_second" != "$alternate_sink_id" ]; then
