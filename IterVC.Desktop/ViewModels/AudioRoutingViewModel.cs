@@ -20,6 +20,7 @@ public sealed partial class AudioRoutingViewModel : ViewModelBase
     private Task _outputSelectionTask = Task.CompletedTask;
     private Task _targetSelectionTask = Task.CompletedTask;
     private Task _volumePersistenceTask = Task.CompletedTask;
+    private int _stopped;
 
     public AudioRoutingViewModel(IAudioRouterService router, IDeviceService devices,
         ISettingsService settings, ApplicationsViewModel applications, MicrophoneViewModel microphone,
@@ -73,10 +74,7 @@ public sealed partial class AudioRoutingViewModel : ViewModelBase
                 ?? OutputDevices.FirstOrDefault(device => device.IsDefault);
 
             if (SelectedVbCableDevice is not null)
-            {
-                await _router.StartAsync(SelectedVbCableDevice.Id, cancellationToken);
-                IsRouting = true;
-            }
+                await StartRoutingWithDeviceInUseRecoveryAsync(SelectedVbCableDevice.Id, cancellationToken);
 
             if (SelectedOutputDevice is not null)
                 await Applications.InitializeOutputDeviceAsync(SelectedOutputDevice.Id, cancellationToken);
@@ -123,19 +121,19 @@ public sealed partial class AudioRoutingViewModel : ViewModelBase
 
     partial void OnSelectedOutputDeviceChanged(AudioDeviceInfo? value)
     {
-        if (_hydrating || _refreshing || value is null) return;
+        if (_hydrating || _refreshing || value is null || Volatile.Read(ref _stopped) != 0) return;
         _outputSelectionTask = SelectOutputDeviceSafelyAsync(value.Id);
     }
 
     partial void OnSelectedVbCableDeviceChanged(AudioDeviceInfo? value)
     {
-        if (_hydrating || _refreshing || value is null) return;
+        if (_hydrating || _refreshing || value is null || Volatile.Read(ref _stopped) != 0) return;
         _targetSelectionTask = SelectTargetDeviceSafelyAsync(value.Id);
     }
 
     partial void OnAppsVolumeChanged(float value)
     {
-        if (_hydrating) return;
+        if (_hydrating || Volatile.Read(ref _stopped) != 0) return;
         _router.SetAppsVolume(value);
         _volumePersistenceTask = PersistVolumeSafelyAsync(value);
     }
@@ -143,26 +141,44 @@ public sealed partial class AudioRoutingViewModel : ViewModelBase
     [RelayCommand]
     public async Task ToggleRoutingAsync()
     {
+        if (Volatile.Read(ref _stopped) != 0) return;
         if (IsRouting) await StopRoutingAsync();
         else await StartRoutingAsync();
     }
 
     public async Task StartRoutingAsync()
     {
-        if (IsRouting || SelectedVbCableDevice is null) return;
-        await _router.StartAsync(SelectedVbCableDevice.Id, _lifetimeCancellation.Token);
-        IsRouting = true;
+        if (Volatile.Read(ref _stopped) != 0 || IsRouting || SelectedVbCableDevice is null) return;
+        await StartRoutingWithDeviceInUseRecoveryAsync(SelectedVbCableDevice.Id, _lifetimeCancellation.Token);
+    }
+
+    private async Task StartRoutingWithDeviceInUseRecoveryAsync(
+        string deviceId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _router.StartAsync(deviceId, cancellationToken);
+            IsRouting = true;
+        }
+        catch (Exception exception) when (WasapiDeviceInUse.Matches(exception))
+        {
+            IsRouting = false;
+            _logger.LogWarning(exception,
+                "Audio routing to {DeviceId} could not start because the device is in use. " +
+                "Release exclusive access to the device, then retry routing.", deviceId);
+        }
     }
 
     public async Task StopRoutingAsync()
     {
-        if (!IsRouting) return;
+        if (Volatile.Read(ref _stopped) != 0 || !IsRouting) return;
         await _router.StopAsync();
         IsRouting = false;
     }
 
     public async Task StopAsync()
     {
+        if (Interlocked.Exchange(ref _stopped, 1) != 0) return;
         _lifetimeCancellation.Cancel();
         Meters.Stop();
         await AwaitSafelyAsync(_outputSelectionTask, "application output selection");
