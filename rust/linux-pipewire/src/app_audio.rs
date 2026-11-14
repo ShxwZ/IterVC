@@ -52,6 +52,25 @@ pub fn parse_pactl_node_id(text: &str, sink_input_id: u32) -> Option<u32> {
     None
 }
 
+/// Identify the process behind a PulseAudio playback stream when available.
+/// IterVC must not capture one of its own speaker-monitor subprocesses:
+/// doing so would create an audio feedback loop.
+pub fn parse_pactl_process_id(text: &str, sink_input_id: u32) -> Option<u32> {
+    let section = format!("Sink Input #{sink_input_id}");
+    let mut selected = false;
+    for line in text.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("Sink Input #") {
+            selected = trimmed == section;
+        } else if selected {
+            if let Some(value) = trimmed.strip_prefix("application.process.id =") {
+                return value.trim().trim_matches('"').parse().ok();
+            }
+        }
+    }
+    None
+}
+
 /// PipeWire's own Port registry exposes stable, unique per-node output port
 /// IDs, even if several streams have the same display name (e.g. "pacat").
 /// A channel must be present exactly once; missing/ambiguous layouts fail
@@ -248,6 +267,15 @@ mod tests {
         assert_eq!(find_output_port_ids(ports, 60), Some((65, 64)));
         assert_eq!(find_output_port_ids(ports, 67), Some((72, 73)));
         assert_eq!(find_output_port_ids(ports, 88), None);
+    }
+
+    #[test]
+    fn process_lookup_is_scoped_to_selected_playback_stream() {
+        let text = "Sink Input #45\n  Properties:\n    application.process.id = \"4242\"\n\
+                    Sink Input #62\n  Properties:\n    application.process.id = \"8080\"\n";
+        assert_eq!(parse_pactl_process_id(text, 45), Some(4242));
+        assert_eq!(parse_pactl_process_id(text, 62), Some(8080));
+        assert_eq!(parse_pactl_process_id(text, 999), None);
     }
 
     #[test]

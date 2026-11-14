@@ -376,6 +376,18 @@ impl PipeWireSession {
             if original_name.starts_with("itervc_rust_") {
                 return Err("Refusing to capture IterVC's own audio stream".into());
             }
+            // Ignore our own speaker/monitor playback to avoid re-capturing
+            // the virtual microphone output into itself through the speakers.
+            let our_pids: Vec<u32> = [
+                self.playback.as_ref(),
+                self.monitor_playback.as_ref(),
+                self.app_playback.as_ref()
+            ].into_iter().flatten().map(|child| child.id()).collect();
+            if app_audio::parse_pactl_process_id(&detailed_inputs, *id)
+                .is_some_and(|pid| our_pids.contains(&pid))
+            {
+                return Err(format!("Refusing to capture IterVC's own playback stream {id}"));
+            }
             let node_id = parse_pactl_node_id(&detailed_inputs, *id)
                 .ok_or_else(|| format!("PipeWire object.id for app stream {id} was not found"))?;
             if node_ids.contains(&node_id) {
