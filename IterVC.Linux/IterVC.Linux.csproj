@@ -39,9 +39,15 @@
   <ItemGroup>
     <EmbeddedResource Include="../rust/target/release/itervc-linux-pipewire"
                       LogicalName="IterVC.Linux.NativeAudioCli" />
+    <!-- The same native DSP implementation and RNNoise model as Windows.
+         It is extracted next to the Rust worker from the one-file publish. -->
+    <EmbeddedResource Include="../rust/target/release/libiter_vc_rnnoise.so"
+                      LogicalName="IterVC.Linux.NativeRnNoise" />
   </ItemGroup>
   <Target Name="RequireLinuxNativeBackend" BeforeTargets="CoreCompile">
     <Error Condition="!Exists('../rust/target/release/itervc-linux-pipewire')"
            Text="Build rust/linux-pipewire in Release mode before building the Linux GUI." />
+    <Error Condition="!Exists('../rust/target/release/libiter_vc_rnnoise.so')"
+           Text="Build native/iter_vc_rnnoise for Linux and copy libiter_vc_rnnoise.so into rust/target/release before building the Linux GUI." />
   </Target>
 </Project>
