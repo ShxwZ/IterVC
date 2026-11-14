@@ -17,5 +17,4 @@ public sealed partial class SettingsPanel : UserControl
             && ShortcutCapture?.Hotkeys is { RecordingAction: not null })
             ShortcutCapture.CancelCapture();
     }
-
 }

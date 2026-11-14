@@ -42,6 +42,9 @@ public sealed class AppSettings
     /// <summary>Si true, el micrófono también se escucha por el dispositivo principal (auto-monitorización).</summary>
     public bool MonitorMicrophone { get; set; }
 
+    /// <summary>Opt-in RNNoise microphone suppression, off by default.</summary>
+    public bool NoiseSuppressionEnabled { get; set; }
+
     /// <summary>Whether the microphone noise gate is enabled.</summary>
     public bool NoiseGateEnabled { get; set; }
 

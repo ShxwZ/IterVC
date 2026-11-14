@@ -36,4 +36,14 @@
     <ProjectReference Include="..\IterVC.Audio\IterVC.Audio.csproj" />
   </ItemGroup>
 
+  <!-- Register the native DLL *before* publishing: the .NET single-file bundler
+       includes it in IterVC.exe (IncludeNativeLibrariesForSelfExtract=true). -->
+  <ItemGroup Condition="'$(OS)' == 'Windows_NT'">
+    <Content Include="..\native\iter_vc_rnnoise\target\x86_64-pc-windows-msvc\release\iter_vc_rnnoise.dll"
+             Link="iter_vc_rnnoise.dll"
+             CopyToOutputDirectory="PreserveNewest"
+             CopyToPublishDirectory="PreserveNewest"
+             ExcludeFromSingleFile="false" />
+  </ItemGroup>
+
 </Project>
