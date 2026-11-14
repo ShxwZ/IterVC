@@ -46,29 +46,35 @@ mod shutdown {
 enum Mode {
     Help,
     ListInputs,
+    ListOutputs,
     Check,
-    Run { input: String, seconds: u64 },
+    Run { input: String, seconds: u64, monitor_output: Option<String> },
 }
 
 fn parse_args(args: impl IntoIterator<Item = String>) -> Result<Mode, String> {
     let mut mode = None;
     let mut input = None;
     let mut seconds = 30u64;
+    let mut monitor_output = None;
     let mut args = args.into_iter();
 
     while let Some(arg) = args.next() {
         match arg.as_str() {
             "--help" | "-h" => mode = Some(Mode::Help),
             "--list-inputs" => mode = Some(Mode::ListInputs),
+            "--list-outputs" => mode = Some(Mode::ListOutputs),
             "--check" => mode = Some(Mode::Check),
             "--input" => {
                 input = Some(args.next().ok_or("Missing device after --input")?);
             }
+            "--monitor-output" => {
+                monitor_output = Some(args.next().ok_or("Missing sink after --monitor-output")?);
+            }
             "--seconds" => {
                 let value = args.next().ok_or("Missing value after --seconds")?;
                 seconds = value.parse().map_err(|_| "Invalid --seconds value")?;
-                if !(1..=3600).contains(&seconds) {
-                    return Err("--seconds must be between 1 and 3600".into());
+                if seconds > 3600 {
+                    return Err("--seconds must be between 0 (continuous) and 3600".into());
                 }
             }
             unknown => return Err(format!("Unknown argument: {unknown}")),
@@ -76,7 +82,7 @@ fn parse_args(args: impl IntoIterator<Item = String>) -> Result<Mode, String> {
     }
 
     if let Some(mode) = mode {
-        if input.is_some() {
+        if input.is_some() || monitor_output.is_some() {
             return Err("--input cannot be combined with a query option".into());
         }
         return Ok(mode);
@@ -86,7 +92,10 @@ fn parse_args(args: impl IntoIterator<Item = String>) -> Result<Mode, String> {
     if !is_physical_input(&input) {
         return Err("Specify a physical PipeWire input, not the virtual microphone".into());
     }
-    Ok(Mode::Run { input, seconds })
+    if monitor_output.as_deref().is_some_and(|name| !is_physical_output(name)) {
+        return Err("Select a real speaker output, not the virtual sink".into());
+    }
+    Ok(Mode::Run { input, seconds, monitor_output })
 }
 
 fn print_help() {
@@ -94,11 +103,13 @@ fn print_help() {
         "IterVC experimental Linux PipeWire prototype\n\
          Usage:\n\
            itervc-linux-pipewire --list-inputs\n\
+           itervc-linux-pipewire --list-outputs\n\
            itervc-linux-pipewire --check\n\
-           itervc-linux-pipewire --input <physical-node-name> [--seconds 30]\n\n\
+           itervc-linux-pipewire --input <physical-node-name> [--seconds 30] [--monitor-output SINK]\n\n\
          Requirements: a user PipeWire session, pipewire-pulse, pactl and pw-cat.\n\
          A temporary IterVC virtual microphone is created and removed after exit.\n\
-         This routes only the selected physical microphone, not application audio."
+         This routes only the selected physical microphone, not application audio.\n\
+         --seconds 0 runs until stopped. --monitor-output is optional."
     );
 }
 
@@ -136,6 +147,23 @@ fn available_inputs() -> Result<Vec<String>, String> {
         .collect())
 }
 
+fn is_physical_output(name: &str) -> bool {
+    !name.trim().is_empty() && !name.contains('\0') && !name.starts_with("itervc_rust_")
+}
+
+fn available_outputs() -> Result<Vec<String>, String> {
+    let output = command_output("pactl", &["list", "short", "sinks"])?;
+    Ok(output.lines().filter_map(|line| line.split_whitespace().nth(1))
+        .filter(|name| is_physical_output(name)).map(str::to_owned).collect())
+}
+
+fn validate_output(name: &str) -> Result<(), String> {
+    if !is_physical_output(name) || !available_outputs()?.iter().any(|item| item == name) {
+        return Err(format!("Speaker output '{name}' is unavailable. Use --list-outputs."));
+    }
+    Ok(())
+}
+
 fn validate_input(name: &str) -> Result<(), String> {
     if !is_physical_input(name) {
         return Err("Select a physical microphone, not a monitor or virtual source".into());
@@ -157,6 +185,7 @@ struct PipeWireSession {
     modules: Vec<u32>,
     recorder: Option<Child>,
     playback: Option<Child>,
+    monitor_playback: Option<Child>,
 }
 
 impl PipeWireSession {
@@ -165,6 +194,7 @@ impl PipeWireSession {
             modules: Vec::new(),
             recorder: None,
             playback: None,
+            monitor_playback: None,
         }
     }
 
@@ -197,7 +227,8 @@ impl PipeWireSession {
         Ok(())
     }
 
-    fn start_streams(&mut self, input: &str) -> Result<(ChildStdout, ChildStdin), String> {
+    fn start_streams(&mut self, input: &str, monitor_output: Option<&str>)
+        -> Result<(ChildStdout, ChildStdin, Option<ChildStdin>), String> {
         let target = format!("--target={input}");
         let mut recorder = Command::new("pw-cat")
             .args([
@@ -237,11 +268,25 @@ impl PipeWireSession {
 
         let audio_output = playback.stdin.take().ok_or("Missing playback stdin")?;
         self.playback = Some(playback);
-        Ok((audio_input, audio_output))
+
+        let monitor_pipe = if let Some(output) = monitor_output {
+            let target = format!("--target={output}");
+            let mut monitor = Command::new("pw-cat")
+                .args(["--playback", "--raw", "--format=f32", "--rate=48000",
+                    "--channels=2", "--latency=20ms", target.as_str(), "-"])
+                .stdin(Stdio::piped()).stderr(Stdio::inherit()).spawn()
+                .map_err(|error| format!("Could not start speaker monitoring: {error}"))?;
+            let pipe = monitor.stdin.take().ok_or("No speaker monitor stdin")?;
+            self.monitor_playback = Some(monitor);
+            Some(pipe)
+        } else {
+            None
+        };
+        Ok((audio_input, audio_output, monitor_pipe))
     }
     // Stop both subprocesses to unblock any pending pipe I/O on cancellation.
     fn stop_streams(&mut self) {
-        for child in [&mut self.recorder, &mut self.playback].into_iter().flatten() {
+        for child in [&mut self.recorder, &mut self.playback, &mut self.monitor_playback].into_iter().flatten() {
             let _ = child.kill();
             let _ = child.wait();
         }
@@ -269,6 +314,10 @@ impl Drop for PipeWireSession {
                 }
                 std::thread::sleep(Duration::from_millis(10));
             }
+        }
+        if let Some(monitor) = self.monitor_playback.as_mut() {
+            let _ = monitor.kill();
+            let _ = monitor.wait();
         }
         for id in self.modules.drain(..).rev() {
             let _ = Command::new("pactl")
