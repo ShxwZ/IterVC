@@ -105,7 +105,7 @@ internal sealed partial class MainWindow : Window
         _start.Content = L("Iniciar enrutamiento", "Start routing");
         _stop.Content = L("Detener", "Stop");
         _status.Text = L("Preparando PipeWire…", "Preparing PipeWire…");
-        _levelText.Text = L("Nivel de micrófono: sin señal", "Microphone level: no signal");
+        _levelText.Text = L("Mezcla virtual: sin señal", "Virtual mix: no signal");
         _status.TextWrapping = TextWrapping.Wrap;
         _stop.IsEnabled = false;
         _speakers.IsEnabled = false;
@@ -204,7 +204,11 @@ internal sealed partial class MainWindow : Window
             }
         };
         _gateThreshold.PropertyChanged += (_, args) => {
-            if (args.Property.Name == nameof(Slider.Value)) SavePreferences();
+            if (args.Property.Name == nameof(Slider.Value))
+            {
+                _gateOutputMeter.ThresholdDb = (float)_gateThreshold.Value;
+                SavePreferences();
+            }
         };
         _gateAttack.PropertyChanged += (_, args) => {
             if (args.Property.Name == nameof(Slider.Value)) SavePreferences();
@@ -262,7 +266,27 @@ internal sealed partial class MainWindow : Window
             var decibels = 20 * Math.Log10(Math.Max(0.00001, rms));
             _level.Value = Math.Clamp((decibels + 60) / 60 * 100, 0, 100);
             _levelText.Text = string.Format(CultureInfo.InvariantCulture,
-                L("Nivel de micrófono: {0:0.0} dBFS", "Microphone level: {0:0.0} dBFS"), decibels);
+                L("Mezcla virtual: {0:0.0} dBFS", "Virtual mix: {0:0.0} dBFS"), decibels);
+        });
+        _audio.MicrophoneInputLevelChanged += rms => Dispatcher.UIThread.Post(() =>
+        {
+            if (!_running || _closing) return;
+            var db = Math.Clamp(20 * Math.Log10(Math.Max(0.00001, rms)), -80, 0);
+            _lastMicInputDb = db;
+            _micInputMeter.LevelDb = (float)db;
+            _micInputMeter.PeakDb = (float)db;
+            _micInputMeter.IsActive = true;
+        });
+        _audio.MicrophoneOutputLevelChanged += rms => Dispatcher.UIThread.Post(() =>
+        {
+            if (!_running || _closing) return;
+            var db = Math.Clamp(20 * Math.Log10(Math.Max(0.00001, rms)), -80, 0);
+            foreach (var meter in new[] { _micOutputMeter, _gateOutputMeter })
+            {
+                meter.LevelDb = (float)db;
+                meter.PeakDb = (float)db;
+                meter.IsActive = true;
+            }
         });
         _audio.SessionExited += () => Dispatcher.UIThread.Post(() => SetRunning(false));
         UpdateOsc();
@@ -623,12 +647,23 @@ internal sealed partial class MainWindow : Window
         _microphoneBoost.IsEnabled = true;
         _gate.IsEnabled = !active;
         _gateThreshold.IsEnabled = !active && _gate.IsChecked == true;
+        _gateOutputMeter.ThresholdDb = (float)_gateThreshold.Value;
+        if (!active)
+        {
+            _lastMicInputDb = -80;
+            foreach (var meter in new[] { _micInputMeter, _micOutputMeter, _gateOutputMeter })
+            {
+                meter.IsActive = false;
+                meter.LevelDb = -80;
+                meter.PeakDb = -80;
+            }
+        }
         _gateAttack.IsEnabled = !active && _gate.IsChecked == true;
         _gateRelease.IsEnabled = !active && _gate.IsChecked == true;
         RenderApplicationCards(_applications.ItemsSource?.OfType<ApplicationStream>().ToArray()
             ?? Array.Empty<ApplicationStream>());
         UpdateDesktopStatus();
-        if (!active) { _level.Value = 0; _levelText.Text = L("Micrófono detenido", "Microphone stopped"); }
+        if (!active) { _level.Value = 0; _levelText.Text = L("Mezcla detenida", "Mix stopped"); }
     }
 
     private async void OnKeyDown(object? sender, KeyEventArgs e)
