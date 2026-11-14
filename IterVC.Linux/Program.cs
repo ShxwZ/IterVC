@@ -90,6 +90,12 @@ internal static class Program
                     if (Directory.Exists(settingsDirectory))
                         Directory.Delete(settingsDirectory, recursive: true);
                 }
+                var appsJson = "[{\"index\":41,\"properties\":{\"application.name\":\"Music Player\"}},"
+                    + "{\"index\":42,\"properties\":{\"application.name\":\"Voice Chat\"}}]";
+                var parsedApps = ApplicationStreamCatalog.Parse(appsJson);
+                if (parsedApps.Length != 2 || parsedApps[0].Id != 41 ||
+                    parsedApps[1].Name != "Voice Chat")
+                    throw new InvalidOperationException("Linux application stream parsing failed.");
                 var packet = LinuxOscChatboxService.EncodeChatbox("IterVC test");
                 var text = Encoding.UTF8.GetString(packet);
                 if (packet.Length % 4 != 0 || !text.Contains("/chatbox/input") ||

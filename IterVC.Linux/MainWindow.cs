@@ -24,7 +24,8 @@ internal sealed class MainWindow : Window
     private readonly ComboBox _microphone = new() { MinWidth = 360 };
     private readonly ComboBox _speakers = new() { MinWidth = 360 };
     private readonly CheckBox _includeApplication = new();
-    private readonly ComboBox _applications = new() { MinWidth = 360 };
+    private readonly ListBox _applications = new() {
+        MinWidth = 360, Height = 104, SelectionMode = SelectionMode.Multiple };
     private readonly Slider _applicationVolume = new() { Minimum = 0, Maximum = 1, Width = 250 };
     private readonly Slider _microphoneVolume = new() { Minimum = 0, Maximum = 1, Width = 250 };
     private readonly Slider _microphoneBoost = new() { Minimum = 0.5, Maximum = 3, Width = 250 };
@@ -71,7 +72,7 @@ internal sealed class MainWindow : Window
             "Send music to the OSC chatbox (VRChat)");
         _oscEnabled.IsChecked = _settings.EnableOscChatbox;
         _oscTemplate.Text = _settings.OscTemplate;
-        _includeApplication.Content = L("Mezclar audio de una aplicación", "Mix an application's audio");
+        _includeApplication.Content = L("Mezclar audio de aplicaciones", "Mix application audio");
         _includeApplication.IsChecked = _settings.IncludedProcessNames.Count > 0;
         _applicationVolume.Value = Math.Clamp(_settings.AppsVolume, 0, 1);
         _applications.IsEnabled = _includeApplication.IsChecked == true;
@@ -245,8 +246,10 @@ internal sealed class MainWindow : Window
                     ?? outputs.FirstOrDefault();
                 _speakers.IsEnabled = !_running && _monitor.IsChecked == true;
                 _applications.ItemsSource = applications;
-                _applications.SelectedItem = applications.FirstOrDefault(item =>
-                    _settings.IncludedProcessNames.Contains(item.Name)) ?? applications.FirstOrDefault();
+                _applications.SelectedItems?.Clear();
+                foreach (var app in applications.Where(item =>
+                    _settings.IncludedProcessNames.Contains(item.Name)))
+                    _applications.SelectedItems?.Add(app);
                 _applications.IsEnabled = !_running && _includeApplication.IsChecked == true;
             }
             finally { _loadingPreferences = false; }
@@ -264,9 +267,10 @@ internal sealed class MainWindow : Window
         _settings.MicrophoneDeviceId = _microphone.SelectedItem as string;
         _settings.OutputDeviceId = _speakers.SelectedItem as string;
         _settings.MonitorMicrophone = _monitor.IsChecked == true;
-        _settings.IncludedProcessNames = _includeApplication.IsChecked == true &&
-            _applications.SelectedItem is ApplicationStream selectedApp
-            ? new List<string> { selectedApp.Name } : new List<string>();
+        _settings.IncludedProcessNames = _includeApplication.IsChecked == true
+            ? _applications.SelectedItems?.OfType<ApplicationStream>()
+                .Select(app => app.Name).Distinct().ToList() ?? new List<string>()
+            : new List<string>();
         _settings.AppsVolume = (float)_applicationVolume.Value;
         _settings.MicrophoneVolume = (float)_microphoneVolume.Value;
         _settings.MicrophoneBoost = (float)_microphoneBoost.Value;
@@ -300,9 +304,11 @@ internal sealed class MainWindow : Window
             _status.Text = L("Selecciona unos altavoces para monitorizar.", "Choose speaker output for monitoring.");
             return Task.CompletedTask;
         }
-        var selectedApp = _includeApplication.IsChecked == true
-            ? _applications.SelectedItem as ApplicationStream : null;
-        if (_includeApplication.IsChecked == true && selectedApp is null)
+        var selectedApps = _includeApplication.IsChecked == true
+            ? _applications.SelectedItems?.OfType<ApplicationStream>().ToArray()
+                ?? Array.Empty<ApplicationStream>()
+            : Array.Empty<ApplicationStream>();
+        if (_includeApplication.IsChecked == true && selectedApps.Length == 0)
         {
             _status.Text = L("Selecciona una aplicación que esté reproduciendo sonido.",
                 "Select an application that is currently playing audio.");
@@ -310,7 +316,7 @@ internal sealed class MainWindow : Window
         }
         try
         {
-            _audio.Start(mic, speaker, selectedApp?.Id,
+            _audio.Start(mic, speaker, selectedApps.Select(app => app.Id).ToArray(),
                 _applicationMuted ? 0.0 : _applicationVolume.Value,
                 _microphoneMuted ? 0.0 : Math.Clamp(_microphoneVolume.Value * _microphoneBoost.Value, 0, 3),
                 _gate.IsChecked == true, _gateThreshold.Value);
