@@ -666,7 +666,8 @@ fn process_audio_configured(
     settings: MicrophoneConfig,
 ) -> io::Result<u64> {
     let gain = AtomicU32::new(settings.volume.to_bits());
-    process_audio_live(source, destination, monitor, duration, settings, &gain)
+    let gate = LiveGateSettings::new(settings);
+    process_audio_live(source, destination, monitor, duration, settings, &gain, &gate)
 }
 
 /// Aggregate finite stereo PCM power without allocating per audio callback.
@@ -685,7 +686,7 @@ fn accumulate_pcm_power(data: &[u8], power: &mut f64, count: &mut u64) {
 fn process_audio_live(
     mut source: impl Read, mut destination: impl Write,
     mut monitor: Option<&mut dyn Write>, duration: Duration,
-    settings: MicrophoneConfig, gain_bits: &AtomicU32,
+    settings: MicrophoneConfig, gain_bits: &AtomicU32, gate: &LiveGateSettings,
 ) -> io::Result<u64> {
     // 48 kHz, 2 channels, float32. One bounded ring for the Linux backend.
     let mut ring = PcmRingBuffer::new(RATE * RING_MS / 1000, FRAME_BYTES)
@@ -724,6 +725,12 @@ fn process_audio_live(
             let written = ring.read(&mut outbound[..count]);
             accumulate_pcm_power(&outbound[..written], &mut mic_input_power, &mut mic_sample_count);
             processor.set_volume(f32::from_bits(gain_bits.load(Ordering::Relaxed)))?;
+            processor.set_gate(
+                gate.enabled.load(Ordering::Relaxed),
+                f32::from_bits(gate.threshold_db.load(Ordering::Relaxed)),
+                f32::from_bits(gate.attack_ms.load(Ordering::Relaxed)),
+                f32::from_bits(gate.release_ms.load(Ordering::Relaxed)),
+            )?;
             processor.apply(&mut outbound[..written]);
             accumulate_pcm_power(&outbound[..written], &mut mic_output_power, &mut mic_output_count);
             if mic_last_report.elapsed() >= Duration::from_millis(100) && mic_sample_count > 0 {
@@ -778,6 +785,56 @@ fn parse_live_command(command: &str) -> Option<(GainTarget, f32)> {
     (0.0..=maximum).contains(&value).then_some((target, value))
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum GateTarget { Enabled, Threshold, Attack, Release }
+
+struct LiveGateSettings {
+    enabled: AtomicBool,
+    threshold_db: AtomicU32,
+    attack_ms: AtomicU32,
+    release_ms: AtomicU32,
+}
+
+impl LiveGateSettings {
+    fn new(config: MicrophoneConfig) -> Self {
+        Self {
+            enabled: AtomicBool::new(config.gate_enabled),
+            threshold_db: AtomicU32::new(config.gate_threshold_db.to_bits()),
+            attack_ms: AtomicU32::new(config.attack_ms.to_bits()),
+            release_ms: AtomicU32::new(config.release_ms.to_bits()),
+        }
+    }
+
+    fn update(&self, target: GateTarget, value: f32) {
+        match target {
+            GateTarget::Enabled => self.enabled.store(value == 1.0, Ordering::Relaxed),
+            GateTarget::Threshold => self.threshold_db.store(value.to_bits(), Ordering::Relaxed),
+            GateTarget::Attack => self.attack_ms.store(value.to_bits(), Ordering::Relaxed),
+            GateTarget::Release => self.release_ms.store(value.to_bits(), Ordering::Relaxed),
+        }
+    }
+}
+
+fn parse_gate_command(command: &str) -> Option<(GateTarget, f32)> {
+    let mut parts = command.split_whitespace();
+    let target = match parts.next()? {
+        "gate-enabled" => GateTarget::Enabled,
+        "gate-threshold" => GateTarget::Threshold,
+        "gate-attack" => GateTarget::Attack,
+        "gate-release" => GateTarget::Release,
+        _ => return None,
+    };
+    let value = parts.next()?.parse::<f32>().ok()?;
+    if parts.next().is_some() || !value.is_finite() { return None; }
+    let valid = match target {
+        GateTarget::Enabled => value == 0.0 || value == 1.0,
+        GateTarget::Threshold => (-100.0..=0.0).contains(&value),
+        GateTarget::Attack => (1.0..=1000.0).contains(&value),
+        GateTarget::Release => (1.0..=2000.0).contains(&value),
+    };
+    valid.then_some((target, value))
+}
+
 /// App indices change when programs restart; a valid zero-based ID is sent
 /// to the main thread, which owns all PipeWire link creation and cleanup.
 fn parse_add_app_command(command: &str) -> Option<u32> {
@@ -790,7 +847,7 @@ fn parse_add_app_command(command: &str) -> Option<u32> {
 }
 
 fn watch_live_controls(microphone: Arc<AtomicU32>, applications: Arc<AtomicU32>,
-    new_apps: mpsc::Sender<u32>) {
+    gate: Arc<LiveGateSettings>, new_apps: mpsc::Sender<u32>) {
     // Stdin is owned by IterVC's GUI when launched from the portable binary.
     // It is never read by the PipeWire worker or a WASAPI callback.
     std::thread::spawn(move || {
@@ -803,7 +860,9 @@ fn watch_live_controls(microphone: Arc<AtomicU32>, applications: Arc<AtomicU32>,
                 Some((GainTarget::Applications, value)) =>
                     applications.store(value.to_bits(), Ordering::Relaxed),
                 None => {
-                    if let Some(id) = parse_add_app_command(&line) {
+                    if let Some((target, value)) = parse_gate_command(&line) {
+                        gate.update(target, value);
+                    } else if let Some(id) = parse_add_app_command(&line) {
                         if new_apps.send(id).is_err() { break; }
                     } else {
                         eprintln!("Ignoring invalid live audio control");
@@ -855,12 +914,14 @@ fn run(input: &str, seconds: u64, monitor_output: Option<&str>,
             source, virtual_output, app_gain_worker.as_ref())));
     let mic_settings = MicrophoneConfig { volume: mic_volume, gate_enabled,
         gate_threshold_db, attack_ms: gate_attack_ms, release_ms: gate_release_ms };
+    let live_gate = Arc::new(LiveGateSettings::new(mic_settings));
+    let gate_worker = Arc::clone(&live_gate);
     let mic_gain_worker = Arc::clone(&mic_gain);
     let worker = std::thread::spawn(move ||
         process_audio_live(source, destination, None, duration, mic_settings,
-            mic_gain_worker.as_ref()));
+            mic_gain_worker.as_ref(), gate_worker.as_ref()));
     let (new_app_tx, new_app_rx) = mpsc::channel();
-    watch_live_controls(mic_gain, app_gain, new_app_tx);
+    watch_live_controls(mic_gain, app_gain, live_gate, new_app_tx);
     let mut app_worker_warning_sent = false;
     let mut mixed_monitor_warning_sent = false;
     while !worker.is_finished()
@@ -965,6 +1026,27 @@ mod tests {
         accumulate_pcm_power(&[0u8; 16], &mut silence_power, &mut silence_count);
         assert_eq!(silence_power, 0.0);
         assert_eq!(silence_count, 4);
+    }
+
+    #[test]
+    fn live_gate_ipc_validates_settings_before_publication() {
+        assert_eq!(parse_gate_command("gate-enabled 1"), Some((GateTarget::Enabled, 1.0)));
+        assert_eq!(parse_gate_command("gate-enabled 0"), Some((GateTarget::Enabled, 0.0)));
+        assert_eq!(parse_gate_command("gate-threshold -31"), Some((GateTarget::Threshold, -31.0)));
+        assert_eq!(parse_gate_command("gate-attack 12"), Some((GateTarget::Attack, 12.0)));
+        assert_eq!(parse_gate_command("gate-release 500"), Some((GateTarget::Release, 500.0)));
+        for invalid in ["gate-enabled 2", "gate-enabled -1",
+            "gate-threshold nan", "gate-threshold -101", "gate-threshold 1",
+            "gate-attack 0", "gate-attack inf", "gate-attack 1001",
+            "gate-release 0", "gate-release 2001", "gate-enabled 1 0",
+            "noise-gate 1", "gate-enabled", "gate-threshold NaN"] {
+            assert_eq!(parse_gate_command(invalid), None, "{invalid}");
+        }
+        let settings = LiveGateSettings::new(MicrophoneConfig::default());
+        settings.update(GateTarget::Enabled, 1.0);
+        settings.update(GateTarget::Threshold, -34.0);
+        assert!(settings.enabled.load(Ordering::Relaxed));
+        assert_eq!(f32::from_bits(settings.threshold_db.load(Ordering::Relaxed)), -34.0);
     }
 
     #[test]
