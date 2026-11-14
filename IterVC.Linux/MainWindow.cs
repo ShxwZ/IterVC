@@ -34,6 +34,7 @@ internal sealed partial class MainWindow : Window
     private readonly Slider _microphoneVolume = new() { Minimum = 0, Maximum = 1, Width = 250 };
     private readonly Slider _microphoneBoost = new() { Minimum = 0.5, Maximum = 3, Width = 250 };
     private readonly CheckBox _gate = new();
+    private readonly CheckBox _noiseSuppression = new();
     private readonly Slider _gateThreshold = new() { Minimum = -80, Maximum = -15, Width = 250 };
     private readonly CheckBox _oscEnabled = new();
     private readonly CheckBox _minimizeToTray = new();
@@ -81,6 +82,9 @@ internal sealed partial class MainWindow : Window
         _minimizeToTray.IsChecked = _settings.MinimizeToTrayWhenMinimized;
         _microphoneVolume.Value = Math.Clamp(_settings.MicrophoneVolume, 0, 1);
         _microphoneBoost.Value = Math.Clamp(_settings.MicrophoneBoost, 0.5, 3);
+        _noiseSuppression.Content = L("Supresión de ruido (RNNoise · experimental)",
+            "Noise suppression (RNNoise · experimental)");
+        _noiseSuppression.IsChecked = _settings.NoiseSuppressionEnabled;
         _gate.Content = L("Activar puerta de ruido", "Enable noise gate");
         _gate.IsChecked = _settings.NoiseGateEnabled;
         _gateThreshold.Value = Math.Clamp(_settings.NoiseGateThresholdDb, -80, -15);
@@ -231,6 +235,16 @@ internal sealed partial class MainWindow : Window
             if (_running)
             {
                 try { await _audio.SetGateReleaseAsync(_gateRelease.Value); }
+                catch (Exception error) { _status.Text = error.Message; }
+            }
+        };
+        _noiseSuppression.IsCheckedChanged += async (_, _) =>
+        {
+            _settings.NoiseSuppressionEnabled = _noiseSuppression.IsChecked == true;
+            SavePreferences();
+            if (_running)
+            {
+                try { await _audio.SetNoiseSuppressionEnabledAsync(_settings.NoiseSuppressionEnabled); }
                 catch (Exception error) { _status.Text = error.Message; }
             }
         };
@@ -492,6 +506,7 @@ internal sealed partial class MainWindow : Window
         _settings.AppsVolume = (float)_applicationVolume.Value;
         _settings.MicrophoneVolume = (float)_microphoneVolume.Value;
         _settings.MicrophoneBoost = (float)_microphoneBoost.Value;
+        _settings.NoiseSuppressionEnabled = _noiseSuppression.IsChecked == true;
         _settings.NoiseGateEnabled = _gate.IsChecked == true;
         _settings.NoiseGateThresholdDb = (float)_gateThreshold.Value;
         _settings.NoiseGateAttackMilliseconds = (float)_gateAttack.Value;
@@ -569,6 +584,10 @@ internal sealed partial class MainWindow : Window
                 _gate.IsChecked == true, _gateThreshold.Value,
                 includeApplicationCapture: _includeApplication.IsChecked == true,
                 gateAttackMs: _gateAttack.Value, gateReleaseMs: _gateRelease.Value);
+            // Match Windows' opt-in behavior. This is delivered to the
+            // running Rust worker and processed before the microphone gate.
+            if (_noiseSuppression.IsChecked == true)
+                await _audio.SetNoiseSuppressionEnabledAsync(true);
             _trackedAppStreams.Clear();
             _pendingAppStreams.Clear();
             _appRetryAfter.Clear();
