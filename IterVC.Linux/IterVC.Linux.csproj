@@ -9,6 +9,7 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="../IterVC.Core/IterVC.Core.csproj" />
+    <ProjectReference Include="../IterVC.UI/IterVC.UI.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Avalonia" Version="11.1.3" />
