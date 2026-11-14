@@ -115,17 +115,12 @@ internal sealed partial class MainWindow
         MinHeight = 550;
         Background = C("AppBackgroundBrush");
 
-        var header = new Grid {
-            ColumnDefinitions = new ColumnDefinitions("*,Auto"),
-            Margin = new Thickness(0, 0, 0, 16)
-        };
         var status = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 9,
             VerticalAlignment = VerticalAlignment.Center };
         status.Children.Add(Label("IterVC", 21, "TextStrongBrush", true));
         status.Children.Add(StatusPill(_routingPill));
         status.Children.Add(StatusPill(_microphonePill));
         status.Children.Add(StatusPill(_applicationsPill));
-        header.Children.Add(status);
 
         _routingPill.Click += async (_, _) => { if (_running) await StopAsync(); else await StartAsync(); };
         _microphonePill.Click += async (_, _) => await ToggleMicrophoneMuteAsync();
@@ -149,8 +144,6 @@ internal sealed partial class MainWindow
                 "Language saved. Restart IterVC to apply all text.");
         };
         headerActions.Children.Add(_languageSelector);
-        Grid.SetColumn(headerActions, 1);
-        header.Children.Add(headerActions);
 
         var apps = new Grid { RowDefinitions = new RowDefinitions("Auto,*,Auto") };
         var appsHead = Vertical(
@@ -240,13 +233,6 @@ internal sealed partial class MainWindow
             )));
         var settingsCard = Card(settings);
 
-        var main = new Grid { ColumnDefinitions = new ColumnDefinitions("0.85*,1.15*") };
-        appsCard.Margin = new Thickness(0, 0, 8, 0);
-        settingsCard.Margin = new Thickness(8, 0, 0, 0);
-        Grid.SetColumn(settingsCard, 1);
-        main.Children.Add(appsCard);
-        main.Children.Add(settingsCard);
-
         var footer = new Grid {
             ColumnDefinitions = new ColumnDefinitions("*,Auto"),
             Margin = new Thickness(0, 13, 0, 0)
@@ -269,15 +255,14 @@ internal sealed partial class MainWindow
         Grid.SetColumn(actions, 1);
         footer.Children.Add(actions);
 
-        var shell = new Grid {
-            RowDefinitions = new RowDefinitions("Auto,*,Auto"),
-            Margin = new Thickness(24, 18, 24, 14)
+        var shell = new IterVC.UI.DesktopShell
+        {
+            HeaderLeft = status,
+            HeaderRight = headerActions,
+            Applications = appsCard,
+            Settings = settingsCard,
+            Footer = footer
         };
-        shell.Children.Add(header);
-        Grid.SetRow(main, 1);
-        shell.Children.Add(main);
-        Grid.SetRow(footer, 2);
-        shell.Children.Add(footer);
 
         RenderApplicationCards(_applications.ItemsSource?.OfType<ApplicationStream>().ToArray()
             ?? Array.Empty<ApplicationStream>());
