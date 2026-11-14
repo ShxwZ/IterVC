@@ -56,7 +56,7 @@ public sealed partial class MicrophoneViewModel : ViewModelBase
                 ?? InputDevices.FirstOrDefault(device => device.IsDefault);
 
             if (IsEnabled && SelectedDevice is not null)
-                await _microphone.StartAsync(SelectedDevice.Id, cancellationToken);
+                await TryStartMicrophoneAsync(SelectedDevice.Id, cancellationToken);
 
             if (usedLegacyDisabledValue && SelectedDevice is not null)
             {
@@ -86,7 +86,11 @@ public sealed partial class MicrophoneViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    public void Toggle() => IsEnabled = !IsEnabled;
+    public void Toggle()
+    {
+        if (Volatile.Read(ref _stopped) != 0) return;
+        IsEnabled = !IsEnabled;
+    }
 
     public Task ToggleAsync()
     {
@@ -96,10 +100,20 @@ public sealed partial class MicrophoneViewModel : ViewModelBase
 
     partial void OnSelectedDeviceChanged(AudioDeviceInfo? value)
     {
-        if (_hydrating || _refreshing || value is null) return;
+        if (_hydrating || _refreshing || value is null || Volatile.Read(ref _stopped) != 0) return;
         QueueTransition(async () =>
         {
-            if (IsEnabled) await _microphone.SetDeviceAsync(value.Id);
+            if (IsEnabled)
+            {
+                try { await _microphone.SetDeviceAsync(value.Id); }
+                catch (Exception exception) when (WasapiDeviceInUse.Matches(exception))
+                {
+                    IsEnabled = false;
+                    _logger.LogWarning(exception,
+                        "Microphone device {DeviceId} is in use. Release exclusive access, then retry capture.",
+                        value.Id);
+                }
+            }
             await _settings.UpdateAsync(current => current.MicrophoneDeviceId = value.Id,
                 _lifetimeCancellation.Token);
         }, "change microphone device");
@@ -107,12 +121,14 @@ public sealed partial class MicrophoneViewModel : ViewModelBase
 
     partial void OnIsEnabledChanged(bool value)
     {
-        if (_hydrating) return;
+        if (_hydrating || Volatile.Read(ref _stopped) != 0) return;
         var deviceId = SelectedDevice?.Id;
         QueueTransition(async () =>
         {
             if (value && deviceId is not null)
-                await _microphone.StartAsync(deviceId, _lifetimeCancellation.Token);
+            {
+                if (!await TryStartMicrophoneAsync(deviceId, _lifetimeCancellation.Token)) return;
+            }
             else
                 await _microphone.StopAsync();
             await _settings.UpdateAsync(current => current.MicrophoneEnabled = value,
@@ -122,16 +138,33 @@ public sealed partial class MicrophoneViewModel : ViewModelBase
 
     partial void OnMonitorChanged(bool value)
     {
-        if (_hydrating) return;
+        if (_hydrating || Volatile.Read(ref _stopped) != 0) return;
         _router.SetMonitorMicrophone(value);
         QueuePersistence(current => current.MonitorMicrophone = value, "persist microphone monitoring");
     }
 
     partial void OnBoostChanged(float value)
     {
-        if (_hydrating) return;
+        if (_hydrating || Volatile.Read(ref _stopped) != 0) return;
         _router.SetMicrophoneBoost(value);
         QueuePersistence(current => current.MicrophoneBoost = value, "persist microphone boost");
+    }
+
+    private async Task<bool> TryStartMicrophoneAsync(string deviceId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _microphone.StartAsync(deviceId, cancellationToken);
+            return true;
+        }
+        catch (Exception exception) when (WasapiDeviceInUse.Matches(exception))
+        {
+            IsEnabled = false;
+            _logger.LogWarning(exception,
+                "Microphone device {DeviceId} is in use. Release exclusive access, then retry capture.",
+                deviceId);
+            return false;
+        }
     }
 
     public async Task StopAsync()
@@ -153,21 +186,30 @@ public sealed partial class MicrophoneViewModel : ViewModelBase
 
     private void QueueTransition(Func<Task> operation, string description)
     {
+        if (Volatile.Read(ref _stopped) != 0) return;
         lock (_taskLock)
-            _transitionTask = RunAfterAsync(_transitionTask, operation, description);
+        {
+            if (_stopped == 0)
+                _transitionTask = RunAfterAsync(_transitionTask, operation, description);
+        }
     }
 
     private void QueuePersistence(Action<AppSettings> mutation, string description)
     {
+        if (Volatile.Read(ref _stopped) != 0) return;
         lock (_taskLock)
-            _persistenceTask = RunAfterAsync(_persistenceTask,
-                () => _settings.UpdateAsync(mutation, _lifetimeCancellation.Token), description);
+        {
+            if (_stopped == 0)
+                _persistenceTask = RunAfterAsync(_persistenceTask,
+                    () => _settings.UpdateAsync(mutation, _lifetimeCancellation.Token), description);
+        }
     }
 
     private async Task RunAfterAsync(Task previous, Func<Task> operation, string description)
     {
         try { await previous; }
         catch { }
+        if (Volatile.Read(ref _stopped) != 0) return;
         try { await operation(); }
         catch (OperationCanceledException) when (_lifetimeCancellation.IsCancellationRequested) { }
         catch (Exception exception) { _logger.LogError(exception, "Could not {Operation}", description); }
