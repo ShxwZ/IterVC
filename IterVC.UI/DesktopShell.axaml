@@ -1,0 +1,28 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="IterVC.UI.DesktopShell">
+  <!-- One canonical shell for both Windows and Linux. Platform-specific
+       control panels live in slots; dimensions and visual hierarchy do not. -->
+  <Grid>
+    <Border Height="2" VerticalAlignment="Top"
+            Background="{DynamicResource AccentBrush}" Opacity="0.5" />
+    <Grid Margin="24,18,24,12" RowDefinitions="Auto,Auto,*,Auto">
+      <DockPanel Grid.Row="0" LastChildFill="False" Margin="0,0,0,16">
+        <ContentControl x:Name="HeaderLeftHost" DockPanel.Dock="Left"
+                        VerticalAlignment="Center" />
+        <ContentControl x:Name="HeaderRightHost" DockPanel.Dock="Right"
+                        VerticalAlignment="Center" />
+      </DockPanel>
+      <ContentControl x:Name="NoticesHost" Grid.Row="1"
+                      Margin="0,0,0,12" />
+      <Grid Grid.Row="2" ColumnDefinitions="0.85*,1.15*">
+        <ContentControl x:Name="ApplicationsHost" Grid.Column="0"
+                        Margin="0,0,8,0" />
+        <ContentControl x:Name="SettingsHost" Grid.Column="1"
+                        Margin="8,0,0,0" />
+      </Grid>
+      <ContentControl x:Name="FooterHost" Grid.Row="3"
+                      HorizontalAlignment="Center" Margin="0,12,0,0" />
+    </Grid>
+  </Grid>
+</UserControl>
