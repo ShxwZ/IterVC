@@ -205,10 +205,11 @@ internal sealed class MainWindow : Window
         }
         catch (Exception error) { _status.Text = error.Message; }
 
-        _monitor.Checked += (_, _) => { _speakers.IsEnabled = !_running; SavePreferences(); };
-        _monitor.Unchecked += (_, _) => { _speakers.IsEnabled = false; SavePreferences(); };
-        _minimizeToTray.Checked += (_, _) => SavePreferences();
-        _minimizeToTray.Unchecked += (_, _) => SavePreferences();
+        _monitor.IsCheckedChanged += (_, _) => {
+            _speakers.IsEnabled = !_running && _monitor.IsChecked == true;
+            SavePreferences();
+        };
+        _minimizeToTray.IsCheckedChanged += (_, _) => SavePreferences();
         PropertyChanged += (_, change) => {
             if (change.Property == WindowStateProperty && WindowState == WindowState.Minimized &&
                 TrayConfigured && _minimizeToTray.IsChecked == true)
@@ -219,14 +220,10 @@ internal sealed class MainWindow : Window
         };
         _microphone.SelectionChanged += (_, _) => SavePreferences();
         _speakers.SelectionChanged += (_, _) => SavePreferences();
-        _includeApplication.Checked += (_, _) => {
-            _applications.IsEnabled = !_running;
-            _applicationVolume.IsEnabled = !_running;
-            SavePreferences();
-        };
-        _includeApplication.Unchecked += (_, _) => {
-            _applications.IsEnabled = false;
-            _applicationVolume.IsEnabled = false;
+        _includeApplication.IsCheckedChanged += (_, _) => {
+            var enabled = !_running && _includeApplication.IsChecked == true;
+            _applications.IsEnabled = enabled;
+            _applicationVolume.IsEnabled = enabled;
             SavePreferences();
         };
         _applications.SelectionChanged += (_, _) => SavePreferences();
@@ -242,10 +239,11 @@ internal sealed class MainWindow : Window
         _gateThreshold.PropertyChanged += (_, args) => {
             if (args.Property.Name == nameof(Slider.Value)) SavePreferences();
         };
-        _gate.Checked += (_, _) => { _gateThreshold.IsEnabled = !_running; SavePreferences(); };
-        _gate.Unchecked += (_, _) => { _gateThreshold.IsEnabled = false; SavePreferences(); };
-        _oscEnabled.Checked += (_, _) => { SavePreferences(); UpdateOsc(); };
-        _oscEnabled.Unchecked += (_, _) => { SavePreferences(); UpdateOsc(); };
+        _gate.IsCheckedChanged += (_, _) => {
+            _gateThreshold.IsEnabled = !_running && _gate.IsChecked == true;
+            SavePreferences();
+        };
+        _oscEnabled.IsCheckedChanged += (_, _) => { SavePreferences(); UpdateOsc(); };
         _oscTemplate.TextChanged += (_, _) => { SavePreferences(); UpdateOsc(); };
         _previousTrack.Click += async (_, _) => await RunMediaCommandAsync("previous");
         _playPause.Click += async (_, _) => await RunMediaCommandAsync("play-pause");

@@ -35,8 +35,9 @@ internal sealed class ShortcutControlServer : IDisposable
         var directory = Path.GetDirectoryName(_socketPath)
             ?? throw new InvalidOperationException("Invalid control socket path.");
         Directory.CreateDirectory(directory);
-        File.SetUnixFileMode(directory,
-            UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        if (OperatingSystem.IsLinux())
+            File.SetUnixFileMode(directory,
+                UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
 
         if (File.Exists(_socketPath))
         {

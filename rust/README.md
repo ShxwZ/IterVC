@@ -117,6 +117,28 @@ feedback loops. Application capture currently supports one explicitly
 selected active sink-input and relies on WirePlumber and pipewire-pulse.
 There is no sound-quality or latency guarantee on unverified hardware.
 
+
+## System tray and media controls (Linux)
+
+IterVC's system tray icon uses the existing application asset and is only
+displayed where the desktop supports AppIndicator/StatusNotifierItem. Use
+**Minimize to system tray** to opt into hiding the window on minimize; this
+is disabled by default. Recover the window through the tray menu or the
+command `/path/to/IterVC.Linux --show-window`. Closing via the tray menu
+stops the audio backend and restores selected application streams.
+
+The Linux preview includes MPRIS play/pause, previous and next controls
+using optional `playerctl`. Desktop X11/Wayland hotkey commands are
+`--media-play-pause`, `--media-previous`, and `--media-next`, alongside
+`--start-routing`, `--stop-routing`, `--toggle-microphone` and
+`--toggle-applications-mute`.
+
+Multiple application streams can be selected simultaneously when they
+share the **same physical speaker output**. This restriction avoids
+replaying a mixed stream to several different speaker devices. Streams
+are restored individually when the routing session stops. If a selection
+contains apps using different outputs, IterVC refuses to move them.
+
 ## Future integration gates
 
 1. Run identical PCM streams through Rust and C# buffers; compare content,

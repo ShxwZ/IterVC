@@ -25,9 +25,12 @@ internal sealed class LinuxAudioBackend : IDisposable
             ?? throw new InvalidOperationException("The Rust audio backend is not embedded.");
         using (var output = File.Create(_executable))
             input.CopyTo(output);
-        File.SetUnixFileMode(_directory, UnixFileMode.UserRead | UnixFileMode.UserWrite |
-            UnixFileMode.UserExecute);
-        File.SetUnixFileMode(_executable, UnixFileMode.UserRead | UnixFileMode.UserExecute);
+        if (OperatingSystem.IsLinux())
+        {
+            File.SetUnixFileMode(_directory, UnixFileMode.UserRead | UnixFileMode.UserWrite |
+                UnixFileMode.UserExecute);
+            File.SetUnixFileMode(_executable, UnixFileMode.UserRead | UnixFileMode.UserExecute);
+        }
     }
 
     public event Action<double>? LevelChanged;

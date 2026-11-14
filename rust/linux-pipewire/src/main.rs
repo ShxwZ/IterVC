@@ -543,10 +543,12 @@ fn monitor_final_stream(mut capture: impl Read, mut speaker: Option<impl Write>)
     Ok(())
 }
 
+#[cfg(test)]
 fn process_audio(source: impl Read, destination: impl Write, duration: Duration) -> io::Result<u64> {
     process_audio_with_monitor(source, destination, None, duration)
 }
 
+#[cfg(test)]
 fn process_audio_with_monitor(
     source: impl Read, destination: impl Write,
     monitor: Option<&mut dyn Write>, duration: Duration,
