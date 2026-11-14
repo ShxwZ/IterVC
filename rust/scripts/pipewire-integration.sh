@@ -242,6 +242,28 @@ if [ -z "$original_sink_id" ]; then
   exit 1
 fi
 
+# Enable app capture *before* the selected program starts. Its future
+# playback stream must attach over stdin without restarting the microphone.
+mkfifo "$test_dir/live-gain.fifo"
+exec 9<>"$test_dir/live-gain.fifo"
+"$app" --input itervc_ci_test_microphone --include-apps --app-volume 0.75 \
+  --seconds 0 <"$test_dir/live-gain.fifo" >"$test_dir/app-session.log" 2>&1 &
+app_pid="$!"
+capture_ready=0
+for _ in $(seq 1 80); do
+  if pactl list short sinks | grep -q "itervc_rust_apps_sink"; then
+    capture_ready=1
+    break
+  fi
+  if ! kill -0 "$app_pid" 2>/dev/null; then break; fi
+  sleep 0.1
+done
+if [ "$capture_ready" != 1 ]; then
+  cat "$test_dir/app-session.log" >&2
+  echo "Could not prepare empty app capture before launching an application" >&2
+  exit 1
+fi
+
 # Play a deterministic non-zero stereo PCM signal to the original speaker sink.
 # The separate synthetic microphone source produces silence.
 python3 - "$test_dir/app-constant.pcm" <<'PY'
@@ -277,12 +299,7 @@ if [ -z "$stream_id" ]; then
 fi
 
 "$app" --list-apps | grep -q "\"index\""
-# Keep a writable stdin channel for gain changes without restarting PipeWire.
-mkfifo "$test_dir/live-gain.fifo"
-exec 9<>"$test_dir/live-gain.fifo"
-"$app" --input itervc_ci_test_microphone --app-stream "$stream_id" --app-volume 0.75 \
-  --seconds 0 <"$test_dir/live-gain.fifo" >"$test_dir/app-session.log" 2>&1 &
-app_pid="$!"
+printf 'add-app %s\n' "$stream_id" >&9
 
 linked=0
 for _ in $(seq 1 100); do
