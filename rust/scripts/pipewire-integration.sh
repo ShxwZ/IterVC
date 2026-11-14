@@ -279,6 +279,61 @@ PY
   wait "$gui_autoplay_pid" 2>/dev/null || true
   gui_autoplay_pid=""
 
+  # Simulate the same selected application restarting under a new PipeWire
+  # playback stream ID. The GUI must reattach it without restarting routing.
+  pacat --playback --device=itervc_ci_audio_sink \
+    --client-name=PipeWireAutoTestPlayer --stream-name=PipeWireAutoTestPlayer \
+    --raw --format=float32le --rate=48000 --channels=2 \
+    <"$test_dir/gui-autoapp.pcm" >"$test_dir/gui-autoapp-restarted.log" 2>&1 &
+  gui_autoplay_pid="$!"
+  restarted_stream=""
+  for _ in $(seq 1 80); do
+    restarted_stream="$(pactl list short sink-inputs |
+      awk -v sink="$gui_original_sink" -v previous="$gui_playback_stream" \
+        '$2==sink && $1!=previous {print $1; exit}')"
+    if [ -n "$restarted_stream" ]; then break; fi
+    sleep 0.1
+  done
+  if [ -z "$restarted_stream" ]; then
+    echo "The restarted selected application had no new playback ID" >&2
+    exit 1
+  fi
+  # Allow one GUI discovery interval; then verify the actual sound, not just
+  # that a PipeWire monitor port happens to exist.
+  sleep 5
+  pw-cat --record --raw --format=f32 --rate=48000 --channels=2 \
+    --target=itervc_rust_microphone - >"$test_dir/gui-restart-output.pcm" \
+    2>"$test_dir/gui-restart-recorder.log" &
+  output_capture_pid="$!"
+  sleep 1.5
+  kill -TERM "$output_capture_pid" 2>/dev/null || true
+  wait "$output_capture_pid" 2>/dev/null || true
+  output_capture_pid=""
+  python3 - "$test_dir/gui-restart-output.pcm" <<'PY'
+from array import array
+import os
+import sys
+
+path = sys.argv[1]
+if not os.path.isfile(path) or os.path.getsize(path) < 8192:
+    raise SystemExit("Restarted application produced no virtual mic audio")
+samples = array("f")
+with open(path, "rb") as input:
+    samples.frombytes(input.read())
+active = sum(abs(sample) > 0.04 for sample in samples)
+if active < 1000:
+    raise SystemExit("Selected application's audio was not reconnected after restart")
+print(f"GUI selected app restart: {active} nonzero samples.")
+PY
+  if ! kill -0 "$gui_pid" 2>/dev/null; then
+    cat "$test_dir/gui-session.log" >&2
+    echo "Linux GUI crashed during application restart capture" >&2
+    exit 1
+  fi
+  kill -TERM "$gui_autoplay_pid" 2>/dev/null || true
+  wait "$gui_autoplay_pid" 2>/dev/null || true
+  gui_autoplay_pid=""
+
   "$gui" --stop-routing
   gui_stopped=0
   for _ in $(seq 1 80); do
