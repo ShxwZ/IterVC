@@ -169,7 +169,7 @@ internal sealed class DesktopApp : Application
                 var show = new NativeMenuItem("Mostrar IterVC / Show IterVC");
                 show.Click += (_, _) => window.RestoreFromTray();
                 var exit = new NativeMenuItem("Salir / Exit");
-                exit.Click += (_, _) => window.Close();
+                exit.Click += (_, _) => window.RequestTerminalExit();
                 tray.Clicked += (_, _) => window.RestoreFromTray();
                 tray.Menu = new NativeMenu { show, new NativeMenuItemSeparator(), exit };
                 TrayIcon.SetIcons(this, new TrayIcons { tray });
