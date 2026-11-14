@@ -115,6 +115,26 @@ internal static class Program
                     new[] { "voice chat", "PreviouslyClosedPlayer" });
                 if (activeSelection.Length != 1 || activeSelection[0].Id != 42)
                     throw new InvalidOperationException("Stale application selection was not filtered.");
+                // User-local XDG autostart must be safely reversible and must
+                // not modify a real desktop session during the self-test.
+                var autoStartRoot = Path.Combine(Path.GetTempPath(),
+                    $"itervc-autostart-test-{Guid.NewGuid():N}");
+                try
+                {
+                    LinuxAutoStart.SetRegistered(true, Environment.ProcessPath!, autoStartRoot);
+                    var startupFile = LinuxAutoStart.DesktopFilePath(autoStartRoot);
+                    if (!File.Exists(startupFile) ||
+                        !File.ReadAllText(startupFile).Contains("Exec=", StringComparison.Ordinal))
+                        throw new InvalidOperationException("XDG autostart registration failed.");
+                    LinuxAutoStart.SetRegistered(false, configHome: autoStartRoot);
+                    if (File.Exists(startupFile))
+                        throw new InvalidOperationException("XDG autostart removal failed.");
+                }
+                finally
+                {
+                    if (Directory.Exists(autoStartRoot))
+                        Directory.Delete(autoStartRoot, recursive: true);
+                }
                 // Hotkey bindings use the persisted Windows gesture syntax.
                 if (!LinuxHotkeyParser.IsMatch("Ctrl+Shift+R", Avalonia.Input.Key.R,
                     Avalonia.Input.KeyModifiers.Control | Avalonia.Input.KeyModifiers.Shift) ||
