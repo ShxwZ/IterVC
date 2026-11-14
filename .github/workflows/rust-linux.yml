@@ -35,6 +35,22 @@ jobs:
           test -f artifacts/linux-desktop/IterVC.Linux
       - name: Headless GUI/backend smoke test
         run: ./artifacts/linux-desktop/IterVC.Linux --self-test
+      - name: Install Xvfb and desktop rendering dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb xauth libfontconfig1 libice6 libsm6
+      - name: Smoke test Avalonia Linux window under a virtual X11 display
+        shell: bash
+        run: |
+          set +e
+          timeout --signal=TERM 6s xvfb-run -a ./artifacts/linux-desktop/IterVC.Linux > /tmp/itervc-xvfb.log 2>&1
+          result=$?
+          set -e
+          cat /tmp/itervc-xvfb.log
+          if [ "$result" -ne 124 ]; then
+            echo "Linux GUI exited unexpectedly (exit code: $result)" >&2
+            exit 1
+          fi
       - name: Upload portable Linux desktop preview
         uses: actions/upload-artifact@v4
         with:
