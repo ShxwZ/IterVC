@@ -32,6 +32,7 @@ internal sealed class MainWindow : Window
     private readonly CheckBox _gate = new();
     private readonly Slider _gateThreshold = new() { Minimum = -80, Maximum = -15, Width = 250 };
     private readonly CheckBox _oscEnabled = new();
+    private readonly CheckBox _minimizeToTray = new();
     private readonly TextBox _oscTemplate = new() { MinWidth = 340 };
     private readonly Button _previousTrack = new();
     private readonly Button _playPause = new();
@@ -48,6 +49,15 @@ internal sealed class MainWindow : Window
     private bool _loadingPreferences;
     private bool _microphoneMuted;
     private bool _applicationMuted;
+    internal bool TrayConfigured { get; set; }
+
+    internal void RestoreFromTray()
+    {
+        ShowInTaskbar = true;
+        WindowState = WindowState.Normal;
+        Show();
+        Activate();
+    }
 
     private static string L(string spanish, string english) =>
         CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "es" ? spanish : english;
@@ -65,6 +75,8 @@ internal sealed class MainWindow : Window
         MinHeight = 580;
         _monitor.Content = L("Monitorizar micrófono (opcional)", "Monitor microphone (optional)");
         _monitor.IsChecked = _settings.MonitorMicrophone;
+        _minimizeToTray.Content = L("Minimizar a la bandeja del sistema", "Minimize to system tray");
+        _minimizeToTray.IsChecked = _settings.MinimizeToTrayWhenMinimized;
         _microphoneVolume.Value = Math.Clamp(_settings.MicrophoneVolume, 0, 1);
         _microphoneBoost.Value = Math.Clamp(_settings.MicrophoneBoost, 0.5, 3);
         _gate.Content = L("Activar puerta de ruido", "Enable noise gate");
@@ -114,6 +126,7 @@ internal sealed class MainWindow : Window
         root.Children.Add(new TextBlock { Text = L("Umbral de la puerta (dBFS)", "Noise gate threshold (dBFS)") });
         root.Children.Add(_gateThreshold);
         root.Children.Add(_monitor);
+        root.Children.Add(_minimizeToTray);
         root.Children.Add(new TextBlock { Text = L("Salida para escuchar el micrófono", "Speaker output for monitoring") });
         root.Children.Add(_speakers);
         root.Children.Add(new TextBlock { Text = L("Audio por aplicación", "Application audio"),
@@ -166,7 +179,9 @@ internal sealed class MainWindow : Window
         {
             _shortcuts = new ShortcutControlServer(command => Dispatcher.UIThread.Post(async () =>
             {
-                if (command == "toggle-routing")
+                if (command == "show-window")
+                    RestoreFromTray();
+                else if (command == "toggle-routing")
                 {
                     if (_running) await StopAsync(); else await StartAsync();
                 }
@@ -192,6 +207,16 @@ internal sealed class MainWindow : Window
 
         _monitor.Checked += (_, _) => { _speakers.IsEnabled = !_running; SavePreferences(); };
         _monitor.Unchecked += (_, _) => { _speakers.IsEnabled = false; SavePreferences(); };
+        _minimizeToTray.Checked += (_, _) => SavePreferences();
+        _minimizeToTray.Unchecked += (_, _) => SavePreferences();
+        PropertyChanged += (_, change) => {
+            if (change.Property == WindowStateProperty && WindowState == WindowState.Minimized &&
+                TrayConfigured && _minimizeToTray.IsChecked == true)
+            {
+                ShowInTaskbar = false;
+                Hide();
+            }
+        };
         _microphone.SelectionChanged += (_, _) => SavePreferences();
         _speakers.SelectionChanged += (_, _) => SavePreferences();
         _includeApplication.Checked += (_, _) => {
@@ -287,6 +312,7 @@ internal sealed class MainWindow : Window
         _settings.MicrophoneDeviceId = _microphone.SelectedItem as string;
         _settings.OutputDeviceId = _speakers.SelectedItem as string;
         _settings.MonitorMicrophone = _monitor.IsChecked == true;
+        _settings.MinimizeToTrayWhenMinimized = _minimizeToTray.IsChecked == true;
         _settings.IncludedProcessNames = _includeApplication.IsChecked == true
             ? _applications.SelectedItems?.OfType<ApplicationStream>()
                 .Select(app => app.Name).Distinct().ToList() ?? new List<string>()
