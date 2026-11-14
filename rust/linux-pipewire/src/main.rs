@@ -163,7 +163,7 @@ fn print_help() {
          A temporary IterVC virtual microphone is created and removed after exit.\n\
          Selected apps are tapped via PipeWire links; their speaker routing remains unchanged.\n\
          --seconds 0 runs until stopped. --monitor-output is optional.\n\
-         --app-stream ID selects an app (repeatable); --include-apps waits for future streams.\\n\\
+         --app-stream ID selects an app (repeatable); --include-apps waits for future streams.\n\
           --app-volume 0..2.\n\
          --mic-volume 0..3, --noise-gate and --gate-threshold -100..0."
     );
