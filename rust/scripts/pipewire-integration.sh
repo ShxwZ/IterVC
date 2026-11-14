@@ -4,6 +4,8 @@ set -euo pipefail
 
 app="./rust/target/release/itervc-linux-pipewire"
 if [ "$#" -gt 0 ]; then app="$1"; fi
+gui=""
+if [ "$#" -gt 1 ]; then gui="$2"; fi
 test_dir="$(mktemp -d)"
 export XDG_RUNTIME_DIR="$test_dir/runtime"
 export PIPEWIRE_RUNTIME_DIR="$XDG_RUNTIME_DIR"
@@ -32,6 +34,7 @@ session_manager_pid="$!"
 pipewire-pulse >"$test_dir/pipewire-pulse.log" 2>&1 &
 pulse_pid="$!"
 app_pid=""
+gui_pid=""
 pulse_app_pid=""
 pulse_app_2_pid=""
 test_sink_module=""
@@ -42,6 +45,10 @@ output_capture_pid=""
 mic_input_pid=""
 
 cleanup() {
+  if [ -n "$gui_pid" ]; then
+    kill -TERM "$gui_pid" 2>/dev/null || true
+    wait "$gui_pid" 2>/dev/null || true
+  fi
   if [ -n "$mic_input_pid" ]; then
     kill -TERM "$mic_input_pid" 2>/dev/null || true
     wait "$mic_input_pid" 2>/dev/null || true
@@ -132,6 +139,61 @@ if pactl list short sinks | grep -q "itervc_rust_sink"; then
 fi
 
 cat "$test_dir/session.log"
+
+# End-to-end GUI + Rust + PipeWire test: the actual Avalonia window must
+# command the Rust worker through user-local IPC to create and remove a source.
+if [ -n "$gui" ]; then
+  "$gui" >"$test_dir/gui-session.log" 2>&1 &
+  gui_pid="$!"
+  gui_window=""
+  for _ in $(seq 1 90); do
+    gui_window="$(xdotool search --onlyvisible --name 'IterVC.*Linux' 2>/dev/null | head -n 1 || true)"
+    if [ -n "$gui_window" ]; then break; fi
+    if ! kill -0 "$gui_pid" 2>/dev/null; then break; fi
+    sleep 0.1
+  done
+  if [ -z "$gui_window" ]; then
+    cat "$test_dir/gui-session.log" >&2
+    echo "Avalonia GUI did not show a window under the PipeWire session" >&2
+    exit 1
+  fi
+  # Allow the GUI's asynchronous device catalogue to load.
+  sleep 1
+  "$gui" --start-routing
+  gui_source=0
+  for _ in $(seq 1 80); do
+    if pactl list short sources | grep -q "itervc_rust_microphone"; then
+      gui_source=1
+      break
+    fi
+    if ! kill -0 "$gui_pid" 2>/dev/null; then break; fi
+    sleep 0.1
+  done
+  if [ "$gui_source" != 1 ]; then
+    cat "$test_dir/gui-session.log" >&2
+    echo "Linux GUI could not create a PipeWire virtual microphone through its shortcut API" >&2
+    exit 1
+  fi
+  "$gui" --stop-routing
+  gui_stopped=0
+  for _ in $(seq 1 80); do
+    if ! pactl list short sources | grep -q "itervc_rust_microphone"; then
+      gui_stopped=1
+      break
+    fi
+    sleep 0.1
+  done
+  if [ "$gui_stopped" != 1 ]; then
+    cat "$test_dir/gui-session.log" >&2
+    echo "Linux GUI did not remove PipeWire virtual mic after stopping" >&2
+    exit 1
+  fi
+  "$gui" --show-window
+  kill -TERM "$gui_pid" 2>/dev/null || true
+  wait "$gui_pid" 2>/dev/null || true
+  gui_pid=""
+  echo "Real PipeWire + Avalonia GUI start/stop via shortcut IPC: passed."
+fi
 
 # Exercise a genuine PulseAudio playback stream through pipewire-pulse.
 # IterVC taps selected sink-input output ports without moving the

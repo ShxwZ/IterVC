@@ -89,8 +89,25 @@ jobs:
           sudo apt-get install -y pipewire pipewire-pulse pipewire-bin pulseaudio-utils dbus-user-session
       - name: Build Rust Linux backend
         run: cargo build --locked --manifest-path rust/Cargo.toml -p itervc-linux-pipewire --release
-      - name: Test real PipeWire daemon with synthetic microphone
-        run: dbus-run-session -- bash rust/scripts/pipewire-integration.sh
+      - name: Setup .NET 8 for graphical PipeWire integration
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Install virtual X11 and keyboard interaction tools
+        run: |
+          sudo apt-get install -y xvfb xauth xdotool libfontconfig1 libice6 libsm6
+      - name: Build self-contained Linux desktop for integration
+        run: |
+          dotnet publish IterVC.Linux/IterVC.Linux.csproj -c Release -r linux-x64 \
+            --self-contained true -p:PublishSingleFile=true \
+            -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugSymbols=false \
+            -p:DebugType=None -o artifacts/pipewire-desktop
+      - name: Test actual PipeWire daemon with CLI and Avalonia GUI (X11)
+        run: |
+          timeout --signal=TERM 100s xvfb-run -a dbus-run-session -- \
+            bash rust/scripts/pipewire-integration.sh \
+              ./rust/target/release/itervc-linux-pipewire \
+              ./artifacts/pipewire-desktop/IterVC.Linux
 
   windows-native:
     name: Windows Rust buffer compatibility
