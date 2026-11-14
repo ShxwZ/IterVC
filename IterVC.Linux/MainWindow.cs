@@ -19,6 +19,7 @@ internal sealed class MainWindow : Window
     private readonly LinuxAudioBackend _audio = new();
     private readonly LinuxSettingsStore _settingsStore = new();
     private readonly AppSettings _settings;
+    private readonly LinuxOscChatboxService _osc;
     private ShortcutControlServer? _shortcuts;
     private readonly ComboBox _microphone = new() { MinWidth = 360 };
     private readonly ComboBox _speakers = new() { MinWidth = 360 };
@@ -29,6 +30,8 @@ internal sealed class MainWindow : Window
     private readonly Slider _microphoneBoost = new() { Minimum = 0.5, Maximum = 3, Width = 250 };
     private readonly CheckBox _gate = new();
     private readonly Slider _gateThreshold = new() { Minimum = -80, Maximum = -15, Width = 250 };
+    private readonly CheckBox _oscEnabled = new();
+    private readonly TextBox _oscTemplate = new() { MinWidth = 340 };
     private readonly CheckBox _monitor = new();
     private readonly Button _refresh = new();
     private readonly Button _start = new();
@@ -46,10 +49,12 @@ internal sealed class MainWindow : Window
     public MainWindow()
     {
         _settings = _settingsStore.Load();
+        _osc = new LinuxOscChatboxService(message =>
+            Dispatcher.UIThread.Post(() => _status.Text = message));
         Title = "IterVC — Linux (PipeWire)";
         Width = 600;
         MinWidth = 500;
-        Height = 820;
+        Height = 930;
         MinHeight = 580;
         _monitor.Content = L("Monitorizar micrófono (opcional)", "Monitor microphone (optional)");
         _monitor.IsChecked = _settings.MonitorMicrophone;
@@ -59,6 +64,10 @@ internal sealed class MainWindow : Window
         _gate.IsChecked = _settings.NoiseGateEnabled;
         _gateThreshold.Value = Math.Clamp(_settings.NoiseGateThresholdDb, -80, -15);
         _gateThreshold.IsEnabled = _gate.IsChecked == true;
+        _oscEnabled.Content = L("Enviar música al chatbox OSC (VRChat)",
+            "Send music to the OSC chatbox (VRChat)");
+        _oscEnabled.IsChecked = _settings.EnableOscChatbox;
+        _oscTemplate.Text = _settings.OscTemplate;
         _includeApplication.Content = L("Mezclar audio de una aplicación", "Mix an application's audio");
         _includeApplication.IsChecked = _settings.IncludedProcessNames.Count > 0;
         _applicationVolume.Value = Math.Clamp(_settings.AppsVolume, 0, 1);
@@ -104,6 +113,14 @@ internal sealed class MainWindow : Window
         root.Children.Add(new TextBlock { Text = L("Volumen en la mezcla virtual",
             "Volume in the virtual microphone mix") });
         root.Children.Add(_applicationVolume);
+        root.Children.Add(new TextBlock { Text = L("Chatbox OSC", "OSC chatbox"),
+            FontWeight = Avalonia.Media.FontWeight.SemiBold });
+        root.Children.Add(_oscEnabled);
+        root.Children.Add(new TextBlock { Text = L("Plantilla del mensaje", "Message template") });
+        root.Children.Add(_oscTemplate);
+        root.Children.Add(new TextBlock { Text = L("Requiere playerctl para detectar música mediante MPRIS.",
+            "Requires playerctl to detect music through MPRIS."),
+            FontSize = 11, TextWrapping = TextWrapping.Wrap });
         root.Children.Add(new TextBlock { Text = L(
             "La aplicación seleccionada seguirá escuchándose por sus altavoces originales.",
             "The selected application will continue playing through its original speakers."),
@@ -173,6 +190,9 @@ internal sealed class MainWindow : Window
         };
         _gate.Checked += (_, _) => { _gateThreshold.IsEnabled = !_running; SavePreferences(); };
         _gate.Unchecked += (_, _) => { _gateThreshold.IsEnabled = false; SavePreferences(); };
+        _oscEnabled.Checked += (_, _) => { SavePreferences(); UpdateOsc(); };
+        _oscEnabled.Unchecked += (_, _) => { SavePreferences(); UpdateOsc(); };
+        _oscTemplate.TextChanged += (_, _) => { SavePreferences(); UpdateOsc(); };
         _refresh.Click += async (_, _) => await RefreshAsync();
         _start.Click += async (_, _) => await StartAsync();
         _stop.Click += async (_, _) => await StopAsync();
@@ -187,6 +207,7 @@ internal sealed class MainWindow : Window
                 L("Nivel de micrófono: {0:0.0} dBFS", "Microphone level: {0:0.0} dBFS"), decibels);
         });
         _audio.SessionExited += () => Dispatcher.UIThread.Post(() => SetRunning(false));
+        UpdateOsc();
         Opened += async (_, _) => await RefreshAsync();
     }
 
@@ -240,6 +261,8 @@ internal sealed class MainWindow : Window
         _settings.MicrophoneBoost = (float)_microphoneBoost.Value;
         _settings.NoiseGateEnabled = _gate.IsChecked == true;
         _settings.NoiseGateThresholdDb = (float)_gateThreshold.Value;
+        _settings.EnableOscChatbox = _oscEnabled.IsChecked == true;
+        _settings.OscTemplate = _oscTemplate.Text ?? "{title} - {status}";
         try { _settingsStore.Save(_settings); }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException)
         {
@@ -247,6 +270,9 @@ internal sealed class MainWindow : Window
                 "Unable to save settings: ") + error.Message;
         }
     }
+
+    private void UpdateOsc() => _osc.SetEnabled(_oscEnabled.IsChecked == true,
+        () => _oscTemplate.Text ?? "{title} - {status}");
 
     private Task StartAsync()
     {
@@ -342,7 +368,7 @@ internal sealed class MainWindow : Window
 
     private async void OnClosing(object? sender, WindowClosingEventArgs e)
     {
-        if (_closing) { _shortcuts?.Dispose(); _audio.Dispose(); return; }
+        if (_closing) { _osc.Dispose(); _shortcuts?.Dispose(); _audio.Dispose(); return; }
         e.Cancel = true;
         _closing = true;
         await StopAsync();
