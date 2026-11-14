@@ -1,0 +1,28 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="IterVC.UI.DesktopSettingsTabs"
+             x:Name="Root">
+  <!-- Canonical settings tab presentation: each OS provides only the content
+       of its device/audio/platform-dependent panels. -->
+  <Border Background="{DynamicResource SurfaceBaseBrush}"
+          BorderBrush="{DynamicResource BorderSubtleBrush}"
+          BorderThickness="1" CornerRadius="8" Padding="16">
+    <TabControl x:Name="InnerTabs">
+      <TabItem Header="{Binding DevicesTitle, ElementName=Root}">
+        <ContentControl Content="{Binding Devices, ElementName=Root}" />
+      </TabItem>
+      <TabItem Header="{Binding MixTitle, ElementName=Root}">
+        <ContentControl Content="{Binding Mix, ElementName=Root}" />
+      </TabItem>
+      <TabItem Header="{Binding GateTitle, ElementName=Root}">
+        <ContentControl Content="{Binding Gate, ElementName=Root}" />
+      </TabItem>
+      <TabItem Header="{Binding OscTitle, ElementName=Root}">
+        <ContentControl Content="{Binding Osc, ElementName=Root}" />
+      </TabItem>
+      <TabItem x:Name="PreferencesTab" Header="{Binding PreferencesTitle, ElementName=Root}">
+        <ContentControl Content="{Binding Preferences, ElementName=Root}" />
+      </TabItem>
+    </TabControl>
+  </Border>
+</UserControl>
