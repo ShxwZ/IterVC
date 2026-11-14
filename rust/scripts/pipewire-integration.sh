@@ -117,6 +117,14 @@ for _ in $(seq 1 50); do
 done
 if [ -z "$stream_id" ]; then
   cat "$test_dir/pacat.log" >&2
+  echo "-- PipeWire sinks --" >&2
+  pactl list short sinks >&2 || true
+  echo "-- PulseAudio playback streams --" >&2
+  pactl list short sink-inputs >&2 || true
+  echo "-- PulseAudio clients --" >&2
+  pactl list short clients >&2 || true
+  echo "-- pacat process --" >&2
+  ps -p "$pulse_app_pid" -o pid,stat,cmd >&2 || true
   echo "Could not find synthetic PulseAudio application playback stream" >&2
   exit 1
 fi
