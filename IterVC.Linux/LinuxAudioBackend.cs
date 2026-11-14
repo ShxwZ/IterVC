@@ -123,7 +123,13 @@ internal sealed class LinuxAudioBackend : IDisposable
             else
                 MessageReceived?.Invoke(line);
         };
-        process.Exited += (_, _) => SessionExited?.Invoke();
+        process.Exited += (_, _) =>
+        {
+            // A previous worker may finish after a rapid stop/start. Never
+            // report its exit as the termination of the new audio session.
+            if (ReferenceEquals(Volatile.Read(ref _session), process))
+                SessionExited?.Invoke();
+        };
         try
         {
             if (!process.Start())
