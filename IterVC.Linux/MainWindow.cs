@@ -724,27 +724,40 @@ internal sealed partial class MainWindow : Window
 
     private async void OnKeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.KeyModifiers != (KeyModifiers.Control | KeyModifiers.Shift)) return;
-        if (e.Key == Key.R)
+        // Match Windows settings syntax. Keep focused-window behavior explicit;
+        // global Wayland shortcuts must be registered in desktop settings.
+        var mods = e.KeyModifiers;
+        if (_settings.ToggleRoutingHotkeyEnabled &&
+            LinuxHotkeyParser.IsMatch(_settings.ToggleRoutingHotkeyGesture, e.Key, mods))
         {
             if (_running) await StopAsync(); else await StartAsync();
-            e.Handled = true;
         }
-        else if (e.Key == Key.M)
+        else if (_settings.StartRoutingHotkeyEnabled &&
+            LinuxHotkeyParser.IsMatch(_settings.StartRoutingHotkeyGesture, e.Key, mods))
         {
-            await ToggleMonitorAsync();
-            e.Handled = true;
+            if (!_running) await StartAsync();
         }
-        else if (e.Key == Key.U)
+        else if (_settings.StopRoutingHotkeyEnabled &&
+            LinuxHotkeyParser.IsMatch(_settings.StopRoutingHotkeyGesture, e.Key, mods))
+        {
+            if (_running) await StopAsync();
+        }
+        else if (_settings.ToggleMicrophoneHotkeyEnabled &&
+            LinuxHotkeyParser.IsMatch(_settings.ToggleMicrophoneHotkeyGesture, e.Key, mods))
         {
             await ToggleMicrophoneMuteAsync();
-            e.Handled = true;
         }
-        else if (e.Key == Key.P)
+        else if (_settings.ToggleApplicationsMuteHotkeyEnabled &&
+            LinuxHotkeyParser.IsMatch(_settings.ToggleApplicationsMuteHotkeyGesture, e.Key, mods))
         {
             await ToggleApplicationMuteAsync();
-            e.Handled = true;
         }
+        else if (mods == (KeyModifiers.Control | KeyModifiers.Shift) && e.Key == Key.M)
+        {
+            await ToggleMonitorAsync();
+        }
+        else return;
+        e.Handled = true;
     }
 
     private async void OnClosing(object? sender, WindowClosingEventArgs e)
