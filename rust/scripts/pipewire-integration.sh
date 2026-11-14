@@ -35,7 +35,9 @@ app_pid=""
 pulse_app_pid=""
 pulse_app_2_pid=""
 test_sink_module=""
+test_microphone_sink_module=""
 test_source_module=""
+output_capture_pid=""
 
 cleanup() {
   if [ -n "$app_pid" ]; then
@@ -50,8 +52,15 @@ cleanup() {
     kill -TERM "$pulse_app_pid" 2>/dev/null || true
     wait "$pulse_app_pid" 2>/dev/null || true
   fi
+  if [ -n "$output_capture_pid" ]; then
+    kill -TERM "$output_capture_pid" 2>/dev/null || true
+    wait "$output_capture_pid" 2>/dev/null || true
+  fi
   if [ -n "$test_source_module" ]; then
     pactl unload-module "$test_source_module" >/dev/null 2>&1 || true
+  fi
+  if [ -n "$test_microphone_sink_module" ]; then
+    pactl unload-module "$test_microphone_sink_module" >/dev/null 2>&1 || true
   fi
   if [ -n "$test_sink_module" ]; then
     pactl unload-module "$test_sink_module" >/dev/null 2>&1 || true
@@ -73,8 +82,11 @@ if [ "$ready" != 1 ]; then
   exit 1
 fi
 
+# Keep the synthetic microphone separate from application playback so we can
+# prove that app audio reaches the *mixed* virtual microphone, not the mic input.
 test_sink_module="$(pactl load-module module-null-sink sink_name=itervc_ci_audio_sink)"
-test_source_module="$(pactl load-module module-remap-source master=itervc_ci_audio_sink.monitor source_name=itervc_ci_test_microphone)"
+test_microphone_sink_module="$(pactl load-module module-null-sink sink_name=itervc_ci_microphone_source_sink)"
+test_source_module="$(pactl load-module module-remap-source master=itervc_ci_microphone_source_sink.monitor source_name=itervc_ci_test_microphone)"
 
 "$app" --check
 "$app" --list-inputs | grep -Fx "itervc_ci_test_microphone"
@@ -125,8 +137,16 @@ if [ -z "$original_sink_id" ]; then
   exit 1
 fi
 
+# Play a deterministic non-zero stereo PCM signal to the original speaker sink.
+# The separate synthetic microphone source produces silence.
+python3 - "$test_dir/app-constant.pcm" <<'PY'
+import struct
+import sys
+with open(sys.argv[1], "wb") as stream:
+    stream.write(struct.pack("<ff", 0.4, -0.4) * (48_000 * 45))
+PY
 pacat --playback --raw --format=float32le --rate=48000 --channels=2 \
-  </dev/zero >"$test_dir/pacat.log" 2>&1 &
+  <"$test_dir/app-constant.pcm" >"$test_dir/pacat.log" 2>&1 &
 pulse_app_pid="$!"
 
 stream_id=""
@@ -179,6 +199,35 @@ if [ "$linked" != 1 ]; then
   echo "Selected app did not connect while preserving its original output" >&2
   exit 1
 fi
+
+# Record the *actual* virtual microphone while the selected app is running.
+# This fails if the links exist but no audio makes it to the mixed output.
+pacat --record --device=itervc_rust_microphone --raw --format=float32le \
+  --rate=48000 --channels=2 >"$test_dir/mixed-output.pcm" \
+  2>"$test_dir/mixed-record.log" &
+output_capture_pid="$!"
+sleep 2
+kill -TERM "$output_capture_pid" 2>/dev/null || true
+wait "$output_capture_pid" 2>/dev/null || true
+output_capture_pid=""
+python3 - "$test_dir/mixed-output.pcm" <<'PY'
+from array import array
+import os
+import sys
+
+path = sys.argv[1]
+if not os.path.isfile(path) or os.path.getsize(path) < 8192:
+    raise SystemExit("PipeWire virtual microphone yielded no PCM frames")
+with open(path, "rb") as file:
+    samples = array("f")
+    samples.frombytes(file.read())
+# The physical microphone is silent in this test, therefore a non-zero
+# signal must have originated from the selected application tap.
+nonzero = sum(abs(sample) > 0.04 for sample in samples)
+if nonzero < 1000:
+    raise SystemExit("Selected application's nonzero audio was not mixed into the virtual microphone")
+print(f"Application PCM audibility check: {nonzero} nonzero samples from virtual source.")
+PY
 
 kill -TERM "$app_pid"
 wait "$app_pid"
