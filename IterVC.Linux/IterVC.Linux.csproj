@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>IterVC.Linux</AssemblyName>
+    <RootNamespace>IterVC.Linux</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.1.3" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.1.3" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.1.3" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.1.3" />
+  </ItemGroup>
+  <!-- The Rust process is embedded into the .NET single-file executable. -->
+  <ItemGroup>
+    <EmbeddedResource Include="../rust/target/release/itervc-linux-pipewire"
+                      LogicalName="IterVC.Linux.NativeAudioCli" />
+  </ItemGroup>
+  <Target Name="RequireLinuxNativeBackend" BeforeTargets="CoreCompile">
+    <Error Condition="!Exists('../rust/target/release/itervc-linux-pipewire')"
+           Text="Build rust/linux-pipewire in Release mode before building the Linux GUI." />
+  </Target>
+</Project>

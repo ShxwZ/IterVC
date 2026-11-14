@@ -1,0 +1,161 @@
+using System.Diagnostics;
+using System.Globalization;
+using System.Reflection;
+
+namespace IterVC.Linux;
+
+/// <summary>
+/// Isolated Linux backend runner. Extracts the Rust executable from a single-file
+/// desktop publish and terminates it gracefully to allow PipeWire module cleanup.
+/// </summary>
+internal sealed class LinuxAudioBackend : IDisposable
+{
+    private readonly string _directory;
+    private readonly string _executable;
+    private Process? _session;
+    private bool _disposed;
+
+    public LinuxAudioBackend()
+    {
+        _directory = Path.Combine(Path.GetTempPath(), $"itervc-linux-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(_directory);
+        _executable = Path.Combine(_directory, "itervc-linux-pipewire");
+        using var input = Assembly.GetExecutingAssembly()
+            .GetManifestResourceStream("IterVC.Linux.NativeAudioCli")
+            ?? throw new InvalidOperationException("The Rust audio backend is not embedded.");
+        using (var output = File.Create(_executable))
+            input.CopyTo(output);
+        File.SetUnixFileMode(_directory, UnixFileMode.UserRead | UnixFileMode.UserWrite |
+            UnixFileMode.UserExecute);
+        File.SetUnixFileMode(_executable, UnixFileMode.UserRead | UnixFileMode.UserExecute);
+    }
+
+    public event Action<double>? LevelChanged;
+    public event Action<string>? MessageReceived;
+    public event Action? SessionExited;
+
+    public async Task<string> QueryAsync(string option, CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        using var process = new Process { StartInfo = MakeStartInfo(option) };
+        process.StartInfo.RedirectStandardOutput = true;
+        process.StartInfo.RedirectStandardError = true;
+        if (!process.Start())
+            throw new InvalidOperationException("Could not start embedded Rust backend.");
+        var stdout = process.StandardOutput.ReadToEndAsync();
+        var stderr = process.StandardError.ReadToEndAsync();
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        timeout.CancelAfter(TimeSpan.FromSeconds(8));
+        try
+        {
+            await process.WaitForExitAsync(timeout.Token);
+        }
+        catch
+        {
+            if (!process.HasExited)
+                process.Kill(entireProcessTree: true);
+            throw;
+        }
+        var text = await stdout;
+        if (process.ExitCode != 0)
+            throw new InvalidOperationException((await stderr).Trim());
+        return text;
+    }
+
+    public void Start(string microphone, string? monitoringOutput)
+    {
+        ThrowIfDisposed();
+        if (_session is { HasExited: false })
+            throw new InvalidOperationException("An audio session is already running.");
+        _session?.Dispose();
+        var process = new Process { StartInfo = MakeStartInfo("--input", microphone,
+            "--seconds", "0") };
+        if (!string.IsNullOrWhiteSpace(monitoringOutput))
+        {
+            process.StartInfo.ArgumentList.Add("--monitor-output");
+            process.StartInfo.ArgumentList.Add(monitoringOutput);
+        }
+        process.StartInfo.RedirectStandardError = true;
+        process.EnableRaisingEvents = true;
+        process.ErrorDataReceived += (_, args) =>
+        {
+            var line = args.Data;
+            if (line is null)
+                return;
+            if (line.StartsWith("ITERVC_LEVEL:", StringComparison.Ordinal) &&
+                double.TryParse(line.AsSpan("ITERVC_LEVEL:".Length),
+                    NumberStyles.Float, CultureInfo.InvariantCulture, out var rms))
+                LevelChanged?.Invoke(rms);
+            else
+                MessageReceived?.Invoke(line);
+        };
+        process.Exited += (_, _) => SessionExited?.Invoke();
+        try
+        {
+            if (!process.Start())
+                throw new InvalidOperationException("Could not start Linux microphone process.");
+            _session = process;
+            process.BeginErrorReadLine();
+        }
+        catch
+        {
+            process.Dispose();
+            throw;
+        }
+    }
+
+    public async Task StopAsync()
+    {
+        var process = _session;
+        if (process is null || process.HasExited)
+            return;
+
+        // SIGTERM allows the Rust process to remove its temporary PipeWire
+        // source and sink; Process.Kill() alone would bypass its cleanup.
+        using var term = new Process { StartInfo = new ProcessStartInfo("/bin/kill") {
+            UseShellExecute = false, CreateNoWindow = true
+        }};
+        term.StartInfo.ArgumentList.Add("-TERM");
+        term.StartInfo.ArgumentList.Add(process.Id.ToString(CultureInfo.InvariantCulture));
+        try
+        {
+            term.Start();
+            await term.WaitForExitAsync();
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(4));
+            await process.WaitForExitAsync(timeout.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            if (!process.HasExited)
+                process.Kill(entireProcessTree: true);
+        }
+    }
+
+    private ProcessStartInfo MakeStartInfo(params string[] args)
+    {
+        var info = new ProcessStartInfo(_executable)
+        {
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            WorkingDirectory = _directory
+        };
+        foreach (var arg in args)
+            info.ArgumentList.Add(arg);
+        return info;
+    }
+
+    private void ThrowIfDisposed()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+    }
+
+    public void Dispose()
+    {
+        if (_disposed) return;
+        StopAsync().GetAwaiter().GetResult();
+        _session?.Dispose();
+        try { Directory.Delete(_directory, recursive: true); }
+        catch (IOException) { /* Cleanup may be deferred by the OS. */ }
+        _disposed = true;
+    }
+}
