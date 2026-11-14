@@ -2,7 +2,7 @@
 			 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 			 xmlns:vm="using:IterVC.Desktop.ViewModels"
 			 xmlns:views="using:IterVC.Desktop.Views"
-			 xmlns:controls="using:IterVC.Desktop.Views.Controls"
+			 xmlns:ui="using:IterVC.UI"
 			 x:Class="IterVC.Desktop.Views.SettingsPanel"
 			 x:DataType="vm:MainViewModel">
 	<UserControl.Resources>
@@ -86,7 +86,7 @@
 									   Classes="label" />
 							<ComboBox ItemsSource="{Binding Audio.OutputDevices}"
 									  SelectedItem="{Binding Audio.SelectedOutputDevice}" />
-							<controls:CompactAudioMeter Height="7"
+							<ui:CompactAudioMeter Height="7"
 								LevelDb="{Binding Audio.Meters.ApplicationsOutput.LevelDb}"
 								PeakDb="{Binding Audio.Meters.ApplicationsOutput.PeakDb}"
 								IsActive="{Binding Audio.Meters.ApplicationsOutput.IsActive}" />
@@ -96,7 +96,7 @@
 							<TextBlock Text="{Binding Texts.DeviceVbCable}" Classes="label" />
 							<ComboBox ItemsSource="{Binding Audio.VbCableDevices}"
 									  SelectedItem="{Binding Audio.SelectedVbCableDevice}" />
-							<controls:CompactAudioMeter Height="7"
+							<ui:CompactAudioMeter Height="7"
 								LevelDb="{Binding Audio.Meters.RoutedOutput.LevelDb}"
 								PeakDb="{Binding Audio.Meters.RoutedOutput.PeakDb}"
 								IsActive="{Binding Audio.Meters.RoutedOutput.IsActive}" />
@@ -107,7 +107,7 @@
 									   Classes="label" />
 							<ComboBox ItemsSource="{Binding Audio.Microphone.InputDevices}"
 									  SelectedItem="{Binding Audio.Microphone.SelectedDevice}" />
-							<controls:CompactAudioMeter Height="7"
+							<ui:CompactAudioMeter Height="7"
 								LevelDb="{Binding Audio.Meters.MicrophoneOutput.LevelDb}"
 								PeakDb="{Binding Audio.Meters.MicrophoneOutput.PeakDb}"
 								IsActive="{Binding Audio.Meters.MicrophoneOutput.IsActive}" />
@@ -197,7 +197,7 @@
 										Value="{Binding Audio.NoiseGate.ThresholdDb}"
 										Height="3" Foreground="{DynamicResource TextSecondaryBrush}" Background="{DynamicResource BorderSubtleBrush}" />
 									<Border Height="16" Background="{DynamicResource AppBackgroundBrush}" Padding="3">
-										<controls:CompactAudioMeter
+										<ui:CompactAudioMeter
 											LevelDb="{Binding Audio.Meters.MicrophoneOutput.LevelDb}"
 											PeakDb="{Binding Audio.Meters.MicrophoneOutput.PeakDb}"
 											IsActive="{Binding Audio.Meters.MicrophoneOutput.IsActive}"
