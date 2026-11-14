@@ -5,11 +5,14 @@ using IterVC.Core.Models;
 using IterVC.Core.Settings;
 using Microsoft.Extensions.Logging;
 using System.Collections.ObjectModel;
+using System.Runtime.InteropServices;
 
 namespace IterVC.Desktop.ViewModels;
 
 public sealed partial class AudioRoutingViewModel : ViewModelBase
 {
+    private const int WasapiDeviceInUseHResult = unchecked((int)0x8889000A);
+
     private readonly IAudioRouterService _router;
     private readonly IDeviceService _devices;
     private readonly ISettingsService _settings;
@@ -73,10 +76,7 @@ public sealed partial class AudioRoutingViewModel : ViewModelBase
                 ?? OutputDevices.FirstOrDefault(device => device.IsDefault);
 
             if (SelectedVbCableDevice is not null)
-            {
-                await _router.StartAsync(SelectedVbCableDevice.Id, cancellationToken);
-                IsRouting = true;
-            }
+                await StartRoutingWithDeviceInUseRecoveryAsync(SelectedVbCableDevice.Id, cancellationToken);
 
             if (SelectedOutputDevice is not null)
                 await Applications.InitializeOutputDeviceAsync(SelectedOutputDevice.Id, cancellationToken);
@@ -150,8 +150,36 @@ public sealed partial class AudioRoutingViewModel : ViewModelBase
     public async Task StartRoutingAsync()
     {
         if (IsRouting || SelectedVbCableDevice is null) return;
-        await _router.StartAsync(SelectedVbCableDevice.Id, _lifetimeCancellation.Token);
-        IsRouting = true;
+        await StartRoutingWithDeviceInUseRecoveryAsync(SelectedVbCableDevice.Id, _lifetimeCancellation.Token);
+    }
+
+    private async Task StartRoutingWithDeviceInUseRecoveryAsync(
+        string deviceId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _router.StartAsync(deviceId, cancellationToken);
+            IsRouting = true;
+        }
+        catch (Exception exception) when (IsWasapiDeviceInUse(exception))
+        {
+            IsRouting = false;
+            _logger.LogWarning(exception,
+                "Audio routing to {DeviceId} could not start because the device is in use. " +
+                "Release exclusive access to the device, then retry routing.", deviceId);
+        }
+    }
+
+    private static bool IsWasapiDeviceInUse(Exception exception)
+    {
+        if (exception is COMException comException)
+            return comException.HResult == WasapiDeviceInUseHResult;
+
+        if (exception is AggregateException aggregateException)
+            return aggregateException.InnerExceptions.Count > 0 &&
+                   aggregateException.InnerExceptions.All(IsWasapiDeviceInUse);
+
+        return exception.InnerException is not null && IsWasapiDeviceInUse(exception.InnerException);
     }
 
     public async Task StopRoutingAsync()
