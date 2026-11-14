@@ -1,4 +1,6 @@
+using System.Buffers;
 using System.Runtime.InteropServices;
+using System.Threading.Channels;
 using Microsoft.Extensions.Logging;
 using NAudio.CoreAudioApi;
 using NAudio.Wave;
@@ -7,24 +9,29 @@ using IterVC.Core.Models;
 
 namespace IterVC.Audio;
 
+/// <summary>
+/// Captures microphone audio and sends it to the existing router. RNNoise is opt-in
+/// and processes copied buffers on a bounded worker, never on the WASAPI callback.
+/// </summary>
 public sealed class MicrophoneService : IMicrophoneService
 {
     private const int SampleRate = 48000;
     private const int Channels = 2;
+    private const int SuppressionQueueCapacity = 6;
+
     private readonly ILogger<MicrophoneService> _logger;
     private readonly MMDeviceEnumerator _enumerator = new();
-    private readonly object _processingLock = new();
-    private readonly Queue<float> _pendingSuppressionSamples = new();
+    private readonly object _suppressionLock = new();
+
     private WasapiCapture? _capture;
-    private DeepFilterNetNoiseSuppressor? _noiseSuppressor;
     private EventHandler<StoppedEventArgs>? _recordingStoppedHandler;
-    private volatile bool _noiseSuppressionEnabled = true;
+    private Channel<MicrophonePacket>? _suppressionChannel;
+    private CancellationTokenSource? _suppressionCancellation;
+    private Task? _suppressionTask;
+    private volatile bool _noiseSuppressionEnabled;
     private bool _suppressionFaulted;
-    private long _processedFrames;
-    private long _diagnosticFrames;
-    private double _diagnosticInputEnergy;
-    private double _diagnosticOutputEnergy;
-    private float _diagnosticLastLsnr;
+    private int _suppressionGeneration;
+    private long _droppedPackets;
 
     public bool IsCapturing { get; private set; }
     public WaveFormat? WaveFormat => _capture?.WaveFormat;
@@ -34,91 +41,64 @@ public sealed class MicrophoneService : IMicrophoneService
 
     public void SetNoiseSuppressionEnabled(bool enabled)
     {
-        lock (_processingLock)
-        {
-            if (_noiseSuppressionEnabled == enabled)
-                return;
+        if (_noiseSuppressionEnabled == enabled)
+            return;
 
-            _noiseSuppressionEnabled = enabled;
-            _pendingSuppressionSamples.Clear();
-            ResetDiagnostics();
+        _noiseSuppressionEnabled = enabled;
+        StopSuppression();
+        _suppressionFaulted = false;
 
-            if (enabled && _noiseSuppressor is not null && !_suppressionFaulted)
-            {
-                try
-                {
-                    _noiseSuppressor.Reset();
-                    _logger.LogInformation("DeepFilterNet3 noise suppression enabled and processing state reset");
-                }
-                catch (Exception ex)
-                {
-                    _suppressionFaulted = true;
-                    _logger.LogWarning(ex, "Could not reset DeepFilterNet3; microphone will continue without suppression");
-                }
-            }
-            else
-            {
-                _logger.LogInformation("DeepFilterNet3 noise suppression {State}", enabled ? "enabled" : "disabled");
-            }
-        }
+        if (enabled && IsCapturing)
+            StartSuppression();
     }
 
     public Task StartAsync(string microphoneDeviceId, CancellationToken cancellationToken = default)
     {
         StopInternal();
+        cancellationToken.ThrowIfCancellationRequested();
+
         var device = _enumerator.GetDevice(microphoneDeviceId);
         Exception? preferredFailure = null;
-
         foreach (var latency in new[]
         {
             AudioLatencyPolicy.PreferredMicrophoneBufferMilliseconds,
             AudioLatencyPolicy.FallbackMicrophoneBufferMilliseconds
         })
         {
+            cancellationToken.ThrowIfCancellationRequested();
             try
             {
                 var capture = new WasapiCapture(device, useEventSync: true, audioBufferMillisecondsLength: latency)
                 {
                     WaveFormat = WaveFormat.CreateIeeeFloatWaveFormat(SampleRate, Channels)
                 };
-
                 _recordingStoppedHandler = OnRecordingStopped;
                 capture.DataAvailable += OnDataAvailable;
                 capture.RecordingStopped += _recordingStoppedHandler;
                 _capture = capture;
 
-                try
-                {
-                    _noiseSuppressor = new DeepFilterNetNoiseSuppressor();
-                    _suppressionFaulted = false;
-                    ResetDiagnostics();
-                    _logger.LogInformation(
-                        "DeepFilterNet3 initialized at {SampleRate} Hz, {Channels} channels, {FrameSize} samples/channel",
-                        SampleRate,
-                        Channels,
-                        _noiseSuppressor.FrameSizePerChannel);
-                }
-                catch (Exception ex)
-                {
-                    DisposeNoiseSuppressor();
-                    _suppressionFaulted = true;
-                    _logger.LogWarning(ex, "DeepFilterNet3 unavailable; continuing without microphone noise suppression");
-                }
-
                 capture.StartRecording();
                 IsCapturing = true;
+                if (_noiseSuppressionEnabled)
+                    StartSuppression();
+
+                _logger.LogInformation(
+                    "Microphone capture initialized: Device={Device} Format={Format} BufferMs={BufferMs} NoiseSuppression={Suppression}",
+                    device.FriendlyName, capture.WaveFormat, latency, _noiseSuppressionEnabled);
                 return Task.CompletedTask;
             }
-            catch (Exception ex)
+            catch (Exception exception)
             {
                 CleanupCapture();
                 if (latency == AudioLatencyPolicy.PreferredMicrophoneBufferMilliseconds)
                 {
-                    preferredFailure = ex;
+                    preferredFailure = exception;
                     continue;
                 }
 
-                throw new AggregateException("Could not initialize microphone capture.", preferredFailure!, ex);
+                throw new AggregateException(
+                    "Could not initialize microphone capture at the preferred or fallback buffer size.",
+                    preferredFailure!, exception);
             }
         }
 
@@ -131,120 +111,163 @@ public sealed class MicrophoneService : IMicrophoneService
         return Task.CompletedTask;
     }
 
-    public async Task SetDeviceAsync(string microphoneDeviceId)
+    public Task SetDeviceAsync(string microphoneDeviceId)
     {
         StopInternal();
-        await StartAsync(microphoneDeviceId);
+        return StartAsync(microphoneDeviceId);
     }
 
     private void OnDataAvailable(object? sender, WaveInEventArgs e)
     {
-        if (e.BytesRecorded == 0)
+        if (e.BytesRecorded <= 0)
             return;
 
-        float[]? processedOutput = null;
-        var outputCount = 0;
-        var fallbackRaw = false;
-
-        lock (_processingLock)
+        // The capture-owned buffer is reused by NAudio. Only the opt-in async
+        // path copies it; the default path remains identical to the raw mixer.
+        lock (_suppressionLock)
         {
-            if (!_noiseSuppressionEnabled || _noiseSuppressor is null || _suppressionFaulted)
+            if (_noiseSuppressionEnabled && !_suppressionFaulted && _suppressionChannel is { } channel)
             {
-                _pendingSuppressionSamples.Clear();
-                fallbackRaw = true;
+                var rented = ArrayPool<byte>.Shared.Rent(e.BytesRecorded);
+                Buffer.BlockCopy(e.Buffer, 0, rented, 0, e.BytesRecorded);
+                if (channel.Writer.TryWrite(new MicrophonePacket(rented, e.BytesRecorded)))
+                    return;
+
+                ArrayPool<byte>.Shared.Return(rented);
+                Interlocked.Increment(ref _droppedPackets);
+                return; // Never block the audio callback on an overloaded processor.
             }
-            else
+        }
+
+        DataAvailable?.Invoke(this, new AudioDataEventArgs(e.Buffer, e.BytesRecorded));
+    }
+
+    private void StartSuppression()
+    {
+        lock (_suppressionLock)
+        {
+            if (!_noiseSuppressionEnabled || _suppressionChannel is not null || !IsCapturing)
+                return;
+
+            var channel = Channel.CreateBounded<MicrophonePacket>(new BoundedChannelOptions(SuppressionQueueCapacity)
+            {
+                SingleReader = true,
+                SingleWriter = false,
+                FullMode = BoundedChannelFullMode.Wait,
+                AllowSynchronousContinuations = false
+            });
+            var cancellation = new CancellationTokenSource();
+            var generation = ++_suppressionGeneration;
+            _suppressionChannel = channel;
+            _suppressionCancellation = cancellation;
+            _suppressionFaulted = false;
+            _suppressionTask = Task.Run(() => RunSuppressionAsync(channel.Reader, generation, cancellation.Token));
+        }
+    }
+
+    private async Task RunSuppressionAsync(ChannelReader<MicrophonePacket> reader,
+        int generation, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var suppressor = new RnNoiseSuppressor();
+            var input = new float[RnNoiseSuppressor.FrameSamples];
+            var output = new float[input.Length];
+            var outputBytes = new byte[input.Length * sizeof(float)];
+            var pendingSamples = 0;
+            var frames = 0;
+
+            _logger.LogInformation("RNNoise suppression started at 48 kHz stereo, 10 ms frames");
+
+            await foreach (var packet in reader.ReadAllAsync(cancellationToken))
             {
                 try
                 {
-                    var sampleCount = e.BytesRecorded / sizeof(float);
-                    sampleCount -= sampleCount % Channels;
-                    var samples = MemoryMarshal.Cast<byte, float>(e.Buffer.AsSpan(0, sampleCount * sizeof(float)));
-                    for (var i = 0; i < samples.Length; i++)
-                        _pendingSuppressionSamples.Enqueue(samples[i]);
+                    if (generation != Volatile.Read(ref _suppressionGeneration))
+                        continue;
 
-                    var frameSamples = _noiseSuppressor.FrameSizePerChannel * Channels;
-                    var frameCount = _pendingSuppressionSamples.Count / frameSamples;
-                    if (frameCount == 0)
-                        return;
+                    if (packet.Count % (sizeof(float) * Channels) != 0)
+                        throw new InvalidOperationException("Unexpected microphone PCM alignment.");
 
-                    processedOutput = new float[frameCount * frameSamples];
-                    var frameInput = new float[frameSamples];
-                    var frameOutput = new float[frameSamples];
-
-                    for (var frame = 0; frame < frameCount; frame++)
+                    var samples = MemoryMarshal.Cast<byte, float>(packet.Data.AsSpan(0, packet.Count));
+                    var offset = 0;
+                    while (offset < samples.Length)
                     {
-                        for (var i = 0; i < frameSamples; i++)
-                            frameInput[i] = _pendingSuppressionSamples.Dequeue();
+                        var amount = Math.Min(samples.Length - offset, input.Length - pendingSamples);
+                        samples.Slice(offset, amount).CopyTo(input.AsSpan(pendingSamples, amount));
+                        offset += amount;
+                        pendingSamples += amount;
+                        if (pendingSamples != input.Length)
+                            continue;
 
-                        var lsnr = _noiseSuppressor.ProcessFrame(frameInput, frameOutput);
-                        RecordDiagnostics(frameInput, frameOutput, lsnr);
-                        Array.Copy(frameOutput, 0, processedOutput, outputCount, frameSamples);
-                        outputCount += frameSamples;
+                        suppressor.ProcessFrame(input, output);
+                        pendingSamples = 0;
+                        Buffer.BlockCopy(output, 0, outputBytes, 0, outputBytes.Length);
+                        if (generation != Volatile.Read(ref _suppressionGeneration) || cancellationToken.IsCancellationRequested)
+                            break;
+
+                        // The coordinator copies this exact processed signal into the router.
+                        // Gate, volume, meters, monitoring and VB-Cable all consume that same signal.
+                        DataAvailable?.Invoke(this, new AudioDataEventArgs(outputBytes, outputBytes.Length));
+
+                        if (++frames % 500 == 0)
+                        {
+                            var dropped = Interlocked.Exchange(ref _droppedPackets, 0);
+                            if (dropped > 0)
+                                _logger.LogWarning("RNNoise dropped {Packets} capture packets due to processing overload", dropped);
+                        }
                     }
                 }
-                catch (Exception ex)
+                finally
                 {
-                    _suppressionFaulted = true;
-                    _pendingSuppressionSamples.Clear();
-                    _logger.LogWarning(ex, "DeepFilterNet3 processing failed; falling back to raw microphone audio");
-                    fallbackRaw = true;
+                    ArrayPool<byte>.Shared.Return(packet.Data);
                 }
             }
         }
-
-        if (fallbackRaw)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
+        catch (Exception exception)
         {
-            DataAvailable?.Invoke(this, new AudioDataEventArgs(e.Buffer, e.BytesRecorded));
-            return;
+            if (generation == Volatile.Read(ref _suppressionGeneration))
+            {
+                lock (_suppressionLock)
+                {
+                    if (generation == _suppressionGeneration)
+                        _suppressionFaulted = true;
+                }
+                _logger.LogWarning(exception,
+                    "RNNoise unavailable; microphone audio will continue unprocessed. Disable and re-enable suppression to retry.");
+            }
         }
-
-        if (processedOutput is null || outputCount == 0)
-            return;
-
-        var outputBytes = new byte[outputCount * sizeof(float)];
-        Buffer.BlockCopy(processedOutput, 0, outputBytes, 0, outputBytes.Length);
-        DataAvailable?.Invoke(this, new AudioDataEventArgs(outputBytes, outputBytes.Length));
+        finally
+        {
+            while (reader.TryRead(out var remaining))
+                ArrayPool<byte>.Shared.Return(remaining.Data);
+        }
     }
 
-    private void RecordDiagnostics(float[] input, float[] output, float lsnr)
+    private void StopSuppression()
     {
-        _processedFrames++;
-        _diagnosticFrames++;
-        _diagnosticLastLsnr = lsnr;
-
-        for (var i = 0; i < input.Length; i++)
+        Task? worker;
+        CancellationTokenSource? cancellation;
+        lock (_suppressionLock)
         {
-            _diagnosticInputEnergy += input[i] * input[i];
-            _diagnosticOutputEnergy += output[i] * output[i];
+            ++_suppressionGeneration;
+            _suppressionChannel?.Writer.TryComplete();
+            _suppressionChannel = null;
+            worker = _suppressionTask;
+            _suppressionTask = null;
+            cancellation = _suppressionCancellation;
+            _suppressionCancellation = null;
+            cancellation?.Cancel();
         }
 
-        if (_diagnosticFrames < 100)
-            return;
-
-        var inputRms = Math.Sqrt(_diagnosticInputEnergy / (_diagnosticFrames * input.Length));
-        var outputRms = Math.Sqrt(_diagnosticOutputEnergy / (_diagnosticFrames * output.Length));
-        var inputDb = inputRms > 1e-9 ? 20 * Math.Log10(inputRms) : -180;
-        var outputDb = outputRms > 1e-9 ? 20 * Math.Log10(outputRms) : -180;
-
-        _logger.LogDebug(
-            "DeepFilterNet3 processed {Frames} frames: input {InputDb:F1} dBFS, output {OutputDb:F1} dBFS, delta {DeltaDb:F1} dB, LSNR {Lsnr:F1} dB",
-            _diagnosticFrames,
-            inputDb,
-            outputDb,
-            outputDb - inputDb,
-            _diagnosticLastLsnr);
-
-        ResetDiagnostics();
-    }
-
-    private void ResetDiagnostics()
-    {
-        _processedFrames = 0;
-        _diagnosticFrames = 0;
-        _diagnosticInputEnergy = 0;
-        _diagnosticOutputEnergy = 0;
-        _diagnosticLastLsnr = 0;
+        if (worker is not null)
+        {
+            try { worker.GetAwaiter().GetResult(); }
+            catch (OperationCanceledException) { }
+        }
+        cancellation?.Dispose();
+        Interlocked.Exchange(ref _droppedPackets, 0);
     }
 
     private void OnRecordingStopped(object? sender, StoppedEventArgs e)
@@ -258,22 +281,13 @@ public sealed class MicrophoneService : IMicrophoneService
     {
         if (_capture is null)
         {
-            DisposeNoiseSuppressor();
+            StopSuppression();
             return;
         }
 
-        try
-        {
-            _capture.StopRecording();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Error stopping microphone capture");
-        }
-        finally
-        {
-            CleanupCapture();
-        }
+        try { _capture.StopRecording(); }
+        catch (Exception exception) { _logger.LogWarning(exception, "Error stopping microphone capture"); }
+        finally { CleanupCapture(); }
     }
 
     private void CleanupCapture()
@@ -288,17 +302,8 @@ public sealed class MicrophoneService : IMicrophoneService
 
         _capture = null;
         _recordingStoppedHandler = null;
-        DisposeNoiseSuppressor();
-        lock (_processingLock)
-            _pendingSuppressionSamples.Clear();
         IsCapturing = false;
-        ResetDiagnostics();
-    }
-
-    private void DisposeNoiseSuppressor()
-    {
-        _noiseSuppressor?.Dispose();
-        _noiseSuppressor = null;
+        StopSuppression();
     }
 
     public void Dispose()
@@ -306,4 +311,6 @@ public sealed class MicrophoneService : IMicrophoneService
         StopInternal();
         _enumerator.Dispose();
     }
+
+    private sealed record MicrophonePacket(byte[] Data, int Count);
 }

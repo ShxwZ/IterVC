@@ -36,7 +36,7 @@ public sealed partial class NoiseGateViewModel : ViewModelBase
     }
 
     [ObservableProperty] private bool _isEnabled;
-    [ObservableProperty] private bool _noiseSuppressionEnabled = true;
+    [ObservableProperty] private bool _noiseSuppressionEnabled;
     [ObservableProperty] private float _thresholdDb = -45f;
     [ObservableProperty] [NotifyPropertyChangedFor(nameof(AttackMs))] private float _attackMilliseconds = 10f;
     [ObservableProperty] [NotifyPropertyChangedFor(nameof(ReleaseMs))] private float _releaseMilliseconds = 150f;

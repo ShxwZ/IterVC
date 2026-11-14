@@ -38,6 +38,8 @@ public sealed class TextsViewModel : ObservableObject
     private string _mixAppsBoostHelp = G(LK.MixAppsBoostHelp);
     private string _mixAppsGainHelp = G(LK.MixAppsGainHelp);
     private string _mixMonitorMic = G(LK.MixMonitorMic);
+    private string _noiseSuppressionEnable = G(LK.NoiseSuppressionEnable);
+    private string _noiseSuppressionHelp = G(LK.NoiseSuppressionHelp);
     private string _noiseGateEnable = G(LK.NoiseGateEnable);
     private string _noiseGateThreshold = G(LK.NoiseGateThreshold);
     private string _noiseGateThresholdHelp = G(LK.NoiseGateThresholdHelp);
@@ -124,6 +126,8 @@ public sealed class TextsViewModel : ObservableObject
     public string MixAppsBoostHelp { get => _mixAppsBoostHelp; set => SetProperty(ref _mixAppsBoostHelp, value); }
     public string MixAppsGainHelp { get => _mixAppsGainHelp; set => SetProperty(ref _mixAppsGainHelp, value); }
     public string MixMonitorMic { get => _mixMonitorMic; set => SetProperty(ref _mixMonitorMic, value); }
+    public string NoiseSuppressionEnable { get => _noiseSuppressionEnable; set => SetProperty(ref _noiseSuppressionEnable, value); }
+    public string NoiseSuppressionHelp { get => _noiseSuppressionHelp; set => SetProperty(ref _noiseSuppressionHelp, value); }
     public string NoiseGateEnable { get => _noiseGateEnable; set => SetProperty(ref _noiseGateEnable, value); }
     public string NoiseGateThreshold { get => _noiseGateThreshold; set => SetProperty(ref _noiseGateThreshold, value); }
     public string NoiseGateThresholdHelp { get => _noiseGateThresholdHelp; set => SetProperty(ref _noiseGateThresholdHelp, value); }
@@ -235,6 +239,8 @@ public sealed class TextsViewModel : ObservableObject
         MixAppsBoostHelp = G(LK.MixAppsBoostHelp);
         MixAppsGainHelp = G(LK.MixAppsGainHelp);
         MixMonitorMic = G(LK.MixMonitorMic);
+        NoiseSuppressionEnable = G(LK.NoiseSuppressionEnable);
+        NoiseSuppressionHelp = G(LK.NoiseSuppressionHelp);
         NoiseGateEnable = G(LK.NoiseGateEnable);
         NoiseGateThreshold = G(LK.NoiseGateThreshold);
         NoiseGateThresholdHelp = G(LK.NoiseGateThresholdHelp);
@@ -345,6 +351,8 @@ public sealed class TextsViewModel : ObservableObject
         internal const string MixAppsBoostHelp = LocalizationService.Keys.MixAppsBoostHelp; 
         internal const string MixAppsGainHelp = LocalizationService.Keys.MixAppsGainHelp; 
         internal const string MixMonitorMic = LocalizationService.Keys.MixMonitorMic; 
+        internal const string NoiseSuppressionEnable = LocalizationService.Keys.NoiseSuppressionEnable;
+        internal const string NoiseSuppressionHelp = LocalizationService.Keys.NoiseSuppressionHelp;
         internal const string NoiseGateEnable = LocalizationService.Keys.NoiseGateEnable;
         internal const string NoiseGateThreshold = LocalizationService.Keys.NoiseGateThreshold;
         internal const string NoiseGateThresholdHelp = LocalizationService.Keys.NoiseGateThresholdHelp;

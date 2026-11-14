@@ -1,0 +1,16 @@
+[package]
+name = "iter_vc_rnnoise"
+version = "0.1.0"
+edition = "2021"
+license = "BSD-3-Clause"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+nnnoiseless = "=0.5.2"
+
+[profile.release]
+lto = true
+codegen-units = 1

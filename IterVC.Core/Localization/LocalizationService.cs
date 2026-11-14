@@ -44,6 +44,8 @@ public sealed class LocalizationService : ILocalizationService
         public const string MixAppsBoostHelp   = "mix.apps_boost.help";
         public const string MixAppsGainHelp    = "mix.apps_gain.help";
         public const string MixMonitorMic      = "mix.monitor_mic";
+        public const string NoiseSuppressionEnable = "noise_suppression.enable";
+        public const string NoiseSuppressionHelp = "noise_suppression.help";
         public const string NoiseGateEnable    = "noise_gate.enable";
         public const string NoiseGateThreshold = "noise_gate.threshold";
         public const string NoiseGateThresholdHelp = "noise_gate.threshold.help";
@@ -186,6 +188,8 @@ public sealed class LocalizationService : ILocalizationService
         [Keys.MixAppsBoost]         = "Ganancia del micrófono",
         [Keys.MixAppsBoostHelp]     = "Multiplicador extra aplicado al volumen del micro (1× = sin ganancia).",
         [Keys.MixMonitorMic]        = "Monitorizar micrófono",
+        [Keys.NoiseSuppressionEnable] = "Supresión de ruido (RNNoise · experimental)",
+        [Keys.NoiseSuppressionHelp] = "Reduce el ruido del micrófono antes de la puerta. La monitorización, las barras y VB-Cable reciben el mismo audio procesado. Desactivado por defecto.",
         [Keys.NoiseGateEnable]      = "Activar puerta de ruido",
         [Keys.NoiseGateThreshold]   = "Umbral",
         [Keys.NoiseGateThresholdHelp] = "Nivel mínimo que debe superar tu voz para que el micrófono se abra.",
@@ -198,7 +202,7 @@ public sealed class LocalizationService : ILocalizationService
         [Keys.NoiseGateCalibrate]   = "Calibrar ruido ambiente",
         [Keys.NoiseGateCalibrating] = "Escuchando el ambiente…",
         [Keys.NoiseGateAdvanced]    = "Ajustes avanzados",
-        [Keys.NoiseGateOutput]      = "SALIDA DE LA PUERTA",
+        [Keys.NoiseGateOutput]      = "SALIDA DEL MICRÓFONO",
         [Keys.NoiseGateAttackHelp]  = "Cuánto tarda en dejar pasar tu voz al empezar a hablar.",
         [Keys.NoiseGateReleaseHelp] = "Cuánto tarda en volver a silenciar después de hablar.",
         [Keys.CardOscTitle]         = "OSC - VRCHAT",
@@ -308,6 +312,8 @@ public sealed class LocalizationService : ILocalizationService
         [Keys.MixAppsBoost]         = "Microphone gain",
         [Keys.MixAppsBoostHelp]     = "Extra multiplier applied on top of the mic volume (1× = no gain).",
         [Keys.MixMonitorMic]        = "Monitor microphone",
+        [Keys.NoiseSuppressionEnable] = "Noise suppression (RNNoise · experimental)",
+        [Keys.NoiseSuppressionHelp] = "Reduces microphone noise before the gate. Monitoring, meters and VB-Cable receive the same processed audio. Off by default.",
         [Keys.NoiseGateEnable]      = "Enable noise gate",
         [Keys.NoiseGateThreshold]   = "Threshold",
         [Keys.NoiseGateThresholdHelp] = "Minimum level your voice must exceed before the microphone opens.",
@@ -320,7 +326,7 @@ public sealed class LocalizationService : ILocalizationService
         [Keys.NoiseGateCalibrate]   = "Calibrate ambient noise",
         [Keys.NoiseGateCalibrating] = "Listening to the room…",
         [Keys.NoiseGateAdvanced]    = "Advanced settings",
-        [Keys.NoiseGateOutput]      = "GATE OUTPUT",
+        [Keys.NoiseGateOutput]      = "MICROPHONE OUTPUT",
         [Keys.NoiseGateAttackHelp]  = "How long it takes to let your voice through after you start speaking.",
         [Keys.NoiseGateReleaseHelp] = "How long it waits before muting again after you stop speaking.",
         [Keys.CardOscTitle]         = "OSC - VRCHAT",

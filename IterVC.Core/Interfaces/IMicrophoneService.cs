@@ -19,6 +19,6 @@ public interface IMicrophoneService : IDisposable
     /// <summary>Enable or disable the real-time microphone noise suppression stage.</summary>
     void SetNoiseSuppressionEnabled(bool enabled);
 
-    /// <summary>Datos PCM capturados en crudo, listos para ser inyectados en el mixer.</summary>
+    /// <summary>PCM del micrófono, procesado con RNNoise si está activo, listo para el mezclador.</summary>
     event EventHandler<AudioDataEventArgs>? DataAvailable;
 }

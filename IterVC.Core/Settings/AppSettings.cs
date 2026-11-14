@@ -22,8 +22,8 @@ public sealed class AppSettings
     public float MicrophoneBoost { get; set; } = 1.0f;
     public bool MonitorMicrophone { get; set; }
 
-    /// <summary>Whether DeepFilterNet3 microphone noise suppression is enabled.</summary>
-    public bool NoiseSuppressionEnabled { get; set; } = true;
+    /// <summary>Whether opt-in RNNoise microphone suppression is enabled.</summary>
+    public bool NoiseSuppressionEnabled { get; set; }
 
     public bool NoiseGateEnabled { get; set; }
     public float NoiseGateThresholdDb { get; set; } = -45f;
