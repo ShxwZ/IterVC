@@ -181,9 +181,6 @@
 							<StackPanel Spacing="5">
 								<CheckBox Content="{Binding Texts.NoiseSuppressionEnable}"
 								          IsChecked="{Binding Audio.NoiseGate.NoiseSuppressionEnabled}" />
-								<TextBlock Text="{Binding Texts.NoiseSuppressionHelp}"
-								           FontSize="9.5" Foreground="{DynamicResource TextMutedBrush}"
-								           TextWrapping="Wrap" />
 							</StackPanel>
 						</Border>
 

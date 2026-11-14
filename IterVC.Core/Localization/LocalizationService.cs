@@ -45,7 +45,6 @@ public sealed class LocalizationService : ILocalizationService
         public const string MixAppsGainHelp    = "mix.apps_gain.help";
         public const string MixMonitorMic      = "mix.monitor_mic";
         public const string NoiseSuppressionEnable = "noise_suppression.enable";
-        public const string NoiseSuppressionHelp = "noise_suppression.help";
         public const string NoiseGateEnable    = "noise_gate.enable";
         public const string NoiseGateThreshold = "noise_gate.threshold";
         public const string NoiseGateThresholdHelp = "noise_gate.threshold.help";
@@ -189,7 +188,6 @@ public sealed class LocalizationService : ILocalizationService
         [Keys.MixAppsBoostHelp]     = "Multiplicador extra aplicado al volumen del micro (1× = sin ganancia).",
         [Keys.MixMonitorMic]        = "Monitorizar micrófono",
         [Keys.NoiseSuppressionEnable] = "Supresión de ruido (RNNoise · experimental)",
-        [Keys.NoiseSuppressionHelp] = "Reduce el ruido del micrófono antes de la puerta. La monitorización, las barras y VB-Cable reciben el mismo audio procesado. Desactivado por defecto.",
         [Keys.NoiseGateEnable]      = "Activar puerta de ruido",
         [Keys.NoiseGateThreshold]   = "Umbral",
         [Keys.NoiseGateThresholdHelp] = "Nivel mínimo que debe superar tu voz para que el micrófono se abra.",
@@ -313,7 +311,6 @@ public sealed class LocalizationService : ILocalizationService
         [Keys.MixAppsBoostHelp]     = "Extra multiplier applied on top of the mic volume (1× = no gain).",
         [Keys.MixMonitorMic]        = "Monitor microphone",
         [Keys.NoiseSuppressionEnable] = "Noise suppression (RNNoise · experimental)",
-        [Keys.NoiseSuppressionHelp] = "Reduces microphone noise before the gate. Monitoring, meters and VB-Cable receive the same processed audio. Off by default.",
         [Keys.NoiseGateEnable]      = "Enable noise gate",
         [Keys.NoiseGateThreshold]   = "Threshold",
         [Keys.NoiseGateThresholdHelp] = "Minimum level your voice must exceed before the microphone opens.",
