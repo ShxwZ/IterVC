@@ -186,37 +186,8 @@ public sealed class MicrophoneService : IMicrophoneService
                     if (generation != Volatile.Read(ref _suppressionGeneration))
                         continue;
 
-                    if (packet.Count % (sizeof(float) * Channels) != 0)
-                        throw new InvalidOperationException("Unexpected microphone PCM alignment.");
-
-                    var samples = MemoryMarshal.Cast<byte, float>(packet.Data.AsSpan(0, packet.Count));
-                    var offset = 0;
-                    while (offset < samples.Length)
-                    {
-                        var amount = Math.Min(samples.Length - offset, input.Length - pendingSamples);
-                        samples.Slice(offset, amount).CopyTo(input.AsSpan(pendingSamples, amount));
-                        offset += amount;
-                        pendingSamples += amount;
-                        if (pendingSamples != input.Length)
-                            continue;
-
-                        suppressor.ProcessFrame(input, output);
-                        pendingSamples = 0;
-                        Buffer.BlockCopy(output, 0, outputBytes, 0, outputBytes.Length);
-                        if (generation != Volatile.Read(ref _suppressionGeneration) || cancellationToken.IsCancellationRequested)
-                            break;
-
-                        // The coordinator copies this exact processed signal into the router.
-                        // Gate, volume, meters, monitoring and VB-Cable all consume that same signal.
-                        DataAvailable?.Invoke(this, new AudioDataEventArgs(outputBytes, outputBytes.Length));
-
-                        if (++frames % 500 == 0)
-                        {
-                            var dropped = Interlocked.Exchange(ref _droppedPackets, 0);
-                            if (dropped > 0)
-                                _logger.LogWarning("RNNoise dropped {Packets} capture packets due to processing overload", dropped);
-                        }
-                    }
+                    ProcessSuppressionPacket(suppressor, packet, input, output, outputBytes,
+                        ref pendingSamples, ref frames, generation, cancellationToken);
                 }
                 finally
                 {
@@ -242,6 +213,48 @@ public sealed class MicrophoneService : IMicrophoneService
         {
             while (reader.TryRead(out var remaining))
                 ArrayPool<byte>.Shared.Return(remaining.Data);
+        }
+    }
+
+    private void ProcessSuppressionPacket(
+        RnNoiseSuppressor suppressor, MicrophonePacket packet,
+        float[] input, float[] output, byte[] outputBytes,
+        ref int pendingSamples, ref int frames, int generation,
+        CancellationToken cancellationToken)
+    {
+        // Keep Span<T> locals in this synchronous method so the worker compiles on C# 12.
+        if (packet.Count % (sizeof(float) * Channels) != 0)
+            throw new InvalidOperationException("Unexpected microphone PCM alignment.");
+
+        var samples = MemoryMarshal.Cast<byte, float>(packet.Data.AsSpan(0, packet.Count));
+        var offset = 0;
+        while (offset < samples.Length)
+        {
+            var amount = Math.Min(samples.Length - offset, input.Length - pendingSamples);
+            samples.Slice(offset, amount).CopyTo(input.AsSpan(pendingSamples, amount));
+            offset += amount;
+            pendingSamples += amount;
+            if (pendingSamples != input.Length)
+                continue;
+
+            suppressor.ProcessFrame(input, output);
+            pendingSamples = 0;
+            Buffer.BlockCopy(output, 0, outputBytes, 0, outputBytes.Length);
+            if (generation != Volatile.Read(ref _suppressionGeneration) ||
+                cancellationToken.IsCancellationRequested)
+                break;
+
+            // The coordinator copies this exact processed signal into the router.
+            // Gate, volume, meters, monitoring and VB-Cable consume that signal.
+            DataAvailable?.Invoke(this, new AudioDataEventArgs(outputBytes, outputBytes.Length));
+
+            if (++frames % 500 == 0)
+            {
+                var dropped = Interlocked.Exchange(ref _droppedPackets, 0);
+                if (dropped > 0)
+                    _logger.LogWarning(
+                        "RNNoise dropped {Packets} capture packets due to processing overload", dropped);
+            }
         }
     }
 
