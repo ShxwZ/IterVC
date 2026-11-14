@@ -1,0 +1,9 @@
+[package]
+name = "itervc-linux-pipewire"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Experimental PipeWire microphone-to-virtual-source prototype for IterVC"
+
+[dependencies]
+itervc-audio-buffers = { path = "../audio-buffers" }

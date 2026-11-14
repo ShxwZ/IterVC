@@ -1,0 +1,9 @@
+[package]
+name = "itervc-audio-buffers"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Portable PCM ring-buffer backend for IterVC"
+
+[lib]
+crate-type = ["rlib", "cdylib"]

@@ -1,0 +1,39 @@
+name: Rust buffers and Linux PipeWire prototype
+
+on:
+  pull_request:
+    branches: [master]
+    paths:
+      - 'rust/**'
+      - '.github/workflows/rust-linux.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux-native:
+    name: Linux Rust build and PCM tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Run Rust unit tests and PCM transport integration
+        run: cargo test --locked --manifest-path rust/Cargo.toml --workspace --all-targets
+      - name: Build experimental Linux PipeWire command
+        run: cargo build --locked --manifest-path rust/Cargo.toml -p itervc-linux-pipewire --release
+      - name: Smoke test Linux CLI without a PipeWire session
+        run: ./rust/target/release/itervc-linux-pipewire --help
+
+  windows-native:
+    name: Windows Rust buffer compatibility
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Test pure Rust buffer on Windows
+        run: cargo test --locked --manifest-path rust/Cargo.toml -p itervc-audio-buffers
+      - name: Build Windows buffer library
+        run: cargo build --locked --manifest-path rust/Cargo.toml -p itervc-audio-buffers --release

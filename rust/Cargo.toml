@@ -1,0 +1,6 @@
+[workspace]
+members = [
+    "audio-buffers",
+    "linux-pipewire",
+]
+resolver = "2"
