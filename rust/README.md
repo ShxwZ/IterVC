@@ -14,9 +14,9 @@ justify adopting it in the existing .NET runtime.
   ABI for a **future** managed wrapper. The C ABI requires externally serialized
   access. One frame is `channels * bytes_per_sample`; only full frames are
   stored. On overflow the **oldest** frames are discarded.
-- `linux-pipewire`: Linux backend with a Rust PCM buffer, optional
-  microphone gate/gain and single-application capture. The final virtual
-  microphone monitor and meter see the post-mix signal.
+- `linux-pipewire`: Linux backend with Rust PCM buffers, optional
+  microphone gate/gain and multiple explicitly selected application taps.
+  The final virtual microphone monitor and meter see the post-mix signal.
 
 ## Build and test (Linux)
 
@@ -32,21 +32,25 @@ The Linux GitHub Actions workflow publishes **IterVC-Linux-Desktop-portable-x64*
 a self-contained Avalonia GUI containing the compiled Rust audio backend as
 an embedded resource. You do not need the .NET SDK or Rust to launch it.
 
-Requirements on Linux: a PipeWire session, `pw-cat`, `pipewire-pulse`,
-`pactl` and running **WirePlumber**. `playerctl` is optional for OSC
+Requirements on Linux: a PipeWire session, `pw-cat`, `pw-cli`, `pw-link`,
+`pipewire-pulse`, `pactl` and running **WirePlumber**. `playerctl` is optional for OSC
 music chatbox. VB-Cable is Windows-specific and **is not required**.
 Mark the downloaded `IterVC.Linux` binary executable and run it.
 
 The window offers microphone gain, boost and optional noise gate, plus
-one explicitly selected active application's audio and independent app volume.
+multiple explicitly selected active applications and independent app-mix volume.
 The **same final mixed output** feeds the virtual microphone, optional
 speaker monitoring and the level meter. Monitoring is disabled by default.
 
-Selected application audio is temporarily moved to a dedicated capture sink.
-A copy is replayed to the application's original speakers, and a separate
-volume-adjusted copy is mixed into the virtual microphone. The original route
-is restored on normal exit, unless the user changed it in the meantime.
-After SIGKILL or power loss you may need to restore the output manually.
+PipeWire application capture uses native `pw-link` fan-out, not
+`pactl move-sink-input`. For each selected playback stream, IterVC maps the
+unique PipeWire `object.id` and stereo port IDs to a temporary capture sink.
+A volume-adjusted copy is mixed into the virtual microphone. **The original
+physical speaker connections stay in place** throughout the session; IterVC
+does not move or restore application destinations. The additional links
+are removed when routing stops. After SIGKILL or power loss, the temporary
+sink may require manual removal using `pactl list short modules` and
+`pactl unload-module ID`.
 
 Optional VRChat OSC chatbox music status uses MPRIS metadata via `playerctl`
 and UDP port 9000 on localhost.
@@ -69,10 +73,10 @@ so shortcuts work without intercepting arbitrary keyboard input or requiring
 root permissions. They must be registered in the desktop environment once,
 not through the Wayland portal. An automatic consent-based portal integration
 and customizable key combinations within IterVC remain future work.
-The preview is not yet fully feature-equivalent to Windows: multi-app
-dynamic stream discovery, RNNoise (separate PR #32), system tray,
-Wayland desktop-portal shortcut registration and complete media controls
-still need further development.
+The preview is not yet fully feature-equivalent to Windows: automatic
+capture of newly created playback streams, RNNoise (separate PR #32),
+native Wayland desktop-portal shortcut registration and complete device
+hotplug handling still need further development.
 
 The desktop binary can be smoke-tested without a graphical session using
 `IterVC.Linux --self-test`; this checks that the embedded Rust backend
@@ -90,11 +94,11 @@ runtime dependencies only for the prototype, not for Windows.
 ./rust/target/release/itervc-linux-pipewire \
   --input alsa_input.your_actual_microphone_node --seconds 30
 
-# Optional: capture a selected application alongside the microphone.
+# Optional: capture one or more active applications alongside the microphone.
 ./rust/target/release/itervc-linux-pipewire --list-apps
 ./rust/target/release/itervc-linux-pipewire \
   --input alsa_input.your_actual_microphone_node \
-  --app-stream YOUR_ACTIVE_STREAM_ID --app-volume 0.8 \
+  --app-stream APP_ID_1 --app-stream APP_ID_2 --app-volume 0.8 \
   --mic-volume 1 --noise-gate --gate-threshold -45 --seconds 30
 ```
 
@@ -113,9 +117,11 @@ SIGINT/SIGTERM. If the process is forcibly killed, remove any leftover
 modules with `pactl list short modules` and `pactl unload-module ID`.
 
 **Important:** specify a *physical* input, not the virtual source, to avoid
-feedback loops. Application capture currently supports one explicitly
-selected active sink-input and relies on WirePlumber and pipewire-pulse.
-There is no sound-quality or latency guarantee on unverified hardware.
+feedback loops. Selected playback streams are identified by unique PipeWire
+node and port IDs, **not** by display name alone or process ID. Only stereo
+streams with identifiable FL/FR ports are tapped; unsupported layouts fail
+without changing the original audio connections. There is no guarantee about
+sound quality or latency on unverified hardware.
 
 
 ## System tray and media controls (Linux)
@@ -125,7 +131,7 @@ displayed where the desktop supports AppIndicator/StatusNotifierItem. Use
 **Minimize to system tray** to opt into hiding the window on minimize; this
 is disabled by default. Recover the window through the tray menu or the
 command `/path/to/IterVC.Linux --show-window`. Closing via the tray menu
-stops the audio backend and restores selected application streams.
+stops the audio backend and removes additional PipeWire application taps.
 
 The Linux preview includes MPRIS play/pause, previous and next controls
 using optional `playerctl`. Desktop X11/Wayland hotkey commands are
@@ -133,11 +139,10 @@ using optional `playerctl`. Desktop X11/Wayland hotkey commands are
 `--start-routing`, `--stop-routing`, `--toggle-microphone` and
 `--toggle-applications-mute`.
 
-Multiple application streams can be selected simultaneously when they
-share the **same physical speaker output**. This restriction avoids
-replaying a mixed stream to several different speaker devices. Streams
-are restored individually when the routing session stops. If a selection
-contains apps using different outputs, IterVC refuses to move them.
+Multiple application streams can be selected simultaneously, including
+streams using different physical outputs. Each stream keeps its own original
+speaker connection. The Rust backend adds **only** the selected application
+port links and removes those links on shutdown.
 
 ## Future integration gates
 
@@ -146,8 +151,8 @@ contains apps using different outputs, IterVC refuses to move them.
 2. Introduce a platform-neutral capture/routing layer in .NET; implement
    Windows with existing WASAPI and Linux with PipeWire nodes.
 3. Integrate RNNoise on Linux once the separate PR #32 passes listening tests.
-4. Expand single-app routing into multiple dynamic PipeWire streams, device
-   hotplug handling, portal shortcuts and complete desktop/OSC parity.
+4. Expand the current explicitly selected multi-app taps into dynamic
+   discovery, device hotplug handling and consent-based portal shortcuts.
 5. Manually test real Linux sessions (X11/Wayland + WirePlumber) and Windows
    10/11 hardware, in addition to CI. No deployment before those checks.
 
@@ -158,8 +163,9 @@ RNNoise PR #32.
 
 Alongside Rust unit tests, Linux CI runs actual `pipewire`,
 `pipewire-pulse` and `wireplumber` with a synthetic microphone and a
-real PulseAudio playback stream. It verifies app redirection to the capture
-sink, restoration to the original speakers and cleanup of temporary devices.
+multiple real PulseAudio playback streams. It checks that the selected app
+ports are linked to the temporary capture sink while **their original
+speaker destinations remain unchanged**, and verifies cleanup on exit.
 
 This still does **not** verify a real physical microphone, real speaker audio,
 or the graphical UI under a Wayland/X11 desktop.
