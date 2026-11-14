@@ -53,6 +53,23 @@ jobs:
             echo "Linux GUI exited unexpectedly (exit code: $result)" >&2
             exit 1
           fi
+      - name: Package Linux portable executable with Unix permissions
+        run: |
+          chmod 755 artifacts/linux-desktop/IterVC.Linux
+          tar -czf artifacts/IterVC-Linux-Desktop-portable-x64.tar.gz \
+            -C artifacts/linux-desktop IterVC.Linux
+          mkdir -p /tmp/itervc-extraction
+          tar -xzf artifacts/IterVC-Linux-Desktop-portable-x64.tar.gz \
+            -C /tmp/itervc-extraction
+          test -x /tmp/itervc-extraction/IterVC.Linux
+          /tmp/itervc-extraction/IterVC.Linux --self-test
+      - name: Upload Linux desktop tarball (preserves executable permission)
+        uses: actions/upload-artifact@v4
+        with:
+          name: IterVC-Linux-Desktop-portable-tarball-x64
+          path: artifacts/IterVC-Linux-Desktop-portable-x64.tar.gz
+          if-no-files-found: error
+          retention-days: 7
       - name: Upload portable Linux desktop preview
         uses: actions/upload-artifact@v4
         with:

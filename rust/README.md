@@ -35,7 +35,13 @@ an embedded resource. You do not need the .NET SDK or Rust to launch it.
 Requirements on Linux: a PipeWire session, `pw-cat`, `pw-cli`, `pw-link`,
 `pipewire-pulse`, `pactl` and running **WirePlumber**. `playerctl` is optional for OSC
 music chatbox. VB-Cable is Windows-specific and **is not required**.
-Mark the downloaded `IterVC.Linux` binary executable and run it.
+For a native Linux distribution, prefer **IterVC-Linux-Desktop-portable-tarball-x64**
+from GitHub Actions → Artifacts. It contains a `.tar.gz` archive that preserves
+Linux executable permissions (the GitHub Actions download itself is wrapped in
+a ZIP). Extract the tarball and launch `IterVC.Linux` without installing .NET
+or Rust. The runner verifies extraction, executable permissions and `--self-test`.
+Alternatively, download **IterVC-Linux-Desktop-portable-x64**, manually mark
+the extracted executable as executable (`chmod +x IterVC.Linux`) and run it.
 
 The window offers microphone gain, boost and optional noise gate, plus
 multiple explicitly selected active applications and independent app-mix volume.
