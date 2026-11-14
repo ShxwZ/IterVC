@@ -50,6 +50,22 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  linux-pipewire-server:
+    name: Real headless PipeWire virtual microphone lifecycle
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Install PipeWire, pipewire-pulse and pactl
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pipewire pipewire-pulse pipewire-bin pulseaudio-utils
+      - name: Build Rust Linux backend
+        run: cargo build --locked --manifest-path rust/Cargo.toml -p itervc-linux-pipewire --release
+      - name: Test real PipeWire daemon with synthetic microphone
+        run: bash rust/scripts/pipewire-integration.sh
+
   windows-native:
     name: Windows Rust buffer compatibility
     runs-on: windows-latest

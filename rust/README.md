@@ -112,3 +112,13 @@ an Avalonia UI on Linux. There is no sound-quality or latency guarantee.
 
 This proof of concept tracks issue #36 and does not incorporate unfinished
 RNNoise PR #32.
+
+## CI with a real headless PipeWire server
+
+In addition to Rust unit tests and simulated commands, Linux CI runs actual
+`pipewire` and `pipewire-pulse` processes. It creates a synthetic input via
+built-in modules, checks that IterVC's virtual microphone becomes available,
+and checks that all temporary devices are removed on exit.
+
+This still does **not** verify a real physical microphone, real speaker audio,
+or the graphical UI under a Wayland/X11 desktop.
