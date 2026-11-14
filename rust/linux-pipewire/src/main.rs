@@ -14,7 +14,7 @@ use std::env;
 use std::io::{self, BufRead, Read, Write};
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
-use std::sync::Arc;
+use std::sync::{mpsc, Arc};
 use std::time::{Duration, Instant};
 
 const RATE: usize = 48_000;
@@ -466,6 +466,62 @@ impl PipeWireSession {
         Ok((app_source, virtual_pipe))
     }
 
+    /// Adds a newly launched instance of an opted-in application to an
+    /// existing PipeWire capture graph. Only extra fan-out links are created;
+    /// the application's original physical speaker links are untouched.
+    fn add_application_stream(&mut self, stream_id: u32) -> Result<(), String> {
+        if self.app_recorder.is_none() || self.app_playback.is_none() {
+            return Err("Application capture is not active; enable it before starting routing".into());
+        }
+
+        let available = parse_sink_inputs(
+            &command_output("pactl", &["list", "short", "sink-inputs"])?);
+        let stream = available.iter().find(|entry| entry.id == stream_id)
+            .ok_or_else(|| format!("App stream {stream_id} is no longer available"))?;
+        let sinks = command_output("pactl", &["list", "short", "sinks"])?;
+        let original_name = parse_sink_name(&sinks, stream.sink_id)
+            .ok_or_else(|| format!("App stream {stream_id} has no valid original speaker output"))?;
+        if original_name.starts_with("itervc_rust_") {
+            return Err("Refusing to capture IterVC's own audio sink".into());
+        }
+        let details = command_output("pactl", &["list", "sink-inputs"])?;
+        let our_pids: Vec<u32> = [
+            self.playback.as_ref(), self.monitor_playback.as_ref(), self.app_playback.as_ref()
+        ].into_iter().flatten().map(|child| child.id()).collect();
+        if app_audio::parse_pactl_process_id(&details, stream_id)
+            .is_some_and(|pid| our_pids.contains(&pid))
+        {
+            return Err(format!("Refusing to capture IterVC's own playback stream {stream_id}"));
+        }
+        let node_id = parse_pactl_node_id(&details, stream_id)
+            .ok_or_else(|| format!("PipeWire object ID missing for app stream {stream_id}"))?;
+
+        let capture_left = format!("{APP_SINK_NAME}:playback_FL");
+        let capture_right = format!("{APP_SINK_NAME}:playback_FR");
+        for _ in 0..25 {
+            let listing = command_output("pw-cli", &["ls", "Port"])?;
+            let Some((left_id, right_id)) = find_output_port_ids(&listing, node_id)
+                else {
+                    std::thread::sleep(Duration::from_millis(50));
+                    continue;
+                };
+            let links = [
+                (left_id.to_string(), capture_left.clone()),
+                (right_id.to_string(), capture_right.clone()),
+            ];
+            for (source, target) in links {
+                if self.app_links.iter().any(|entry| entry.0 == source && entry.1 == target) {
+                    continue;
+                }
+                command_output("pw-link", &[source.as_str(), target.as_str()])?;
+                self.app_links.push((source, target));
+            }
+            eprintln!("Dynamically linked application stream {stream_id} while preserving its speaker output");
+            return Ok(());
+        }
+        Err(format!("Stereo PipeWire ports for app stream {stream_id} were not found"))
+    }
+
     // Stop both subprocesses to unblock any pending pipe I/O on cancellation.
     fn stop_streams(&mut self) {
         for child in [&mut self.recorder, &mut self.playback, &mut self.monitor_playback, &mut self.final_recorder,
@@ -672,7 +728,19 @@ fn parse_live_command(command: &str) -> Option<(GainTarget, f32)> {
     (0.0..=maximum).contains(&value).then_some((target, value))
 }
 
-fn watch_live_controls(microphone: Arc<AtomicU32>, applications: Arc<AtomicU32>) {
+/// App indices change when programs restart; only a valid positive ID is sent
+/// to the main thread, which owns all PipeWire link creation and cleanup.
+fn parse_add_app_command(command: &str) -> Option<u32> {
+    let mut parts = command.split_whitespace();
+    if parts.next()? != "add-app" {
+        return None;
+    }
+    let id = parts.next()?.parse::<u32>().ok()?;
+    (id > 0 && parts.next().is_none()).then_some(id)
+}
+
+fn watch_live_controls(microphone: Arc<AtomicU32>, applications: Arc<AtomicU32>,
+    new_apps: mpsc::Sender<u32>) {
     // Stdin is owned by IterVC's GUI when launched from the portable binary.
     // It is never read by the PipeWire worker or a WASAPI callback.
     std::thread::spawn(move || {
@@ -684,7 +752,13 @@ fn watch_live_controls(microphone: Arc<AtomicU32>, applications: Arc<AtomicU32>)
                     microphone.store(value.to_bits(), Ordering::Relaxed),
                 Some((GainTarget::Applications, value)) =>
                     applications.store(value.to_bits(), Ordering::Relaxed),
-                None => eprintln!("Ignoring invalid live audio control"),
+                None => {
+                    if let Some(id) = parse_add_app_command(&line) {
+                        if new_apps.send(id).is_err() { break; }
+                    } else {
+                        eprintln!("Ignoring invalid live audio control");
+                    }
+                },
             }
         }
     });
@@ -734,13 +808,21 @@ fn run(input: &str, seconds: u64, monitor_output: Option<&str>,
     let worker = std::thread::spawn(move ||
         process_audio_live(source, destination, None, duration, mic_settings,
             mic_gain_worker.as_ref()));
-    watch_live_controls(mic_gain, app_gain);
+    let (new_app_tx, new_app_rx) = mpsc::channel();
+    watch_live_controls(mic_gain, app_gain, new_app_tx);
     let mut app_worker_warning_sent = false;
     let mut mixed_monitor_warning_sent = false;
     while !worker.is_finished()
         && !STOP.load(Ordering::Relaxed)
         && !deadline.is_some_and(|cutoff| Instant::now() >= cutoff)
     {
+        // Add newly started opted-in app streams without restarting the
+        // physical microphone, the virtual sink or existing app taps.
+        for stream_id in new_app_rx.try_iter() {
+            if let Err(error) = session.add_application_stream(stream_id) {
+                eprintln!("Could not add application stream {stream_id}: {error}");
+            }
+        }
         // Keep the physical mic alive even if one application closes.
         // Report partial failures immediately instead of showing "routing"
         // while the app audio / final meter worker has already stopped.
@@ -817,6 +899,16 @@ mod tests {
 
     fn parse(args: &[&str]) -> Result<Mode, String> {
         parse_args(args.iter().map(|arg| (*arg).to_string()))
+    }
+
+    #[test]
+    fn app_hotplug_command_is_strict_and_cannot_modify_other_controls() {
+        assert_eq!(parse_add_app_command("add-app 42"), Some(42));
+        assert_eq!(parse_add_app_command("add-app 400000"), Some(400000));
+        for bad in ["add-app", "add-app 0", "add-app -1", "add-app NaN",
+            "add-app 23 24", "mic-volume 1", "add-app 9999999999999999"] {
+            assert_eq!(parse_add_app_command(bad), None, "{bad}");
+        }
     }
 
     #[test]
