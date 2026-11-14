@@ -39,8 +39,14 @@ fn virtual_mic_session_forwards_pcm_and_unloads_only_its_modules() {
         "#!/bin/sh\n\
          case \"$1\" in\n\
            --version) echo 'pw-cat test fake'; exit 0 ;;\n\
-           --record) cat \"$ITERVC_TEST_PCM\"; exit 0 ;;\n\
-           --playback) cat > \"$ITERVC_TEST_OUTPUT\"; exit 0 ;;\n\
+           --record)\n\
+             for arg in \"$@\"; do [ \"$arg\" = --raw ] && RAW=1; done\n\
+             [ \"$RAW\" = 1 ] || exit 71\n\
+             cat \"$ITERVC_TEST_PCM\"; exit 0 ;;\n\
+           --playback)\n\
+             for arg in \"$@\"; do [ \"$arg\" = --raw ] && RAW=1; done\n\
+             [ \"$RAW\" = 1 ] || exit 72\n\
+             cat > \"$ITERVC_TEST_OUTPUT\"; exit 0 ;;\n\
          esac\n\
          exit 1\n",
     ).unwrap();
@@ -64,6 +70,17 @@ fn virtual_mic_session_forwards_pcm_and_unloads_only_its_modules() {
     assert!(status.success(), "PipeWire mock session returned failure");
 
     assert_eq!(fs::read(&output).unwrap(), original);
+    
+    // An unknown source must fail BEFORE allocating any virtual modules.
+    let rejected = Command::new(env!("CARGO_BIN_EXE_itervc-linux-pipewire"))
+        .args(["--input", "not-a-device", "--seconds", "1"])
+        .env("PATH", format!("{}:{}", dir.display(), std::env::var("PATH").unwrap_or_default()))
+        .env("ITERVC_TEST_LOG", &module_log)
+        .output()
+        .unwrap();
+    assert!(!rejected.status.success());
+    assert!(String::from_utf8_lossy(&rejected.stderr).contains("was not found"));
+
     let log = fs::read_to_string(&module_log).unwrap();
     assert_eq!(
         log.lines().collect::<Vec<_>>(),
