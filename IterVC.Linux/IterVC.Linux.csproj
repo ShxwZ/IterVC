@@ -20,8 +20,19 @@
     <AvaloniaResource Include="../IterVC.Desktop/Assets/icon.ico" Link="Assets/icon.ico" />
     <!-- Reuse the original desktop semantic color palette without including its
          Windows-specific Application code or view models. -->
-    <EmbeddedResource Include="../IterVC.Desktop/App.axaml"
-                      LogicalName="IterVC.Linux.WindowsThemePalette" />
+  </ItemGroup>
+  <!-- Copy the existing Windows XAML palette to an .xml intermediate resource.
+       Avalonia otherwise treats .axaml files as compiled views and removes
+       them from CLR manifest resources. Copying preserves the source of truth. -->
+  <Target Name="BundleOriginalDesktopPalette" BeforeTargets="AssignTargetPaths">
+    <Copy SourceFiles="../IterVC.Desktop/App.axaml"
+          DestinationFiles="$(IntermediateOutputPath)WindowsThemePalette.xml" />
+    <ItemGroup>
+      <EmbeddedResource Include="$(IntermediateOutputPath)WindowsThemePalette.xml"
+                        LogicalName="IterVC.Linux.WindowsThemePalette" />
+    </ItemGroup>
+  </Target>
+  <ItemGroup>
   </ItemGroup>
   <!-- The Rust process is embedded into the .NET single-file executable. -->
   <ItemGroup>
