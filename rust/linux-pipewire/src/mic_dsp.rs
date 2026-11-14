@@ -69,6 +69,14 @@ impl MicrophoneProcessor {
         })
     }
 
+    pub fn set_volume(&mut self, volume: f32) -> io::Result<()> {
+        if !volume.is_finite() || !(0.0..=3.0).contains(&volume) {
+            return Err(io::Error::new(io::ErrorKind::InvalidInput, "Invalid live mic gain"));
+        }
+        self.settings.volume = volume;
+        Ok(())
+    }
+
     /// Process interleaved 48 kHz stereo float32 little-endian frames.
     /// Bypass is byte-for-byte transparent to avoid changing audio when
     /// the user has not enabled gate or gain.
@@ -158,6 +166,20 @@ mod tests {
         gate.apply(&mut quiet);
         let last = f32::from_le_bytes(quiet[quiet.len() - 8..quiet.len() - 4].try_into().unwrap());
         assert!(last < 0.001);
+    }
+
+    #[test]
+    fn live_gain_mutes_and_restores_microphone_without_resetting_gate() {
+        let mut processor = MicrophoneProcessor::new(MicrophoneConfig::default()).unwrap();
+        processor.set_volume(0.0).unwrap();
+        let mut muted = stereo(0.5, 512);
+        processor.apply(&mut muted);
+        assert!(muted.iter().all(|byte| *byte == 0));
+        processor.set_volume(1.0).unwrap();
+        let mut restored = stereo(0.5, 512);
+        processor.apply(&mut restored);
+        assert!((first(&restored) - 0.5).abs() < 1e-6);
+        assert!(processor.set_volume(f32::NAN).is_err());
     }
 
     #[test]

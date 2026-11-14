@@ -11,9 +11,10 @@ use mic_dsp::{MicrophoneConfig, MicrophoneProcessor};
 use itervc_audio_buffers::PcmRingBuffer;
 use app_audio::{parse_sink_inputs, parse_sink_name, parse_pactl_node_id, find_output_port_ids};
 use std::env;
-use std::io::{self, Read, Write};
+use std::io::{self, BufRead, Read, Write};
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 const RATE: usize = 48_000;
@@ -572,9 +573,18 @@ fn process_audio_with_monitor(
 }
 
 fn process_audio_configured(
+    source: impl Read, destination: impl Write,
+    monitor: Option<&mut dyn Write>, duration: Duration,
+    settings: MicrophoneConfig,
+) -> io::Result<u64> {
+    let gain = AtomicU32::new(settings.volume.to_bits());
+    process_audio_live(source, destination, monitor, duration, settings, &gain)
+}
+
+fn process_audio_live(
     mut source: impl Read, mut destination: impl Write,
     mut monitor: Option<&mut dyn Write>, duration: Duration,
-    settings: MicrophoneConfig,
+    settings: MicrophoneConfig, gain_bits: &AtomicU32,
 ) -> io::Result<u64> {
     // 48 kHz, 2 channels, float32. One bounded ring for the Linux backend.
     let mut ring = PcmRingBuffer::new(RATE * RING_MS / 1000, FRAME_BYTES)
@@ -606,6 +616,7 @@ fn process_audio_configured(
             }
             let count = available.min(outbound.len());
             let written = ring.read(&mut outbound[..count]);
+            processor.set_volume(f32::from_bits(gain_bits.load(Ordering::Relaxed)))?;
             processor.apply(&mut outbound[..written]);
             destination.write_all(&outbound[..written])?;
             if let Some(speaker) = monitor.as_deref_mut() {
@@ -627,6 +638,43 @@ fn process_audio_configured(
         stats.underflow_events
     );
     Ok(forwarded_bytes)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum GainTarget { Microphone, Applications }
+
+/// Only bounded, finite gain values are accepted from the Linux GUI.
+fn parse_live_command(command: &str) -> Option<(GainTarget, f32)> {
+    let mut parts = command.split_whitespace();
+    let target = match parts.next()? {
+        "mic-volume" => GainTarget::Microphone,
+        "app-volume" => GainTarget::Applications,
+        _ => return None,
+    };
+    let value = parts.next()?.parse::<f32>().ok()?;
+    if parts.next().is_some() || !value.is_finite() {
+        return None;
+    }
+    let maximum = if target == GainTarget::Microphone { 3.0 } else { 2.0 };
+    (0.0..=maximum).contains(&value).then_some((target, value))
+}
+
+fn watch_live_controls(microphone: Arc<AtomicU32>, applications: Arc<AtomicU32>) {
+    // Stdin is owned by IterVC's GUI when launched from the portable binary.
+    // It is never read by the PipeWire worker or a WASAPI callback.
+    std::thread::spawn(move || {
+        for line in io::stdin().lock().lines() {
+            if STOP.load(Ordering::Relaxed) { break; }
+            let Ok(line) = line else { break };
+            match parse_live_command(&line) {
+                Some((GainTarget::Microphone, value)) =>
+                    microphone.store(value.to_bits(), Ordering::Relaxed),
+                Some((GainTarget::Applications, value)) =>
+                    applications.store(value.to_bits(), Ordering::Relaxed),
+                None => eprintln!("Ignoring invalid live audio control"),
+            }
+        }
+    });
 }
 
 fn run(input: &str, seconds: u64, monitor_output: Option<&str>,
@@ -661,13 +709,19 @@ fn run(input: &str, seconds: u64, monitor_output: Option<&str>,
     let duration = if seconds == 0 { Duration::MAX } else { Duration::from_secs(seconds) };
     let deadline = (seconds != 0).then(|| Instant::now() + duration);
     let monitor_worker = std::thread::spawn(move || monitor_final_stream(mixed_monitor, monitor_pipe));
+    let mic_gain = Arc::new(AtomicU32::new(mic_volume.to_bits()));
+    let app_gain = Arc::new(AtomicU32::new(app_volume.to_bits()));
+    let app_gain_worker = Arc::clone(&app_gain);
     let app_worker = app_pipes.map(|(source, virtual_output)|
-        std::thread::spawn(move || app_audio::forward_app(
-            source, virtual_output, app_volume)));
+        std::thread::spawn(move || app_audio::forward_app_live(
+            source, virtual_output, app_gain_worker.as_ref())));
     let mic_settings = MicrophoneConfig { volume: mic_volume, gate_enabled,
         gate_threshold_db, ..MicrophoneConfig::default() };
+    let mic_gain_worker = Arc::clone(&mic_gain);
     let worker = std::thread::spawn(move ||
-        process_audio_configured(source, destination, None, duration, mic_settings));
+        process_audio_live(source, destination, None, duration, mic_settings,
+            mic_gain_worker.as_ref()));
+    watch_live_controls(mic_gain, app_gain);
     while !worker.is_finished()
         && !STOP.load(Ordering::Relaxed)
         && !deadline.is_some_and(|cutoff| Instant::now() >= cutoff)
@@ -737,6 +791,16 @@ mod tests {
 
     fn parse(args: &[&str]) -> Result<Mode, String> {
         parse_args(args.iter().map(|arg| (*arg).to_string()))
+    }
+
+    #[test]
+    fn live_controls_reject_bad_values_without_touching_audio() {
+        assert_eq!(parse_live_command("mic-volume 0.5"), Some((GainTarget::Microphone, 0.5)));
+        assert_eq!(parse_live_command("app-volume 0"), Some((GainTarget::Applications, 0.0)));
+        for invalid in ["mic-volume -1", "mic-volume 3.01", "app-volume 2.01",
+            "app-volume NaN", "app-volume infinity", "unknown 1", "mic-volume", "mic-volume 1 2"] {
+            assert_eq!(parse_live_command(invalid), None, "{invalid}");
+        }
     }
 
     #[test]

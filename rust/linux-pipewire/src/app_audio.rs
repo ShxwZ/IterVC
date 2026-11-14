@@ -4,6 +4,7 @@
 //! This Rust stage adjusts only the copy destined for IterVC's microphone.
 
 use std::io::{self, Read, Write};
+use std::sync::atomic::{AtomicU32, Ordering};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SinkInput {
@@ -112,13 +113,24 @@ pub fn find_output_port_ids(port_listing: &str, node_id: u32) -> Option<(u32, u3
 /// independent mix gain, and copy to the final virtual microphone. PipeWire
 /// simultaneously preserves the application's original speaker connections.
 pub fn forward_app(
-    mut source: impl Read,
-    mut virtual_output: impl Write,
+    source: impl Read,
+    virtual_output: impl Write,
     gain: f32,
 ) -> io::Result<u64> {
     if !gain.is_finite() || !(0.0..=2.0).contains(&gain) {
         return Err(io::Error::new(io::ErrorKind::InvalidInput, "Invalid app gain"));
     }
+    let shared = AtomicU32::new(gain.to_bits());
+    forward_app_live(source, virtual_output, &shared)
+}
+
+/// The selected app streams stay linked while their *virtual copy* gain
+/// changes. The physical speaker connections never depend on this value.
+pub fn forward_app_live(
+    mut source: impl Read,
+    mut virtual_output: impl Write,
+    gain_bits: &AtomicU32,
+) -> io::Result<u64> {
     const FRAME_BYTES: usize = 8;
     let mut data = [0u8; 4096];
     let mut altered = [0u8; 4096];
@@ -136,6 +148,10 @@ pub fn forward_app(
         let count = pending.len() / FRAME_BYTES * FRAME_BYTES;
         if count == 0 {
             continue;
+        }
+        let gain = f32::from_bits(gain_bits.load(Ordering::Relaxed));
+        if !gain.is_finite() || !(0.0..=2.0).contains(&gain) {
+            return Err(io::Error::new(io::ErrorKind::InvalidInput, "Invalid live app gain"));
         }
         for (out, input) in altered[..count]
             .chunks_exact_mut(std::mem::size_of::<f32>())
@@ -239,6 +255,23 @@ mod tests {
                          node.id = \"7\"\n    port.name = \"output_FR\"\n\
                          port.direction = \"out\"\n";
         assert!(find_output_port_ids(ports, 7).is_none());
+    }
+
+    #[test]
+    fn live_gain_mutes_only_virtual_copy_without_reconnecting_stream() {
+        let source: Vec<u8> = [0.4f32, -0.4].iter()
+            .flat_map(|x| x.to_le_bytes()).collect();
+        let shared = AtomicU32::new(0.0f32.to_bits());
+        let mut output = Vec::new();
+        forward_app_live(source.as_slice(), &mut output, &shared).unwrap();
+        assert_eq!(output, vec![0u8; source.len()]);
+        shared.store(0.5f32.to_bits(), Ordering::Relaxed);
+        output.clear();
+        forward_app_live(source.as_slice(), &mut output, &shared).unwrap();
+        let left = f32::from_le_bytes(output[..4].try_into().unwrap());
+        assert!((left - 0.2).abs() < 1e-6);
+        assert_eq!(source, [0.4f32, -0.4].iter()
+            .flat_map(|x| x.to_le_bytes()).collect::<Vec<_>>());
     }
 
     #[test]
