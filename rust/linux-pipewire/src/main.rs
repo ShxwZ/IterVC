@@ -331,6 +331,72 @@ impl PipeWireSession {
         };
         Ok((audio_input, audio_output, final_input, monitor_pipe))
     }
+    /// Capture a single opted-in app stream and retain its original speaker
+    /// output. Each stream is addressed by sink-input ID, not an unreliable PID.
+    fn start_application(&mut self, stream_id: u32)
+        -> Result<(ChildStdout, ChildStdin, ChildStdin), String>
+    {
+        let current_inputs = command_output("pactl", &["list", "short", "sink-inputs"])?;
+        let stream = parse_sink_inputs(&current_inputs)
+            .into_iter().find(|item| item.id == stream_id)
+            .ok_or_else(|| format!("App stream {stream_id} is no longer available"))?;
+
+        let current_sinks = command_output("pactl", &["list", "short", "sinks"])?;
+        let original_name = parse_sink_name(&current_sinks, stream.sink_id)
+            .ok_or_else(|| format!("Original app output {} is unavailable", stream.sink_id))?;
+        if original_name.starts_with("itervc_rust_") {
+            return Err("Refusing to capture IterVC's own audio output".into());
+        }
+
+        let sink_arg = format!("sink_name={APP_SINK_NAME}");
+        self.load_module(&["load-module", "module-null-sink", sink_arg.as_str(),
+            "sink_properties=device.description=IterVC_App_Capture"])?;
+
+        let sinks_after = command_output("pactl", &["list", "short", "sinks"])?;
+        let capture_sink_id = find_sink_id(&sinks_after, APP_SINK_NAME)
+            .ok_or("Could not locate the isolated application capture sink")?;
+
+        let target = format!("--target={APP_SINK_NAME}.monitor");
+        let mut recorder = Command::new("pw-cat")
+            .args(["--record", "--raw", "--format=f32", "--rate=48000",
+                "--channels=2", "--latency=20ms", target.as_str(), "-"])
+            .stdout(Stdio::piped()).stderr(Stdio::inherit()).spawn()
+            .map_err(|error| format!("Could not capture application audio: {error}"))?;
+        let app_source = recorder.stdout.take().ok_or("Missing application capture stdout")?;
+        self.app_recorder = Some(recorder);
+
+        let target_virtual = format!("--target={SINK_NAME}");
+        let mut virtual_player = Command::new("pw-cat")
+            .args(["--playback", "--raw", "--format=f32", "--rate=48000",
+                "--channels=2", "--latency=20ms", target_virtual.as_str(), "-"])
+            .stdin(Stdio::piped()).stderr(Stdio::inherit()).spawn()
+            .map_err(|error| format!("Could not start app mixer playback: {error}"))?;
+        let virtual_pipe = virtual_player.stdin.take().ok_or("No app mixer stdin")?;
+        self.app_playback = Some(virtual_player);
+
+        let target_speaker = format!("--target={original_name}");
+        let mut speaker_player = Command::new("pw-cat")
+            .args(["--playback", "--raw", "--format=f32", "--rate=48000",
+                "--channels=2", "--latency=20ms", target_speaker.as_str(), "-"])
+            .stdin(Stdio::piped()).stderr(Stdio::inherit()).spawn()
+            .map_err(|error| format!("Could not restore application speaker playback: {error}"))?;
+        let speaker_pipe = speaker_player.stdin.take().ok_or("No app speaker stdin")?;
+        self.app_speaker_playback = Some(speaker_player);
+
+        // No application is moved before every playback and capture pipe
+        // has been created. All routing changes are strictly opt-in.
+        command_output("pactl", &["move-sink-input", &stream_id.to_string(), APP_SINK_NAME])?;
+        self.app_route = Some(StreamRoute {
+            stream_id,
+            original_sink_id: stream.sink_id,
+            original_sink_name: original_name,
+            capture_sink_id,
+        });
+        eprintln!("Capturing application stream {stream_id}; original device {}",
+            stream.sink_id);
+        Ok((app_source, virtual_pipe, speaker_pipe))
+    }
+
     // Stop both subprocesses to unblock any pending pipe I/O on cancellation.
     fn stop_streams(&mut self) {
         for child in [&mut self.recorder, &mut self.playback, &mut self.monitor_playback, &mut self.final_recorder,
