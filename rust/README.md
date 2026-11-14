@@ -51,6 +51,9 @@ shortcut preferences, pointing to the downloaded executable:
 /path/to/IterVC.Linux --toggle-monitor
 ```
 
+When monitoring is toggled during an active session, the app briefly restarts
+the microphone stream with the new monitoring option.
+
 These send short commands to a user-local Unix socket owned by the running GUI,
 so shortcuts work without intercepting arbitrary keyboard input or requiring
 root permissions. They must be registered in the desktop environment once,

@@ -96,8 +96,8 @@ internal sealed class MainWindow : Window
                 {
                     if (_running) await StopAsync(); else await StartAsync();
                 }
-                else if (command == "toggle-monitor" && !_running)
-                    _monitor.IsChecked = _monitor.IsChecked != true;
+                else if (command == "toggle-monitor")
+                    await ToggleMonitorAsync();
             }));
         }
         catch (Exception error) { _status.Text = error.Message; }
@@ -170,11 +170,27 @@ internal sealed class MainWindow : Window
         return Task.CompletedTask;
     }
 
-    private async Task StopAsync()
+    private async Task<bool> StopAsync()
     {
         try { await _audio.StopAsync(); }
-        catch (Exception error) { _status.Text = error.Message; }
+        catch (Exception error) { _status.Text = error.Message; return false; }
         SetRunning(false);
+        return true;
+    }
+
+    private async Task ToggleMonitorAsync()
+    {
+        var enable = _monitor.IsChecked != true;
+        if (enable && _speakers.SelectedItem is not string)
+        {
+            _status.Text = L("Selecciona unos altavoces antes de monitorizar.",
+                "Select speaker output before enabling monitoring.");
+            return;
+        }
+        var restart = _running;
+        if (restart && !await StopAsync()) return;
+        _monitor.IsChecked = enable;
+        if (restart) await StartAsync();
     }
 
     private void SetRunning(bool active)
@@ -196,9 +212,9 @@ internal sealed class MainWindow : Window
             if (_running) await StopAsync(); else await StartAsync();
             e.Handled = true;
         }
-        else if (e.Key == Key.M && !_running)
+        else if (e.Key == Key.M)
         {
-            _monitor.IsChecked = _monitor.IsChecked != true;
+            await ToggleMonitorAsync();
             e.Handled = true;
         }
     }
