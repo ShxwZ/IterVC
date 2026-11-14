@@ -17,6 +17,8 @@ namespace IterVC.Linux;
 internal sealed class MainWindow : Window
 {
     private readonly LinuxAudioBackend _audio = new();
+    private readonly DispatcherTimer _appWatchTimer = new() { Interval = TimeSpan.FromSeconds(4) };
+    private readonly HashSet<uint> _trackedAppStreams = new();
     private readonly LinuxSettingsStore _settingsStore = new();
     private readonly AppSettings _settings;
     private readonly LinuxOscChatboxService _osc;
@@ -47,6 +49,7 @@ internal sealed class MainWindow : Window
     private bool _running;
     private bool _closing;
     private bool _loadingPreferences;
+    private bool _refreshingApplicationStreams;
     private bool _microphoneMuted;
     private bool _applicationMuted;
     internal bool TrayConfigured { get; set; }
@@ -281,7 +284,12 @@ internal sealed class MainWindow : Window
         });
         _audio.SessionExited += () => Dispatcher.UIThread.Post(() => SetRunning(false));
         UpdateOsc();
-        Opened += async (_, _) => await RefreshAsync();
+        _appWatchTimer.Tick += async (_, _) => await DiscoverNewApplicationStreamsAsync();
+        Opened += async (_, _) =>
+        {
+            await RefreshAsync();
+            _appWatchTimer.Start();
+        };
     }
 
     private async Task RefreshAsync()
@@ -320,6 +328,44 @@ internal sealed class MainWindow : Window
         }
         catch (Exception error) { _status.Text = error.Message; }
         finally { _refresh.IsEnabled = true; }
+    }
+
+    private async Task DiscoverNewApplicationStreamsAsync()
+    {
+        if (_refreshingApplicationStreams || !_running || _closing ||
+            _includeApplication.IsChecked != true)
+            return;
+
+        var selectedNames = _settings.IncludedProcessNames
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (selectedNames.Count == 0) return;
+
+        _refreshingApplicationStreams = true;
+        try
+        {
+            var available = ApplicationStreamCatalog.Parse(
+                await _audio.QueryAsync("--list-apps"));
+            foreach (var app in available)
+            {
+                if (!selectedNames.Contains(app.Name) || _trackedAppStreams.Contains(app.Id))
+                    continue;
+
+                // The PipeWire bridge accepts the new ID while recording,
+                // without restarting the physical microphone or touching the
+                // application's original speaker output.
+                await _audio.AddApplicationStreamAsync(app.Id);
+                _trackedAppStreams.Add(app.Id);
+                _status.Text = L(
+                    "Nueva instancia de la aplicación detectada: ",
+                    "New application stream detected: ") + app.Name;
+            }
+        }
+        catch (Exception error)
+        {
+            _status.Text = L("No se pudo actualizar el audio de aplicaciones: ",
+                "Could not refresh application audio: ") + error.Message;
+        }
+        finally { _refreshingApplicationStreams = false; }
     }
 
     private void SavePreferences()
@@ -393,6 +439,9 @@ internal sealed class MainWindow : Window
                 _applicationMuted ? 0.0 : _applicationVolume.Value,
                 _microphoneMuted ? 0.0 : Math.Clamp(_microphoneVolume.Value * _microphoneBoost.Value, 0, 3),
                 _gate.IsChecked == true, _gateThreshold.Value);
+            _trackedAppStreams.Clear();
+            foreach (var app in selectedApps)
+                _trackedAppStreams.Add(app.Id);
             SetRunning(true);
             _status.Text = L("Enrutando al micrófono virtual «IterVC Rust Microphone».",
                 "Routing to virtual microphone «IterVC Rust Microphone».");
@@ -477,6 +526,7 @@ internal sealed class MainWindow : Window
     private void SetRunning(bool active)
     {
         _running = active;
+        if (!active) _trackedAppStreams.Clear();
         _start.IsEnabled = !active;
         _stop.IsEnabled = active;
         _microphone.IsEnabled = !active;
@@ -521,7 +571,7 @@ internal sealed class MainWindow : Window
 
     private async void OnClosing(object? sender, WindowClosingEventArgs e)
     {
-        if (_closing) { _osc.Dispose(); _shortcuts?.Dispose(); _audio.Dispose(); return; }
+        if (_closing) { _appWatchTimer.Stop(); _osc.Dispose(); _shortcuts?.Dispose(); _audio.Dispose(); return; }
         e.Cancel = true;
         _closing = true;
         await StopAsync();

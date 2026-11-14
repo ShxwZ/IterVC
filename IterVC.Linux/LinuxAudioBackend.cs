@@ -150,6 +150,24 @@ internal sealed class LinuxAudioBackend : IDisposable
     public Task SetApplicationVolumeAsync(double gain) =>
         SetLiveVolumeAsync("app-volume", gain, 2);
 
+    public async Task AddApplicationStreamAsync(uint streamId)
+    {
+        ThrowIfDisposed();
+        if (streamId == 0) throw new ArgumentOutOfRangeException(nameof(streamId));
+        await _gainWrite.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            var process = _session;
+            if (process is null || process.HasExited)
+                throw new InvalidOperationException("The Linux microphone session is no longer running.");
+            await process.StandardInput.WriteLineAsync(
+                "add-app " + streamId.ToString(CultureInfo.InvariantCulture))
+                .ConfigureAwait(false);
+            await process.StandardInput.FlushAsync().ConfigureAwait(false);
+        }
+        finally { _gainWrite.Release(); }
+    }
+
     private async Task SetLiveVolumeAsync(string target, double gain, double maximum)
     {
         ThrowIfDisposed();
