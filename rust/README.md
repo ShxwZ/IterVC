@@ -68,6 +68,16 @@ shortcut preferences, pointing to the downloaded executable:
 When monitoring is toggled during an active session, the app briefly restarts
 the microphone stream with the new monitoring option.
 
+**Micrófono y aplicaciones: volumen en directo.** While routing, microphone
+volume, boost, application volume and the mute/unmute hotkeys send validated
+gain commands to the running Rust process over its stdin. They do **not**
+restart the PipeWire stream, disconnect selected applications or recreate the
+virtual microphone. For interactive CLI debugging, type `mic-volume 0.8`,
+`mic-volume 0`, `app-volume 0.5` or `app-volume 0` while running with
+`--seconds 0`. Invalid and non-finite values are ignored. The gate's
+activation and threshold still require restarting the session.
+
+
 These send short commands to a user-local Unix socket owned by the running GUI,
 so shortcuts work without intercepting arbitrary keyboard input or requiring
 root permissions. They must be registered in the desktop environment once,
@@ -141,7 +151,10 @@ using optional `playerctl`. Desktop X11/Wayland hotkey commands are
 
 Multiple application streams can be selected simultaneously, including
 streams using different physical outputs. Each stream keeps its own original
-speaker connection. The Rust backend adds **only** the selected application
+speaker connection.
+The CI captures nonzero application PCM from the actual virtual microphone,
+then verifies both application and microphone mute/unmute produce sound,
+silence and restored sound while the same routing process remains active. The Rust backend adds **only** the selected application
 port links and removes those links on shutdown.
 
 ## Future integration gates
