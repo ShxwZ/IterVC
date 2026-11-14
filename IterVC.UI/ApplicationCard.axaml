@@ -1,0 +1,47 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ui="using:IterVC.UI"
+             x:Class="IterVC.UI.ApplicationCard"
+             x:Name="Root">
+  <!-- Extracted from the original IterVC.Desktop/Views/ApplicationsPanel.axaml.
+       Both OSes now render precisely the same app row component. -->
+  <Border Background="{DynamicResource SurfaceRaisedBrush}"
+          BorderBrush="{DynamicResource BorderSubtleBrush}"
+          BorderThickness="1" Padding="12,10" CornerRadius="6"
+          Margin="1,2" HorizontalAlignment="Stretch" Cursor="Hand">
+    <Grid ColumnDefinitions="Auto,*,Auto">
+      <CheckBox IsChecked="{Binding IsIncluded, ElementName=Root}"
+                IsHitTestVisible="False" Focusable="False"
+                Margin="0,0,12,0" VerticalAlignment="Center" />
+      <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="1">
+        <TextBlock Text="{Binding Title, ElementName=Root}"
+                   FontWeight="Bold" FontSize="13"
+                   Foreground="{DynamicResource TextStrongBrush}" />
+        <StackPanel Orientation="Horizontal" Spacing="6">
+          <TextBlock Text="{Binding Subtitle, ElementName=Root}"
+                     FontSize="10.5" Foreground="{DynamicResource TextSubtleBrush}" />
+          <TextBlock Text="•" FontSize="10.5"
+                     Foreground="{DynamicResource TextDisabledBrush}" />
+          <TextBlock Text="{Binding IdentifierLabel, ElementName=Root}"
+                     FontSize="10" Foreground="{DynamicResource TextDisabledBrush}" />
+          <TextBlock Text="{Binding Identifier, ElementName=Root}"
+                     FontSize="10" Foreground="{DynamicResource TextDisabledBrush}" />
+        </StackPanel>
+        <ui:CompactAudioMeter Height="5" Margin="0,4,0,0"
+                              TrackBrush="{DynamicResource SurfaceEmphasisBrush}"
+                              SafeLevelBrush="{DynamicResource SuccessBrush}"
+                              WarningLevelBrush="{DynamicResource WarningBrush}"
+                              CriticalLevelBrush="{DynamicResource DangerBrush}"
+                              PeakBrush="{DynamicResource TextStrongBrush}"
+                              ThresholdBrush="{DynamicResource WarningBrush}"
+                              LevelDb="{Binding LevelDb, ElementName=Root}"
+                              PeakDb="{Binding PeakDb, ElementName=Root}"
+                              IsActive="{Binding MeterActive, ElementName=Root}" />
+      </StackPanel>
+      <Ellipse Grid.Column="2" Width="6" Height="6"
+               Fill="{DynamicResource AccentBrush}"
+               VerticalAlignment="Center"
+               IsVisible="{Binding IsIncluded, ElementName=Root}" />
+    </Grid>
+  </Border>
+</UserControl>
