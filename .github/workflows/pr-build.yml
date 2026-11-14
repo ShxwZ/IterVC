@@ -71,30 +71,41 @@ jobs:
             --framework "net8.0-windows10.0.19041.0" `
             --runtime win-x64 `
             --self-contained true `
-            --output ".\artifacts\IterVC" `
+            --output ".\publish_output\IterVC" `
+            -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:DebugSymbols=false `
+            -p:DebugType=None `
             -p:Version="$Version" `
             -p:InformationalVersion="$InformationalVersion"
 
-      - name: Add development warning
+          if ($LASTEXITCODE -ne 0) {
+            throw "dotnet publish failed."
+          }
+
+          $Executable = ".\publish_output\IterVC\IterVC.exe"
+          if (-not (Test-Path -LiteralPath $Executable -PathType Leaf)) {
+            throw "Portable IterVC.exe was not generated."
+          }
+
+          New-Item -ItemType Directory -Path ".\artifacts" -Force | Out-Null
+          Copy-Item -LiteralPath $Executable -Destination ".\artifacts\IterVC.exe" -Force
+          Write-Host "Portable build: .\artifacts\IterVC.exe"
+
+      - name: Add development warning to workflow summary
         shell: pwsh
         run: |
           @"
-          IterVC Pull Request Test Build
+          ### IterVC portable PR build
+          The artifact contains a single self-contained IterVC.exe for Windows x64.
 
-          Pull Request: #${{ github.event.pull_request.number }}
-          Commit: ${{ github.event.pull_request.head.sha }}
-          Workflow run: ${{ github.run_number }}
-
-          This is an unofficial development build.
-          It may be unstable and must not be redistributed as an official IterVC release.
-          "@ | Set-Content `
-            ".\artifacts\IterVC\DEVELOPMENT_BUILD.txt" `
-            -Encoding UTF8
-
+          **Development build for PR #${{ github.event.pull_request.number }}.**
+          This is an unofficial test build and must not be redistributed as an official release.
+          "@ | Add-Content -Path $env:GITHUB_STEP_SUMMARY -Encoding utf8
       - name: Upload PR artifact
         uses: actions/upload-artifact@v4
         with:
-          name: IterVC-PR-${{ github.event.pull_request.number }}-win-x64
-          path: .\artifacts\IterVC\
+          name: IterVC-PR-${{ github.event.pull_request.number }}-portable-win-x64
+          path: .\artifacts\IterVC.exe
           if-no-files-found: error
           retention-days: 7
