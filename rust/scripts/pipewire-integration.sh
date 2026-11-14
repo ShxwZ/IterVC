@@ -119,6 +119,7 @@ if ! command -v pacat >/dev/null 2>&1; then
   echo "pacat is required for the app routing integration test" >&2
   exit 1
 fi
+pactl set-default-sink itervc_ci_audio_sink
 original_sink_id="$(pactl list short sinks | awk '$2=="itervc_ci_audio_sink" {print $1}')"
 if [ -z "$original_sink_id" ]; then
   echo "Missing original application speaker sink" >&2
@@ -126,7 +127,7 @@ if [ -z "$original_sink_id" ]; then
 fi
 
 pacat --playback --raw --format=float32le --rate=48000 --channels=2 \
-  --device=itervc_ci_audio_sink </dev/zero >"$test_dir/pacat.log" 2>&1 &
+  </dev/zero >"$test_dir/pacat.log" 2>&1 &
 pulse_app_pid="$!"
 
 stream_id=""
@@ -191,7 +192,7 @@ cat "$test_dir/app-session.log"
 # Verify two independent application sink-inputs can be selected together
 # without duplicating playback through their shared original speaker.
 pacat --playback --raw --format=float32le --rate=48000 --channels=2 \
-  --device=itervc_ci_audio_sink </dev/zero >"$test_dir/pacat2.log" 2>&1 &
+  </dev/zero >"$test_dir/pacat2.log" 2>&1 &
 pulse_app_2_pid="$!"
 stream_2_id=""
 for _ in $(seq 1 50); do
