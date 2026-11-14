@@ -63,7 +63,8 @@ internal sealed class LinuxAudioBackend : IDisposable
     }
 
     public void Start(string microphone, string? monitoringOutput,
-        uint? applicationStreamId = null, double appVolume = 1.0)
+        uint? applicationStreamId = null, double appVolume = 1.0,
+        double micVolume = 1.0, bool gateEnabled = false, double gateThresholdDb = -45)
     {
         ThrowIfDisposed();
         if (_session is { HasExited: false })
@@ -84,6 +85,21 @@ internal sealed class LinuxAudioBackend : IDisposable
             process.StartInfo.ArgumentList.Add(streamId.ToString(CultureInfo.InvariantCulture));
             process.StartInfo.ArgumentList.Add("--app-volume");
             process.StartInfo.ArgumentList.Add(appVolume.ToString("0.00", CultureInfo.InvariantCulture));
+        }
+        if (!double.IsFinite(micVolume) || micVolume < 0 || micVolume > 3)
+            throw new ArgumentOutOfRangeException(nameof(micVolume));
+        if (!double.IsFinite(gateThresholdDb) || gateThresholdDb < -100 || gateThresholdDb > 0)
+            throw new ArgumentOutOfRangeException(nameof(gateThresholdDb));
+        if (micVolume != 1.0)
+        {
+            process.StartInfo.ArgumentList.Add("--mic-volume");
+            process.StartInfo.ArgumentList.Add(micVolume.ToString("0.00", CultureInfo.InvariantCulture));
+        }
+        if (gateEnabled)
+        {
+            process.StartInfo.ArgumentList.Add("--noise-gate");
+            process.StartInfo.ArgumentList.Add("--gate-threshold");
+            process.StartInfo.ArgumentList.Add(gateThresholdDb.ToString("0.0", CultureInfo.InvariantCulture));
         }
         process.StartInfo.RedirectStandardError = true;
         process.EnableRaisingEvents = true;
