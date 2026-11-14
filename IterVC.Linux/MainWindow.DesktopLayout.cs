@@ -89,13 +89,10 @@ internal sealed partial class MainWindow
         return panel;
     }
 
-    private static TabItem Tab(string title, Control content) => new()
+    private static Control ScrollableTab(Control content) => new ScrollViewer
     {
-        Header = title,
-        FontSize = 12,
-        FontWeight = FontWeight.SemiBold,
-        Foreground = C("TextPrimaryBrush"),
-        Content = new ScrollViewer { Content = content, VerticalScrollBarVisibility = ScrollBarVisibility.Auto }
+        Content = content,
+        VerticalScrollBarVisibility = ScrollBarVisibility.Auto
     };
 
     private Control BuildDesktopLayout()
@@ -164,10 +161,14 @@ internal sealed partial class MainWindow
         apps.Children.Add(appsBottom);
         var appsCard = Card(apps);
 
-        var settings = new TabControl {
-            Background = C("SurfaceBaseBrush")
+        var settings = new IterVC.UI.DesktopSettingsTabs {
+            DevicesTitle = L("Dispositivos", "Devices"),
+            MixTitle = L("Mezcla", "Mix"),
+            GateTitle = L("Puerta de ruido", "Noise gate"),
+            OscTitle = "OSC",
+            PreferencesTitle = L("Ajustes", "Settings")
         };
-        settings.Items.Add(Tab(L("Dispositivos", "Devices"),
+        settings.Devices = ScrollableTab(
             Vertical(
                 Label(L("Micrófono físico", "Physical microphone"), 11, "TextSecondaryBrush", true),
                 _microphone,
@@ -177,8 +178,8 @@ internal sealed partial class MainWindow
                 Label(L("PipeWire crea «IterVC Rust Microphone» automáticamente; no requiere VB-Cable.",
                     "PipeWire creates «IterVC Rust Microphone» automatically; VB-Cable is not required."),
                     10, "TextSubtleBrush")
-            )));
-        settings.Items.Add(Tab(L("Mezcla", "Mix"),
+            ));
+        settings.Mix = ScrollableTab(
             Vertical(
                 SliderField(L("Volumen de las aplicaciones", "Application mix volume"),
                     _applicationVolume),
@@ -187,8 +188,8 @@ internal sealed partial class MainWindow
                 SliderField(L("Amplificación del micrófono", "Microphone boost"),
                     _microphoneBoost,
                     L("Se aplica sin reiniciar el micrófono virtual.", "Applied without restarting the virtual microphone."))
-            )));
-        settings.Items.Add(Tab(L("Puerta de ruido", "Noise gate"),
+            ));
+        settings.Gate = ScrollableTab(
             Vertical(
                 _gate,
                 SliderField(L("Umbral (dBFS)", "Threshold (dBFS)"), _gateThreshold),
@@ -196,8 +197,8 @@ internal sealed partial class MainWindow
                 SliderField(L("Liberación (ms)", "Release (ms)"), _gateRelease),
                 Label(L("Los ajustes de la puerta se aplican al iniciar el enrutamiento.",
                     "Gate settings take effect when routing starts."), 10, "TextSubtleBrush")
-            )));
-        settings.Items.Add(Tab("OSC",
+            ));
+        settings.Osc = ScrollableTab(
             Vertical(
                 _oscEnabled,
                 Label(L("Plantilla del mensaje", "Message template"), 11, "TextSecondaryBrush", true),
@@ -207,8 +208,8 @@ internal sealed partial class MainWindow
                 MediaRow(),
                 Label(L("Envía música al chatbox de VRChat por OSC.",
                     "Sends music to the VRChat chatbox via OSC."), 10, "TextSubtleBrush")
-            )));
-        settings.Items.Add(Tab(L("Ajustes", "Settings"),
+            ));
+        settings.Preferences = ScrollableTab(
             Vertical(
                 _minimizeToTray,
                 Label(L("Atajos de teclado", "Keyboard shortcuts"), 12, "TextStrongBrush", true),
@@ -221,8 +222,8 @@ internal sealed partial class MainWindow
                 Label(L("Diagnóstico de dependencias", "Dependency diagnostics"), 12, "TextStrongBrush", true),
                 DiagnosticControls(),
                 _dependencies
-            )));
-        var settingsCard = Card(settings);
+            ));
+        var settingsCard = settings; // The shared tabs already render the original settings card.
 
         var footer = new Grid {
             ColumnDefinitions = new ColumnDefinitions("*,Auto"),
