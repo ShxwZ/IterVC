@@ -4,7 +4,10 @@
 //! integration milestone. This CLI is NOT yet a Linux port of the Avalonia UI,
 //! a per-application capture backend, or a replacement for Windows WASAPI.
 
+mod app_audio;
+
 use itervc_audio_buffers::PcmRingBuffer;
+use app_audio::{StreamRoute, parse_sink_inputs, parse_sink_name, find_sink_id, should_restore};
 use std::env;
 use std::io::{self, Read, Write};
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
@@ -17,6 +20,7 @@ const FRAME_BYTES: usize = CHANNELS * std::mem::size_of::<f32>();
 const RING_MS: usize = 200;
 const SINK_NAME: &str = "itervc_rust_sink";
 const MIC_NAME: &str = "itervc_rust_microphone";
+const APP_SINK_NAME: &str = "itervc_rust_apps_sink";
 const STOP_POLL_INTERVAL: Duration = Duration::from_millis(20);
 
 static STOP: AtomicBool = AtomicBool::new(false);
@@ -47,8 +51,10 @@ enum Mode {
     Help,
     ListInputs,
     ListOutputs,
+    ListApps,
     Check,
-    Run { input: String, seconds: u64, monitor_output: Option<String> },
+    Run { input: String, seconds: u64, monitor_output: Option<String>,
+        app_stream: Option<u32>, app_volume: f32 },
 }
 
 fn parse_args(args: impl IntoIterator<Item = String>) -> Result<Mode, String> {
@@ -56,6 +62,8 @@ fn parse_args(args: impl IntoIterator<Item = String>) -> Result<Mode, String> {
     let mut input = None;
     let mut seconds = 30u64;
     let mut monitor_output = None;
+    let mut app_stream = None;
+    let mut app_volume = 1.0f32;
     let mut args = args.into_iter();
 
     while let Some(arg) = args.next() {
@@ -63,9 +71,21 @@ fn parse_args(args: impl IntoIterator<Item = String>) -> Result<Mode, String> {
             "--help" | "-h" => mode = Some(Mode::Help),
             "--list-inputs" => mode = Some(Mode::ListInputs),
             "--list-outputs" => mode = Some(Mode::ListOutputs),
+            "--list-apps" => mode = Some(Mode::ListApps),
             "--check" => mode = Some(Mode::Check),
             "--input" => {
                 input = Some(args.next().ok_or("Missing device after --input")?);
+            }
+            "--app-stream" => {
+                let raw = args.next().ok_or("Missing stream id after --app-stream")?;
+                app_stream = Some(raw.parse::<u32>().map_err(|_| "Invalid app stream id")?);
+            }
+            "--app-volume" => {
+                let raw = args.next().ok_or("Missing volume after --app-volume")?;
+                app_volume = raw.parse::<f32>().map_err(|_| "Invalid app volume")?;
+                if !app_volume.is_finite() || !(0.0..=2.0).contains(&app_volume) {
+                    return Err("Application volume must be between 0.0 and 2.0".into());
+                }
             }
             "--monitor-output" => {
                 monitor_output = Some(args.next().ok_or("Missing sink after --monitor-output")?);
@@ -82,7 +102,7 @@ fn parse_args(args: impl IntoIterator<Item = String>) -> Result<Mode, String> {
     }
 
     if let Some(mode) = mode {
-        if input.is_some() || monitor_output.is_some() {
+        if input.is_some() || monitor_output.is_some() || app_stream.is_some() || app_volume != 1.0 {
             return Err("--input cannot be combined with a query option".into());
         }
         return Ok(mode);
@@ -95,7 +115,10 @@ fn parse_args(args: impl IntoIterator<Item = String>) -> Result<Mode, String> {
     if monitor_output.as_deref().is_some_and(|name| !is_physical_output(name)) {
         return Err("Select a real speaker output, not the virtual sink".into());
     }
-    Ok(Mode::Run { input, seconds, monitor_output })
+    if app_stream.is_none() && app_volume != 1.0 {
+        return Err("--app-volume needs --app-stream".into());
+    }
+    Ok(Mode::Run { input, seconds, monitor_output, app_stream, app_volume })
 }
 
 fn print_help() {
@@ -104,12 +127,15 @@ fn print_help() {
          Usage:\n\
            itervc-linux-pipewire --list-inputs\n\
            itervc-linux-pipewire --list-outputs\n\
+           itervc-linux-pipewire --list-apps\n\
            itervc-linux-pipewire --check\n\
            itervc-linux-pipewire --input <physical-node-name> [--seconds 30] [--monitor-output SINK]\n\n\
          Requirements: a user PipeWire session, pipewire-pulse, pactl and pw-cat.\n\
          A temporary IterVC virtual microphone is created and removed after exit.\n\
-         This routes only the selected physical microphone, not application audio.\n\
-         --seconds 0 runs until stopped. --monitor-output is optional."
+         An optional app stream is temporarily redirected to a capture sink\n\
+         and restored when the routing session exits.\n\
+         --seconds 0 runs until stopped. --monitor-output is optional.\n\
+         --app-stream ID selects one running application; --app-volume 0..2."
     );
 }
 
@@ -187,6 +213,10 @@ struct PipeWireSession {
     playback: Option<Child>,
     monitor_playback: Option<Child>,
     final_recorder: Option<Child>,
+    app_recorder: Option<Child>,
+    app_playback: Option<Child>,
+    app_speaker_playback: Option<Child>,
+    app_route: Option<StreamRoute>,
 }
 
 impl PipeWireSession {
@@ -197,6 +227,10 @@ impl PipeWireSession {
             playback: None,
             monitor_playback: None,
             final_recorder: None,
+            app_recorder: None,
+            app_playback: None,
+            app_speaker_playback: None,
+            app_route: None,
         }
     }
 
@@ -299,7 +333,8 @@ impl PipeWireSession {
     }
     // Stop both subprocesses to unblock any pending pipe I/O on cancellation.
     fn stop_streams(&mut self) {
-        for child in [&mut self.recorder, &mut self.playback, &mut self.monitor_playback, &mut self.final_recorder].into_iter().flatten() {
+        for child in [&mut self.recorder, &mut self.playback, &mut self.monitor_playback, &mut self.final_recorder,
+            &mut self.app_recorder, &mut self.app_playback, &mut self.app_speaker_playback].into_iter().flatten() {
             let _ = child.kill();
             let _ = child.wait();
         }
@@ -335,6 +370,23 @@ impl Drop for PipeWireSession {
         if let Some(recorder) = self.final_recorder.as_mut() {
             let _ = recorder.kill();
             let _ = recorder.wait();
+        }
+        // Restore the user's original application destination only if the
+        // stream still belongs to our capture sink. Never override a new
+        // destination selected by the user while IterVC was running.
+        if let Some(route) = self.app_route.take() {
+            if let Ok(current) = command_output("pactl", &["list", "short", "sink-inputs"]) {
+                if should_restore(&current, &route) {
+                    if let Err(error) = command_output("pactl", &["move-sink-input",
+                        &route.stream_id.to_string(), &route.original_sink_id.to_string()]) {
+                        eprintln!("Could not restore app stream {}: {error}", route.stream_id);
+                    }
+                }
+            }
+        }
+        for child in [&mut self.app_recorder, &mut self.app_playback, &mut self.app_speaker_playback].into_iter().flatten() {
+            let _ = child.kill();
+            let _ = child.wait();
         }
         for id in self.modules.drain(..).rev() {
             let _ = Command::new("pactl")
