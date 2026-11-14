@@ -179,7 +179,9 @@ internal sealed class MainWindow : Window
         {
             _shortcuts = new ShortcutControlServer(command => Dispatcher.UIThread.Post(async () =>
             {
-                if (command == "show-window")
+                if (command == "exit")
+                    Close();
+                else if (command == "show-window")
                     RestoreFromTray();
                 else if (command == "toggle-routing")
                 {

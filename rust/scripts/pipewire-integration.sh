@@ -188,11 +188,44 @@ if [ -n "$gui" ]; then
     echo "Linux GUI did not remove PipeWire virtual mic after stopping" >&2
     exit 1
   fi
-  "$gui" --show-window
-  kill -TERM "$gui_pid" 2>/dev/null || true
+  # Closing the running GUI must stop Rust and unload PipeWire through
+  # MainWindow.OnClosing instead of just terminating the process.
+  "$gui" --start-routing
+  gui_restarted=0
+  for _ in $(seq 1 80); do
+    if pactl list short sources | grep -q "itervc_rust_microphone"; then
+      gui_restarted=1
+      break
+    fi
+    sleep 0.1
+  done
+  if [ "$gui_restarted" != 1 ]; then
+    cat "$test_dir/gui-session.log" >&2
+    echo "Linux GUI did not restart routing before shutdown test" >&2
+    exit 1
+  fi
+  "$gui" --exit
+  gui_exited=0
+  for _ in $(seq 1 80); do
+    if ! kill -0 "$gui_pid" 2>/dev/null; then
+      gui_exited=1
+      break
+    fi
+    sleep 0.1
+  done
+  if [ "$gui_exited" != 1 ]; then
+    cat "$test_dir/gui-session.log" >&2
+    echo "Linux GUI failed to close after exit shortcut command" >&2
+    exit 1
+  fi
   wait "$gui_pid" 2>/dev/null || true
   gui_pid=""
-  echo "Real PipeWire + Avalonia GUI start/stop via shortcut IPC: passed."
+  if pactl list short sources | grep -q "itervc_rust_microphone"; then
+    cat "$test_dir/gui-session.log" >&2
+    echo "Linux GUI shutdown leaked the PipeWire virtual microphone" >&2
+    exit 1
+  fi
+  echo "Real PipeWire + Avalonia GUI start/stop/shutdown via shortcut IPC: passed."
 fi
 
 # Exercise a genuine PulseAudio playback stream through pipewire-pulse.

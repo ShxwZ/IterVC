@@ -25,7 +25,7 @@ internal static class Program
             "--toggle-routing" or "--start-routing" or "--stop-routing"
             or "--toggle-monitor" or "--toggle-microphone" or "--toggle-applications-mute"
             or "--media-play-pause" or "--media-next" or "--media-previous"
-            or "--show-window");
+            or "--show-window" or "--exit");
         if (shortcut is not null)
         {
             try
