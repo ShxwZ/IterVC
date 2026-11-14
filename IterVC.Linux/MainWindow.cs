@@ -506,7 +506,8 @@ internal sealed partial class MainWindow : Window
                 _applicationMuted ? 0.0 : _applicationVolume.Value,
                 _microphoneMuted ? 0.0 : Math.Clamp(_microphoneVolume.Value * _microphoneBoost.Value, 0, 3),
                 _gate.IsChecked == true, _gateThreshold.Value,
-                includeApplicationCapture: _includeApplication.IsChecked == true);
+                includeApplicationCapture: _includeApplication.IsChecked == true,
+                gateAttackMs: _gateAttack.Value, gateReleaseMs: _gateRelease.Value);
             _trackedAppStreams.Clear();
             _pendingAppStreams.Clear();
             _appRetryAfter.Clear();
