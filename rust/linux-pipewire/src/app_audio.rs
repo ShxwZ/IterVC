@@ -105,6 +105,82 @@ pub fn capture_ports(node_name: &str, output_ports: &str, input_ports: &str,
     Some(pairs)
 }
 
+/// The PulseAudio sink-input index is its PipeWire object serial, not the
+/// PipeWire node ID. Read the object.id property from that exact section
+/// instead of relying on the non-unique node.name or an application PID.
+pub fn parse_pactl_node_id(text: &str, sink_input_id: u32) -> Option<u32> {
+    let section = format!("Sink Input #{sink_input_id}");
+    let mut selected = false;
+    for line in text.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("Sink Input #") {
+            selected = trimmed == section;
+        } else if selected {
+            if let Some(value) = trimmed.strip_prefix("object.id =") {
+                return value.trim().trim_matches('"').parse().ok();
+            }
+        }
+    }
+    None
+}
+
+/// PipeWire's own Port registry exposes stable, unique per-node output port
+/// IDs, even if several streams have the same display name (e.g. "pacat").
+/// A channel must be present exactly once; missing/ambiguous layouts fail
+/// closed rather than tapping the wrong application.
+pub fn find_output_port_ids(port_listing: &str, node_id: u32) -> Option<(u32, u32)> {
+    #[derive(Default)]
+    struct Port {
+        id: Option<u32>,
+        node_id: Option<u32>,
+        direction_out: bool,
+        name: String,
+        channel: String,
+    }
+    fn finish(port: &Port, expected_node: u32, left: &mut Vec<u32>, right: &mut Vec<u32>) {
+        if port.node_id != Some(expected_node) || !port.direction_out {
+            return;
+        }
+        if let Some(id) = port.id {
+            if port.name == "output_FL" || port.channel == "FL" {
+                left.push(id);
+            } else if port.name == "output_FR" || port.channel == "FR" {
+                right.push(id);
+            }
+        }
+    }
+
+    let mut current = Port::default();
+    let mut left = Vec::new();
+    let mut right = Vec::new();
+    for line in port_listing.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("id ") && trimmed.contains("PipeWire:Interface:Port") {
+            finish(&current, node_id, &mut left, &mut right);
+            current = Port::default();
+            current.id = trimmed.strip_prefix("id ")
+                .and_then(|value| value.split(',').next())
+                .and_then(|value| value.trim().parse::<u32>().ok());
+            continue;
+        }
+        let Some((key, value)) = trimmed.split_once('=') else { continue };
+        let value = value.trim().trim_matches('"');
+        match key.trim() {
+            "node.id" => current.node_id = value.parse().ok(),
+            "port.direction" => current.direction_out = value == "out",
+            "port.name" => current.name = value.to_owned(),
+            "audio.channel" => current.channel = value.to_owned(),
+            _ => {}
+        }
+    }
+    finish(&current, node_id, &mut left, &mut right);
+    if left.len() == 1 && right.len() == 1 && left[0] != right[0] {
+        Some((left[0], right[0]))
+    } else {
+        None
+    }
+}
+
 /// Read raw 48 kHz stereo float32 PCM from the app monitor. Send the
 /// gain-adjusted audio to IterVC's virtual microphone and the original audio
 /// to its previous output device. An unavailable speaker must not interrupt
@@ -231,6 +307,50 @@ mod tests {
                 ("Music App:output_FR".into(), "itervc_rust_apps_sink:playback_FR".into())
             ]);
         assert!(capture_ports("Chat App", outputs, inputs, "itervc_rust_apps_sink").is_none());
+    }
+
+    #[test]
+    fn duplicate_app_names_are_distinguished_by_pipewire_object_id() {
+        let inputs = "Sink Input #119\n  Properties:\n    node.name = \"pacat\"\n\
+                      object.id = \"60\"\n    object.serial = \"119\"\n\
+                      Sink Input #212\n  Properties:\n    node.name = \"pacat\"\n\
+                      object.id = \"67\"\n    object.serial = \"212\"\n";
+        assert_eq!(parse_pactl_node_id(inputs, 119), Some(60));
+        assert_eq!(parse_pactl_node_id(inputs, 212), Some(67));
+        assert_eq!(parse_pactl_node_id(inputs, 999), None);
+    }
+
+    #[test]
+    fn port_ids_map_to_unique_nodes_even_with_identical_names() {
+        let ports = "id 64, type PipeWire:Interface:Port/3\n\
+                         node.id = \"60\"\n    port.name = \"output_FR\"\n\
+                         port.direction = \"out\"\n\
+                     id 65, type PipeWire:Interface:Port/3\n\
+                         node.id = \"60\"\n    port.name = \"output_FL\"\n\
+                         port.direction = \"out\"\n\
+                     id 72, type PipeWire:Interface:Port/3\n\
+                         node.id = \"67\"\n    port.name = \"output_FL\"\n\
+                         port.direction = \"out\"\n\
+                     id 73, type PipeWire:Interface:Port/3\n\
+                         node.id = \"67\"\n    port.name = \"output_FR\"\n\
+                         port.direction = \"out\"\n";
+        assert_eq!(find_output_port_ids(ports, 60), Some((65, 64)));
+        assert_eq!(find_output_port_ids(ports, 67), Some((72, 73)));
+        assert_eq!(find_output_port_ids(ports, 88), None);
+    }
+
+    #[test]
+    fn ambiguous_or_mono_layouts_are_rejected() {
+        let ports = "id 30, type PipeWire:Interface:Port/3\n\
+                         node.id = \"7\"\n    port.name = \"output_FL\"\n\
+                         port.direction = \"out\"\n\
+                     id 31, type PipeWire:Interface:Port/3\n\
+                         node.id = \"7\"\n    port.name = \"output_FL\"\n\
+                         port.direction = \"out\"\n\
+                     id 32, type PipeWire:Interface:Port/3\n\
+                         node.id = \"7\"\n    port.name = \"output_FR\"\n\
+                         port.direction = \"out\"\n";
+        assert!(find_output_port_ids(ports, 7).is_none());
     }
 
     #[test]
