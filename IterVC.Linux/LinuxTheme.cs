@@ -13,6 +13,10 @@ internal static class LinuxTheme
 {
     private static readonly Lazy<IReadOnlyDictionary<string, IBrush>> Colors = new(ReadColors);
 
+    // The shared XAML components resolve DynamicResource keys through Avalonia's
+    // application resources. A local Brush() lookup alone does not style them.
+    public static IReadOnlyDictionary<string, IBrush> AllBrushes => Colors.Value;
+
     public static IBrush Brush(string name) =>
         Colors.Value.TryGetValue(name, out var color)
             ? color
