@@ -18,6 +18,10 @@
   </ItemGroup>
   <ItemGroup>
     <AvaloniaResource Include="../IterVC.Desktop/Assets/icon.ico" Link="Assets/icon.ico" />
+    <!-- Reuse the original desktop semantic color palette without including its
+         Windows-specific Application code or view models. -->
+    <EmbeddedResource Include="../IterVC.Desktop/App.axaml"
+                      LogicalName="IterVC.Linux.WindowsThemePalette" />
   </ItemGroup>
   <!-- The Rust process is embedded into the .NET single-file executable. -->
   <ItemGroup>
