@@ -237,8 +237,9 @@ internal sealed partial class MainWindow
             ));
         settings.Gate = ScrollableTab(
             Vertical(
-                Label(L("Supresión RNNoise · disponible en Windows; todavía no en Linux.",
-                    "RNNoise suppression · available on Windows, not yet on Linux."),
+                _noiseSuppression,
+                Label(L("Mismo motor RNNoise que Windows; se procesa antes de la puerta de ruido.",
+                    "Same RNNoise engine as Windows; processed before the noise gate."),
                     10, "TextSubtleBrush"),
                 _gate,
                 Label(L("Nivel de salida de la puerta", "Noise gate output level"),
