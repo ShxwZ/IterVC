@@ -174,6 +174,18 @@ internal sealed class LinuxAudioBackend : IDisposable
     public Task SetApplicationVolumeAsync(double gain) =>
         SetLiveVolumeAsync("app-volume", gain, 2);
 
+    public Task SetGateEnabledAsync(bool enabled) =>
+        SetLiveParameterAsync("gate-enabled", enabled ? 1 : 0, 0, 1);
+
+    public Task SetGateThresholdAsync(double thresholdDb) =>
+        SetLiveParameterAsync("gate-threshold", thresholdDb, -100, 0);
+
+    public Task SetGateAttackAsync(double milliseconds) =>
+        SetLiveParameterAsync("gate-attack", milliseconds, 1, 1000);
+
+    public Task SetGateReleaseAsync(double milliseconds) =>
+        SetLiveParameterAsync("gate-release", milliseconds, 1, 2000);
+
     public async Task AddApplicationStreamAsync(uint streamId)
     {
         ThrowIfDisposed();
@@ -191,11 +203,15 @@ internal sealed class LinuxAudioBackend : IDisposable
         finally { _gainWrite.Release(); }
     }
 
-    private async Task SetLiveVolumeAsync(string target, double gain, double maximum)
+    private Task SetLiveVolumeAsync(string target, double gain, double maximum) =>
+        SetLiveParameterAsync(target, gain, 0, maximum);
+
+    private async Task SetLiveParameterAsync(string target, double value,
+        double minimum, double maximum)
     {
         ThrowIfDisposed();
-        if (!double.IsFinite(gain) || gain < 0 || gain > maximum)
-            throw new ArgumentOutOfRangeException(nameof(gain));
+        if (!double.IsFinite(value) || value < minimum || value > maximum)
+            throw new ArgumentOutOfRangeException(nameof(value));
         await _gainWrite.WaitAsync().ConfigureAwait(false);
         try
         {
@@ -203,7 +219,7 @@ internal sealed class LinuxAudioBackend : IDisposable
             if (process is null || process.HasExited)
                 throw new InvalidOperationException("The Linux microphone session is no longer running.");
             await process.StandardInput.WriteLineAsync(
-                target + " " + gain.ToString("0.00000", CultureInfo.InvariantCulture))
+                target + " " + value.ToString("0.00000", CultureInfo.InvariantCulture))
                 .ConfigureAwait(false);
             await process.StandardInput.FlushAsync().ConfigureAwait(false);
         }
