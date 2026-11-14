@@ -1,7 +1,7 @@
 ﻿<UserControl xmlns="https://github.com/avaloniaui"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:vm="using:IterVC.Desktop.ViewModels"
-    xmlns:controls="using:IterVC.Desktop.Views.Controls"
+    xmlns:ui="using:IterVC.UI"
     x:Class="IterVC.Desktop.Views.ApplicationsPanel"
     x:DataType="vm:ApplicationsViewModel">
 	<UserControl.Resources>
@@ -83,40 +83,16 @@
 							<ItemsControl ItemsSource="{Binding RunningApps}" Margin="3,0">
 								<ItemsControl.ItemTemplate>
 									<DataTemplate x:DataType="vm:AppAudioItemViewModel">
-										<Border Background="{DynamicResource SurfaceRaisedBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}"
-											BorderThickness="1" Padding="12,10" CornerRadius="6"
-											Margin="1,2" HorizontalAlignment="Stretch" Cursor="Hand"
-											PointerPressed="OnAppRowPointerPressed">
-											<Grid ColumnDefinitions="Auto,*,Auto">
-												<CheckBox
-													IsChecked="{Binding IsIncludedInMix}"
-													IsHitTestVisible="False" Focusable="False"
-													Margin="0,0,12,0" VerticalAlignment="Center" />
-												<StackPanel Grid.Column="1"
-													VerticalAlignment="Center" Spacing="1">
-													<TextBlock Text="{Binding DisplayName}"
-														FontWeight="Bold" FontSize="13"
-														Foreground="{DynamicResource TextStrongBrush}" />
-													<StackPanel Orientation="Horizontal" Spacing="6">
-														<TextBlock Text="{Binding ProcessName}"
-															FontSize="10.5" Foreground="{DynamicResource TextSubtleBrush}" />
-														<TextBlock Text="•" FontSize="10.5"
-															Foreground="{DynamicResource TextDisabledBrush}" />
-														<TextBlock Text="PID" FontSize="10"
-															Foreground="{DynamicResource TextDisabledBrush}" />
-														<TextBlock Text="{Binding ProcessId}"
-															FontSize="10" Foreground="{DynamicResource TextDisabledBrush}" />
-													</StackPanel>
-													<controls:CompactAudioMeter Height="5" Margin="0,4,0,0"
-														LevelDb="{Binding Meter.LevelDb}"
-														PeakDb="{Binding Meter.PeakDb}"
-														IsActive="{Binding Meter.IsActive}" />
-												</StackPanel>
-												<Ellipse Grid.Column="2" Width="6" Height="6"
-													Fill="{DynamicResource AccentBrush}" VerticalAlignment="Center"
-													IsVisible="{Binding IsIncludedInMix}" />
-											</Grid>
-										</Border>
+<ui:ApplicationCard
+                                            Title="{Binding DisplayName}"
+                                            Subtitle="{Binding ProcessName}"
+                                            IdentifierLabel="PID"
+                                            Identifier="{Binding ProcessId}"
+                                            IsIncluded="{Binding IsIncludedInMix}"
+                                            LevelDb="{Binding Meter.LevelDb}"
+                                            PeakDb="{Binding Meter.PeakDb}"
+                                            MeterActive="{Binding Meter.IsActive}"
+                                            PointerPressed="OnAppRowPointerPressed" />
 									</DataTemplate>
 								</ItemsControl.ItemTemplate>
 							</ItemsControl>
