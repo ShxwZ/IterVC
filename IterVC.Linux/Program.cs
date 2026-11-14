@@ -15,6 +15,21 @@ internal static class Program
             return 1;
         }
 
+        var shortcut = args.FirstOrDefault(arg => arg is "--toggle-routing" or "--toggle-monitor");
+        if (shortcut is not null)
+        {
+            try
+            {
+                ShortcutControlServer.SendAsync(shortcut[2..]).GetAwaiter().GetResult();
+                return 0;
+            }
+            catch (Exception error)
+            {
+                Console.Error.WriteLine("Could not send Linux shortcut: " + error.Message);
+                return 1;
+            }
+        }
+
         if (args.Contains("--self-test"))
         {
             try
@@ -23,7 +38,17 @@ internal static class Program
                 var help = backend.QueryAsync("--help").GetAwaiter().GetResult();
                 if (!help.Contains("IterVC experimental Linux PipeWire prototype", StringComparison.Ordinal))
                     throw new InvalidOperationException("Embedded Rust CLI failed its smoke test.");
-                Console.WriteLine("Linux GUI and embedded Rust audio backend: OK");
+                var path = Path.Combine(Path.GetTempPath(),
+                    $"itervc-shortcut-selftest-{Guid.NewGuid():N}", "shortcuts.sock");
+                var received = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+                using (var shortcuts = new ShortcutControlServer(command => received.TrySetResult(command), path))
+                {
+                    ShortcutControlServer.SendAsync("toggle-routing", path).GetAwaiter().GetResult();
+                    var actual = received.Task.WaitAsync(TimeSpan.FromSeconds(3)).GetAwaiter().GetResult();
+                    if (actual != "toggle-routing")
+                        throw new InvalidOperationException("Linux shortcut IPC self-test failed.");
+                }
+                Console.WriteLine("Linux GUI, Rust backend and user-local shortcut transport: OK");
                 return 0;
             }
             catch (Exception error)

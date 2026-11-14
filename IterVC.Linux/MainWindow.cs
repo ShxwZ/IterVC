@@ -16,6 +16,7 @@ namespace IterVC.Linux;
 internal sealed class MainWindow : Window
 {
     private readonly LinuxAudioBackend _audio = new();
+    private ShortcutControlServer? _shortcuts;
     private readonly ComboBox _microphone = new() { MinWidth = 360 };
     private readonly ComboBox _speakers = new() { MinWidth = 360 };
     private readonly CheckBox _monitor = new();
@@ -80,11 +81,26 @@ internal sealed class MainWindow : Window
             FontSize = 11, TextWrapping = TextWrapping.Wrap
         });
         root.Children.Add(new TextBlock {
-            Text = L("Vista previa: aún no incluye mezcla por aplicación ni atajos globales de Wayland.",
-                "Preview: application mixing and Wayland global shortcuts are not implemented yet."),
+            Text = L("Atajos globales X11/Wayland: configura comandos de teclado en tu escritorio: "
+                + "IterVC.Linux --toggle-routing y --toggle-monitor. La mezcla por aplicación sigue pendiente.",
+                "Global X11/Wayland shortcuts: configure desktop keyboard commands "
+                + "IterVC.Linux --toggle-routing and --toggle-monitor. Application mixing is still pending."),
             FontSize = 11, TextWrapping = TextWrapping.Wrap
         });
         Content = new ScrollViewer { Content = root };
+        try
+        {
+            _shortcuts = new ShortcutControlServer(command => Dispatcher.UIThread.Post(async () =>
+            {
+                if (command == "toggle-routing")
+                {
+                    if (_running) await StopAsync(); else await StartAsync();
+                }
+                else if (command == "toggle-monitor" && !_running)
+                    _monitor.IsChecked = _monitor.IsChecked != true;
+            }));
+        }
+        catch (Exception error) { _status.Text = error.Message; }
 
         _monitor.Checked += (_, _) => _speakers.IsEnabled = !_running;
         _monitor.Unchecked += (_, _) => _speakers.IsEnabled = false;
@@ -189,7 +205,7 @@ internal sealed class MainWindow : Window
 
     private async void OnClosing(object? sender, WindowClosingEventArgs e)
     {
-        if (_closing) { _audio.Dispose(); return; }
+        if (_closing) { _shortcuts?.Dispose(); _audio.Dispose(); return; }
         e.Cancel = true;
         _closing = true;
         await StopAsync();

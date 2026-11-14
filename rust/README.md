@@ -41,12 +41,23 @@ virtual microphone, optionally mirrors the exact same PCM samples to selected
 speakers, and displays the microphone level from the Rust audio worker.
 The monitor option is disabled by default to prevent audio feedback.
 
-**Shortcuts in this preview are window-focused only**: Ctrl+Shift+R toggles
-routing; Ctrl+Shift+M toggles microphone monitoring when idle. Windows Raw
-Input shortcuts cannot be reused on Linux. X11 system-wide bindings and the
-Wayland `org.freedesktop.portal.GlobalShortcuts` consent-based API are
-future work. This version is not yet feature-equivalent to Windows, including
-per-application mixing, OSC integration and all persisted preferences.
+**Shortcuts:** Ctrl+Shift+R toggles routing and Ctrl+Shift+M toggles
+monitoring when the window has focus. For **system-wide shortcuts on both
+X11 and Wayland**, configure two custom keyboard commands in your desktop's
+shortcut preferences, pointing to the downloaded executable:
+
+```sh
+/path/to/IterVC.Linux --toggle-routing
+/path/to/IterVC.Linux --toggle-monitor
+```
+
+These send short commands to a user-local Unix socket owned by the running GUI,
+so shortcuts work without intercepting arbitrary keyboard input or requiring
+root permissions. They must be registered in the desktop environment once,
+not through the Wayland portal. An automatic consent-based portal integration
+and customizable key combinations within IterVC remain future work.
+The preview is not yet feature-equivalent to Windows: per-application mixing,
+OSC integration and other persisted preferences are still pending.
 
 The desktop binary can be smoke-tested without a graphical session using
 `IterVC.Linux --self-test`; this checks that the embedded Rust backend
