@@ -18,7 +18,9 @@ internal static class Program
             return 1;
         }
 
-        var shortcut = args.FirstOrDefault(arg => arg is "--toggle-routing" or "--toggle-monitor");
+        var shortcut = args.FirstOrDefault(arg => arg is
+            "--toggle-routing" or "--start-routing" or "--stop-routing"
+            or "--toggle-monitor" or "--toggle-microphone" or "--toggle-applications-mute");
         if (shortcut is not null)
         {
             try
