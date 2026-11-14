@@ -43,6 +43,15 @@ or Rust. The runner verifies extraction, executable permissions and `--self-test
 Alternatively, download **IterVC-Linux-Desktop-portable-x64**, manually mark
 the extracted executable as executable (`chmod +x IterVC.Linux`) and run it.
 
+The window now reuses the original Windows desktop's semantic dark palette
+directly from its Avalonia resources, with the two-column applications/settings
+layout, status pills and the original Devices / Mix / Noise Gate / OSC / Settings
+tab organization. Controls are connected to the Linux Rust/PipeWire backend,
+not Windows-only NAudio services. Per-application meters and automatic
+noise-gate calibration remain unimplemented on Linux rather than displayed
+with invented readings. Desktop language changes are saved and applied on
+restart.
+
 The window offers microphone gain, boost and optional noise gate, plus
 multiple explicitly selected active applications and independent app-mix volume.
 The **same final mixed output** feeds the virtual microphone, optional
