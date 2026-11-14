@@ -73,6 +73,10 @@ if [ "$ready" != 1 ]; then
   exit 1
 fi
 
+# Keep this isolated test session deterministic: disable WirePlumber's
+# per-stream saved destination restoration, which may overwrite a requested
+# move when reusing client stream identifiers on shared CI runners.
+wpctl settings stream.restore-target false
 test_sink_module="$(pactl load-module module-null-sink sink_name=itervc_ci_audio_sink)"
 test_source_module="$(pactl load-module module-remap-source master=itervc_ci_audio_sink.monitor source_name=itervc_ci_test_microphone)"
 
