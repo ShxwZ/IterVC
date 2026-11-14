@@ -19,14 +19,8 @@ if (-not (Get-Command cargo -ErrorAction SilentlyContinue) -or
 rustup target add $target
 if ($LASTEXITCODE -ne 0) { throw 'Could not install Rust Windows MSVC target.' }
 
-cargo build --locked --manifest-path $manifest --release --target $target
-if ($LASTEXITCODE -ne 0) {
-    # Initial checkouts have no Cargo.lock yet; use the pinned crate version to generate it.
-    if (-not (Test-Path (Join-Path $nativeProject 'Cargo.lock'))) {
-        cargo build --manifest-path $manifest --release --target $target
-    }
-    if ($LASTEXITCODE -ne 0) { throw 'RNNoise native build failed.' }
-}
+cargo build --manifest-path $manifest --release --target $target
+if ($LASTEXITCODE -ne 0) { throw 'RNNoise native build failed.' }
 
 if (-not (Test-Path -LiteralPath $nativeBinary -PathType Leaf)) {
     throw "RNNoise native library missing: $nativeBinary"
