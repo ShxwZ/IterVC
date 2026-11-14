@@ -7,13 +7,12 @@ public sealed partial class SettingsPanel : UserControl
     public SettingsPanel()
     {
         InitializeComponent();
-        SettingsTabs.SelectionChanged += CancelCaptureOutsideSettingsTab;
+        SettingsTabs.TabSelectionChanged += CancelCaptureOutsideSettingsTab;
     }
 
     private void CancelCaptureOutsideSettingsTab(object? sender, SelectionChangedEventArgs e)
     {
-        if (sender is TabControl { SelectedItem: var selected }
-            && !ReferenceEquals(selected, SettingsTab)
+        if (!SettingsTabs.PreferencesSelected
             && ShortcutCapture?.Hotkeys is { RecordingAction: not null })
             ShortcutCapture.CancelCapture();
     }
