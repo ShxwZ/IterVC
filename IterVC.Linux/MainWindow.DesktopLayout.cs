@@ -29,6 +29,8 @@ internal sealed partial class MainWindow
     private readonly IterVC.UI.CompactAudioMeter _micOutputMeter = new();
     private readonly IterVC.UI.CompactAudioMeter _gateOutputMeter = new();
     private readonly Button _calibrateGate = new();
+    private readonly CheckBox _autoStart = new();
+    private bool _updatingAutoStart;
     private double _lastMicInputDb = -80.0;
     private bool _gateCalibrating;
 
@@ -153,6 +155,26 @@ internal sealed partial class MainWindow
         _calibrateGate.Content = L("Calibrar ruido ambiente", "Calibrate ambient noise");
         StyleAction(_calibrateGate);
         _calibrateGate.Click += async (_, _) => await CalibrateGateAsync();
+        _autoStart.Content = L("Iniciar IterVC al iniciar sesión",
+            "Launch IterVC when logging in");
+        _autoStart.IsChecked = LinuxAutoStart.IsRegistered();
+        _autoStart.IsCheckedChanged += (_, _) =>
+        {
+            if (_updatingAutoStart) return;
+            try
+            {
+                LinuxAutoStart.SetRegistered(_autoStart.IsChecked == true);
+                _status.Text = L("Inicio automático actualizado.", "Autostart updated.");
+            }
+            catch (Exception error)
+            {
+                _updatingAutoStart = true;
+                try { _autoStart.IsChecked = LinuxAutoStart.IsRegistered(); }
+                finally { _updatingAutoStart = false; }
+                _status.Text = L("No se pudo configurar el inicio automático: ",
+                    "Unable to change autostart: ") + error.Message;
+            }
+        };
 
         var status = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 9,
             VerticalAlignment = VerticalAlignment.Center };
@@ -265,6 +287,11 @@ internal sealed partial class MainWindow
             ));
         settings.Preferences = ScrollableTab(
             Vertical(
+                Label(L("Inicio de sesión", "Startup"), 12, "TextStrongBrush", true),
+                _autoStart,
+                Label(L("El inicio automático depende de que el escritorio soporte la especificación XDG.",
+                    "Autostart requires a desktop environment supporting XDG autostart."),
+                    10, "TextSubtleBrush"),
                 _minimizeToTray,
                 Label(L("Comportamiento al cerrar", "Close behavior"), 12, "TextStrongBrush", true),
                 CloseSettingsControls(),
