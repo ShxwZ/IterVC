@@ -1,5 +1,6 @@
 using Avalonia;
 using System.Diagnostics;
+using IterVC.Core.Settings;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Themes.Fluent;
 
@@ -63,7 +64,30 @@ internal static class Program
                     if (actual != "toggle-routing")
                         throw new InvalidOperationException("Linux shortcut IPC self-test failed.");
                 }
-                Console.WriteLine("Linux GUI, Rust backend and user-local shortcut transport: OK");
+                var settingsDirectory = Path.Combine(Path.GetTempPath(),
+                    $"itervc-linux-settings-selftest-{Guid.NewGuid():N}");
+                try
+                {
+                    var store = new LinuxSettingsStore(Path.Combine(settingsDirectory, "settings.json"));
+                    store.Save(new AppSettings {
+                        MicrophoneDeviceId = "alsa_input.test",
+                        OutputDeviceId = "alsa_output.test",
+                        MonitorMicrophone = true
+                    });
+                    var loaded = store.Load();
+                    if (loaded.MicrophoneDeviceId != "alsa_input.test" ||
+                        loaded.OutputDeviceId != "alsa_output.test" || !loaded.MonitorMicrophone)
+                        throw new InvalidOperationException("Linux settings round-trip test failed.");
+                    File.WriteAllText(Path.Combine(settingsDirectory, "settings.json"), "{invalid");
+                    if (store.Load().MicrophoneDeviceId is not null)
+                        throw new InvalidOperationException("Corrupted settings did not recover safely.");
+                }
+                finally
+                {
+                    if (Directory.Exists(settingsDirectory))
+                        Directory.Delete(settingsDirectory, recursive: true);
+                }
+                Console.WriteLine("Linux GUI, Rust audio, shortcuts and shared settings: OK");
                 return 0;
             }
             catch (Exception error)

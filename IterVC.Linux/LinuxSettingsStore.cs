@@ -9,9 +9,14 @@ namespace IterVC.Linux;
 /// </summary>
 internal sealed class LinuxSettingsStore
 {
-    private readonly string _settingsPath = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "IterVC", "settings.json");
+    private readonly string _settingsPath;
+
+    public LinuxSettingsStore(string? settingsPath = null)
+    {
+        _settingsPath = settingsPath ?? Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "IterVC", "settings.json");
+    }
 
     public AppSettings Load()
     {
