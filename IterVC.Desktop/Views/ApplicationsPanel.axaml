@@ -42,15 +42,14 @@
 			<Setter Property="Opacity" Value="0.45" />
 		</Style>
 	</UserControl.Styles>
-				<Border Background="{DynamicResource SurfaceBaseBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}"
-					BorderThickness="1" CornerRadius="8" Padding="16">
-					<Grid RowDefinitions="Auto,*,Auto">
-						<StackPanel Grid.Row="0" Margin="0,0,0,12">
-							<TextBlock Text="{Binding Texts.CardAppsTitle}" FontWeight="Bold"
-								FontSize="12" Foreground="{DynamicResource TextSecondaryBrush}" />
-							<TextBlock Text="{Binding Texts.CardAppsHelp}" Foreground="{DynamicResource TextSubtleBrush}"
-								FontSize="11" TextWrapping="Wrap" Margin="0,2,0,8" />
-							<Button Classes="application-mute active"
+    <!-- The Windows VM supplies native actions and data, but both desktop
+         platforms render this exact shared panel and app-card XAML. -->
+    <ui:DesktopApplicationsPanel
+         Title="{Binding Texts.CardAppsTitle}"
+         Help="{Binding Texts.CardAppsHelp}">
+      <ui:DesktopApplicationsPanel.Actions>
+        <StackPanel>
+          <Button Classes="application-mute active"
 								IsVisible="{Binding !AreApplicationsMuted}"
 								Command="{Binding ToggleApplicationsMuteCommand}"
 								ToolTip.Tip="{Binding Texts.ApplicationAudioMute}">
@@ -63,7 +62,7 @@
 										Foreground="{DynamicResource SuccessBrush}" VerticalAlignment="Center" />
 								</StackPanel>
 							</Button>
-							<Button Classes="application-mute inactive"
+          <Button Classes="application-mute inactive"
 								IsVisible="{Binding AreApplicationsMuted}"
 								Command="{Binding ToggleApplicationsMuteCommand}"
 								ToolTip.Tip="{Binding Texts.ApplicationAudioUnmute}">
@@ -76,11 +75,10 @@
 										Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
 								</StackPanel>
 							</Button>
-						</StackPanel>
-
-						<!-- Listado de Apps -->
-						<ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-							<ItemsControl ItemsSource="{Binding RunningApps}" Margin="3,0">
+        </StackPanel>
+      </ui:DesktopApplicationsPanel.Actions>
+      <ui:DesktopApplicationsPanel.ApplicationItems>
+        <ItemsControl ItemsSource="{Binding RunningApps}" Margin="3,0">
 								<ItemsControl.ItemTemplate>
 									<DataTemplate x:DataType="vm:AppAudioItemViewModel">
 <ui:ApplicationCard
@@ -96,14 +94,12 @@
 									</DataTemplate>
 								</ItemsControl.ItemTemplate>
 							</ItemsControl>
-						</ScrollViewer>
-
-						<!-- Consola de estado integrada abajo si se activa -->
-						<TextBox Grid.Row="3" Classes="status" Text="{Binding StatusMessage}"
+      </ui:DesktopApplicationsPanel.ApplicationItems>
+      <ui:DesktopApplicationsPanel.Status>
+        <TextBox Classes="status" Text="{Binding StatusMessage}"
 							IsReadOnly="True" TextWrapping="Wrap" AcceptsReturn="True"
-							MaxHeight="55" Margin="0,12,0,0"
+							MaxHeight="55"
 							IsVisible="{Binding StatusMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-					</Grid>
-				</Border>
-
+      </ui:DesktopApplicationsPanel.Status>
+    </ui:DesktopApplicationsPanel>
 </UserControl>
