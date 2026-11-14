@@ -43,4 +43,16 @@ if ! kill -0 "$gui_pid" 2>/dev/null; then
   echo "IterVC Linux crashed after shortcut IPC" >&2
   exit 1
 fi
-echo "Avalonia X11 window, focused routing hotkey and IPC controls: passed."
+# Explicit --exit must bypass the optional "ask when closing" dialog.
+# Otherwise scripts and desktop launchers cannot terminate IterVC cleanly.
+"$binary" --exit
+exited=0
+for _ in $(seq 1 60); do
+  if ! kill -0 "$gui_pid" 2>/dev/null; then exited=1; break; fi
+  sleep 0.1
+done
+if [ "$exited" != 1 ]; then
+  echo "Explicit --exit did not terminate the Avalonia GUI" >&2
+  exit 1
+fi
+echo "Avalonia X11 window, focused routing hotkey, IPC controls and clean exit: passed."
