@@ -22,6 +22,9 @@ internal sealed class MainWindow : Window
     private ShortcutControlServer? _shortcuts;
     private readonly ComboBox _microphone = new() { MinWidth = 360 };
     private readonly ComboBox _speakers = new() { MinWidth = 360 };
+    private readonly CheckBox _includeApplication = new();
+    private readonly ComboBox _applications = new() { MinWidth = 360 };
+    private readonly Slider _applicationVolume = new() { Minimum = 0, Maximum = 1, Width = 250 };
     private readonly CheckBox _monitor = new();
     private readonly Button _refresh = new();
     private readonly Button _start = new();
@@ -42,10 +45,15 @@ internal sealed class MainWindow : Window
         Title = "IterVC — Linux (PipeWire)";
         Width = 600;
         MinWidth = 500;
-        Height = 520;
-        MinHeight = 460;
+        Height = 640;
+        MinHeight = 540;
         _monitor.Content = L("Monitorizar micrófono (opcional)", "Monitor microphone (optional)");
         _monitor.IsChecked = _settings.MonitorMicrophone;
+        _includeApplication.Content = L("Mezclar audio de una aplicación", "Mix an application's audio");
+        _includeApplication.IsChecked = _settings.IncludedProcessNames.Count > 0;
+        _applicationVolume.Value = Math.Clamp(_settings.AppsVolume, 0, 1);
+        _applications.IsEnabled = _includeApplication.IsChecked == true;
+        _applicationVolume.IsEnabled = _includeApplication.IsChecked == true;
         _refresh.Content = L("Actualizar dispositivos", "Refresh devices");
         _start.Content = L("Iniciar enrutamiento", "Start routing");
         _stop.Content = L("Detener", "Stop");
@@ -72,6 +80,17 @@ internal sealed class MainWindow : Window
         root.Children.Add(_monitor);
         root.Children.Add(new TextBlock { Text = L("Salida para escuchar el micrófono", "Speaker output for monitoring") });
         root.Children.Add(_speakers);
+        root.Children.Add(new TextBlock { Text = L("Audio por aplicación", "Application audio"),
+            FontWeight = Avalonia.Media.FontWeight.SemiBold });
+        root.Children.Add(_includeApplication);
+        root.Children.Add(_applications);
+        root.Children.Add(new TextBlock { Text = L("Volumen en la mezcla virtual",
+            "Volume in the virtual microphone mix") });
+        root.Children.Add(_applicationVolume);
+        root.Children.Add(new TextBlock { Text = L(
+            "La aplicación seleccionada seguirá escuchándose por sus altavoces originales.",
+            "The selected application will continue playing through its original speakers."),
+            FontSize = 11, TextWrapping = TextWrapping.Wrap });
 
         var controls = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
         controls.Children.Add(_start);
@@ -88,9 +107,9 @@ internal sealed class MainWindow : Window
         });
         root.Children.Add(new TextBlock {
             Text = L("Atajos globales X11/Wayland: configura comandos de teclado en tu escritorio: "
-                + "IterVC.Linux --toggle-routing y --toggle-monitor. La mezcla por aplicación sigue pendiente.",
+                + "IterVC.Linux --toggle-routing y --toggle-monitor.",
                 "Global X11/Wayland shortcuts: configure desktop keyboard commands "
-                + "IterVC.Linux --toggle-routing and --toggle-monitor. Application mixing is still pending."),
+                + "IterVC.Linux --toggle-routing and --toggle-monitor."),
             FontSize = 11, TextWrapping = TextWrapping.Wrap
         });
         Content = new ScrollViewer { Content = root };
@@ -112,6 +131,20 @@ internal sealed class MainWindow : Window
         _monitor.Unchecked += (_, _) => { _speakers.IsEnabled = false; SavePreferences(); };
         _microphone.SelectionChanged += (_, _) => SavePreferences();
         _speakers.SelectionChanged += (_, _) => SavePreferences();
+        _includeApplication.Checked += (_, _) => {
+            _applications.IsEnabled = !_running;
+            _applicationVolume.IsEnabled = !_running;
+            SavePreferences();
+        };
+        _includeApplication.Unchecked += (_, _) => {
+            _applications.IsEnabled = false;
+            _applicationVolume.IsEnabled = false;
+            SavePreferences();
+        };
+        _applications.SelectionChanged += (_, _) => SavePreferences();
+        _applicationVolume.PropertyChanged += (_, args) => {
+            if (args.Property.Name == nameof(Slider.Value)) SavePreferences();
+        };
         _refresh.Click += async (_, _) => await RefreshAsync();
         _start.Click += async (_, _) => await StartAsync();
         _stop.Click += async (_, _) => await StopAsync();
@@ -140,6 +173,7 @@ internal sealed class MainWindow : Window
             var outputs = (await _audio.QueryAsync("--list-outputs"))
                 .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                 .Where(item => !item.StartsWith("No ", StringComparison.Ordinal)).ToArray();
+            var applications = ApplicationStreamCatalog.Parse(await _audio.QueryAsync("--list-apps"));
             _loadingPreferences = true;
             try
             {
@@ -150,6 +184,10 @@ internal sealed class MainWindow : Window
                 _speakers.SelectedItem = outputs.FirstOrDefault(item => item == _settings.OutputDeviceId)
                     ?? outputs.FirstOrDefault();
                 _speakers.IsEnabled = !_running && _monitor.IsChecked == true;
+                _applications.ItemsSource = applications;
+                _applications.SelectedItem = applications.FirstOrDefault(item =>
+                    _settings.IncludedProcessNames.Contains(item.Name)) ?? applications.FirstOrDefault();
+                _applications.IsEnabled = !_running && _includeApplication.IsChecked == true;
             }
             finally { _loadingPreferences = false; }
             _status.Text = inputs.Length == 0
@@ -166,6 +204,10 @@ internal sealed class MainWindow : Window
         _settings.MicrophoneDeviceId = _microphone.SelectedItem as string;
         _settings.OutputDeviceId = _speakers.SelectedItem as string;
         _settings.MonitorMicrophone = _monitor.IsChecked == true;
+        _settings.IncludedProcessNames = _includeApplication.IsChecked == true &&
+            _applications.SelectedItem is ApplicationStream selectedApp
+            ? new List<string> { selectedApp.Name } : new List<string>();
+        _settings.AppsVolume = (float)_applicationVolume.Value;
         try { _settingsStore.Save(_settings); }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException)
         {
@@ -189,9 +231,17 @@ internal sealed class MainWindow : Window
             _status.Text = L("Selecciona unos altavoces para monitorizar.", "Choose speaker output for monitoring.");
             return Task.CompletedTask;
         }
+        var selectedApp = _includeApplication.IsChecked == true
+            ? _applications.SelectedItem as ApplicationStream : null;
+        if (_includeApplication.IsChecked == true && selectedApp is null)
+        {
+            _status.Text = L("Selecciona una aplicación que esté reproduciendo sonido.",
+                "Select an application that is currently playing audio.");
+            return Task.CompletedTask;
+        }
         try
         {
-            _audio.Start(mic, speaker);
+            _audio.Start(mic, speaker, selectedApp?.Id, _applicationVolume.Value);
             SetRunning(true);
             _status.Text = L("Enrutando al micrófono virtual «IterVC Rust Microphone».",
                 "Routing to virtual microphone «IterVC Rust Microphone».");
@@ -231,6 +281,9 @@ internal sealed class MainWindow : Window
         _microphone.IsEnabled = !active;
         _monitor.IsEnabled = !active;
         _speakers.IsEnabled = !active && _monitor.IsChecked == true;
+        _includeApplication.IsEnabled = !active;
+        _applications.IsEnabled = !active && _includeApplication.IsChecked == true;
+        _applicationVolume.IsEnabled = !active && _includeApplication.IsChecked == true;
         if (!active) { _level.Value = 0; _levelText.Text = L("Micrófono detenido", "Microphone stopped"); }
     }
 
