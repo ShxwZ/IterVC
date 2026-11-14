@@ -176,6 +176,12 @@
 		<ui:DesktopSettingsTabs.Gate>
 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
 					<StackPanel Spacing="12" Margin="0,4,8,8">
+						<Border Background="{DynamicResource SurfaceRaisedBrush}" CornerRadius="6" Padding="10,8">
+							<StackPanel Spacing="5">
+								<CheckBox Content="{Binding Texts.NoiseSuppressionEnable}"
+								          IsChecked="{Binding Audio.NoiseGate.NoiseSuppressionEnabled}" />
+							</StackPanel>
+						</Border>
 						<CheckBox Content="{Binding Texts.NoiseGateEnable}"
 								  IsChecked="{Binding Audio.NoiseGate.IsEnabled}" />
 

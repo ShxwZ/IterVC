@@ -27,11 +27,18 @@ jobs:
         with:
           dotnet-version: "8.0.x"
 
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
       - name: Show .NET environment
         shell: pwsh
         run: |
           dotnet --version
           dotnet --info
+          cargo --version
+          rustc --version
 
       - name: Restore dependencies
         run: >
