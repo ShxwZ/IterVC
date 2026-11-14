@@ -20,6 +20,7 @@ wireplumber >"$test_dir/wireplumber.log" 2>&1 &
 session_manager_pid="$!"
 app_pid=""
 pulse_app_pid=""
+pulse_app_2_pid=""
 test_sink_module=""
 test_source_module=""
 
@@ -27,6 +28,10 @@ cleanup() {
   if [ -n "$app_pid" ]; then
     kill -TERM "$app_pid" 2>/dev/null || true
     wait "$app_pid" 2>/dev/null || true
+  fi
+  if [ -n "$pulse_app_2_pid" ]; then
+    kill -TERM "$pulse_app_2_pid" 2>/dev/null || true
+    wait "$pulse_app_2_pid" 2>/dev/null || true
   fi
   if [ -n "$pulse_app_pid" ]; then
     kill -TERM "$pulse_app_pid" 2>/dev/null || true
@@ -169,5 +174,58 @@ if pactl list short sinks | grep -q "itervc_rust_apps_sink"; then
   exit 1
 fi
 cat "$test_dir/app-session.log"
-echo "Real PipeWire virtual mic and selected app capture/restore tests passed."
+# Verify two independent application sink-inputs can be selected together
+# without duplicating playback through their shared original speaker.
+pacat --playback --raw --format=float32le --rate=48000 --channels=2 \
+  --device=itervc_ci_audio_sink </dev/zero >"$test_dir/pacat2.log" 2>&1 &
+pulse_app_2_pid="$!"
+stream_2_id=""
+for _ in $(seq 1 50); do
+  stream_2_id="$(pactl list short sink-inputs | awk -v sink="$original_sink_id" -v first="$stream_id" '$2==sink && $1!=first {print $1; exit}')"
+  if [ -n "$stream_2_id" ]; then break; fi
+  if ! kill -0 "$pulse_app_2_pid" 2>/dev/null; then break; fi
+  sleep 0.1
+done
+if [ -z "$stream_2_id" ]; then
+  cat "$test_dir/pacat2.log" >&2
+  pactl list short sink-inputs >&2
+  echo "Second application stream was not created" >&2
+  exit 1
+fi
+
+"$app" --input itervc_ci_test_microphone \
+  --app-stream "$stream_id" --app-stream "$stream_2_id" \
+  --app-volume 0.8 --seconds 3 >"$test_dir/multi-app.log" 2>&1 &
+app_pid="$!"
+
+both_moved=0
+for _ in $(seq 1 45); do
+  capture_sink="$(pactl list short sinks | awk '$2=="itervc_rust_apps_sink" {print $1}')"
+  current_1="$(pactl list short sink-inputs | awk -v id="$stream_id" '$1==id {print $2}')"
+  current_2="$(pactl list short sink-inputs | awk -v id="$stream_2_id" '$1==id {print $2}')"
+  if [ -n "$capture_sink" ] && [ "$current_1" = "$capture_sink" ] && [ "$current_2" = "$capture_sink" ]; then
+    both_moved=1
+    break
+  fi
+  if ! kill -0 "$app_pid" 2>/dev/null; then break; fi
+  sleep 0.1
+done
+if [ "$both_moved" != 1 ]; then
+  cat "$test_dir/multi-app.log" >&2
+  pactl list short sink-inputs >&2
+  echo "Not all selected application streams were captured" >&2
+  exit 1
+fi
+wait "$app_pid"
+app_pid=""
+for id in "$stream_id" "$stream_2_id"; do
+  final_sink="$(pactl list short sink-inputs | awk -v stream="$id" '$1==stream {print $2}')"
+  if [ "$final_sink" != "$original_sink_id" ]; then
+    cat "$test_dir/multi-app.log" >&2
+    echo "Application $id was not restored to its original speaker" >&2
+    exit 1
+  fi
+done
+cat "$test_dir/multi-app.log"
+echo "Real PipeWire virtual mic and multi-app capture/restore tests passed."
 
