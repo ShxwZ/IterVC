@@ -59,6 +59,52 @@ pub fn should_restore(current_inputs: &str, route: &StreamRoute) -> bool {
         .any(|entry| entry.id == route.stream_id && entry.sink_id == route.capture_sink_id)
 }
 
+/// Extract a selected playback stream's PipeWire node name from pactl's
+/// human-readable listing. The command is run with LC_ALL=C by the caller.
+/// We never guess a node from an application's display name or PID.
+pub fn parse_pactl_node_name(text: &str, sink_input_id: u32) -> Option<String> {
+    let section = format!("Sink Input #{sink_input_id}");
+    let mut selected = false;
+    for line in text.lines() {
+        let trimmed = line.trim();
+        if trimmed.starts_with("Sink Input #") {
+            selected = trimmed == section;
+        } else if selected {
+            if let Some(value) = trimmed.strip_prefix("node.name =") {
+                let node = value.trim().trim_matches('"');
+                if !node.is_empty() {
+                    return Some(node.to_owned());
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Find matching 48 kHz stereo output ports without routing the original
+/// playback away from its current speakers. pw-link supports fan-out to
+/// multiple sinks. Refuse unknown layouts rather than guessing a connection.
+pub fn capture_ports(node_name: &str, output_ports: &str, input_ports: &str,
+    capture_sink_name: &str) -> Option<Vec<(String, String)>>
+{
+    let output: Vec<&str> = output_ports.lines().map(str::trim).collect();
+    let inputs: Vec<&str> = input_ports.lines().map(str::trim).collect();
+    let mut pairs = Vec::new();
+    for (channel, accepted) in [
+        ("playback_FL", ["output_FL", "output_AUX0"]),
+        ("playback_FR", ["output_FR", "output_AUX1"]),
+    ] {
+        let destination = format!("{capture_sink_name}:{channel}");
+        if !inputs.contains(&destination.as_str()) {
+            return None;
+        }
+        let source = accepted.iter().map(|suffix| format!("{node_name}:{suffix}"))
+            .find(|candidate| output.contains(&candidate.as_str()))?;
+        pairs.push((source, destination));
+    }
+    Some(pairs)
+}
+
 /// Read raw 48 kHz stereo float32 PCM from the app monitor. Send the
 /// gain-adjusted audio to IterVC's virtual microphone and the original audio
 /// to its previous output device. An unavailable speaker must not interrupt
@@ -168,6 +214,23 @@ mod tests {
             &mut virtual_output, &mut speaker, 0.0).unwrap();
         assert_eq!(speaker, original);
         assert_eq!(virtual_output, vec![0u8; original.len()]);
+    }
+
+    #[test]
+    fn port_selection_keeps_physical_routes_untouched() {
+        let pactl = "Sink Input #11\n  Properties:\n    node.name = \"Music App\"\n\
+                     Sink Input #22\n  Properties:\n    node.name = \"Chat App\"\n";
+        assert_eq!(parse_pactl_node_name(pactl, 11).as_deref(), Some("Music App"));
+        assert_eq!(parse_pactl_node_name(pactl, 22).as_deref(), Some("Chat App"));
+        assert_eq!(parse_pactl_node_name(pactl, 23), None);
+        let outputs = "Music App:output_FL\nMusic App:output_FR\nChat App:output_FL\n";
+        let inputs = "itervc_rust_apps_sink:playback_FL\nitervc_rust_apps_sink:playback_FR\n";
+        assert_eq!(capture_ports("Music App", outputs, inputs, "itervc_rust_apps_sink").unwrap(),
+            vec![
+                ("Music App:output_FL".into(), "itervc_rust_apps_sink:playback_FL".into()),
+                ("Music App:output_FR".into(), "itervc_rust_apps_sink:playback_FR".into())
+            ]);
+        assert!(capture_ports("Chat App", outputs, inputs, "itervc_rust_apps_sink").is_none());
     }
 
     #[test]
