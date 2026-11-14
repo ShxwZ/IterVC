@@ -14,9 +14,9 @@ justify adopting it in the existing .NET runtime.
   ABI for a **future** managed wrapper. The C ABI requires externally serialized
   access. One frame is `channels * bytes_per_sample`; only full frames are
   stored. On overflow the **oldest** frames are discarded.
-- `linux-pipewire`: small **Linux command-line proof of concept**. It uses
-  the Rust ring and PipeWire's tools to capture a selected microphone and
-  publish a temporary virtual microphone. No sound processing/gating yet.
+- `linux-pipewire`: Linux backend with a Rust PCM buffer, optional
+  microphone gate/gain and single-application capture. The final virtual
+  microphone monitor and meter see the post-mix signal.
 
 ## Build and test (Linux)
 
@@ -32,14 +32,24 @@ The Linux GitHub Actions workflow publishes **IterVC-Linux-Desktop-portable-x64*
 a self-contained Avalonia GUI containing the compiled Rust audio backend as
 an embedded resource. You do not need the .NET SDK or Rust to launch it.
 
-Requirements on the Linux computer: a user PipeWire session, `pw-cat`,
-`pipewire-pulse`, and `pactl`. VB-Cable is Windows-specific and **is not
-required**. Set the downloaded `IterVC.Linux` binary executable and run it.
+Requirements on Linux: a PipeWire session, `pw-cat`, `pipewire-pulse`,
+`pactl` and running **WirePlumber**. `playerctl` is optional for OSC
+music chatbox. VB-Cable is Windows-specific and **is not required**.
+Mark the downloaded `IterVC.Linux` binary executable and run it.
 
-The window lists physical microphones, lets you create a temporary PipeWire
-virtual microphone, optionally mirrors the exact same PCM samples to selected
-speakers, and displays the microphone level from the Rust audio worker.
-The monitor option is disabled by default to prevent audio feedback.
+The window offers microphone gain, boost and optional noise gate, plus
+one explicitly selected active application's audio and independent app volume.
+The **same final mixed output** feeds the virtual microphone, optional
+speaker monitoring and the level meter. Monitoring is disabled by default.
+
+Selected application audio is temporarily moved to a dedicated capture sink.
+A copy is replayed to the application's original speakers, and a separate
+volume-adjusted copy is mixed into the virtual microphone. The original route
+is restored on normal exit, unless the user changed it in the meantime.
+After SIGKILL or power loss you may need to restore the output manually.
+
+Optional VRChat OSC chatbox music status uses MPRIS metadata via `playerctl`
+and UDP port 9000 on localhost.
 
 **Shortcuts:** Ctrl+Shift+R toggles routing and Ctrl+Shift+M toggles
 monitoring when the window has focus. For **system-wide shortcuts on both
@@ -59,8 +69,10 @@ so shortcuts work without intercepting arbitrary keyboard input or requiring
 root permissions. They must be registered in the desktop environment once,
 not through the Wayland portal. An automatic consent-based portal integration
 and customizable key combinations within IterVC remain future work.
-The preview is not yet feature-equivalent to Windows: per-application mixing,
-OSC integration and other persisted preferences are still pending.
+The preview is not yet fully feature-equivalent to Windows: multi-app
+dynamic stream discovery, RNNoise (separate PR #32), system tray,
+Wayland desktop-portal shortcut registration and complete media controls
+still need further development.
 
 The desktop binary can be smoke-tested without a graphical session using
 `IterVC.Linux --self-test`; this checks that the embedded Rust backend
@@ -77,6 +89,13 @@ runtime dependencies only for the prototype, not for Windows.
 ./rust/target/release/itervc-linux-pipewire --list-inputs
 ./rust/target/release/itervc-linux-pipewire \
   --input alsa_input.your_actual_microphone_node --seconds 30
+
+# Optional: capture a selected application alongside the microphone.
+./rust/target/release/itervc-linux-pipewire --list-apps
+./rust/target/release/itervc-linux-pipewire \
+  --input alsa_input.your_actual_microphone_node \
+  --app-stream YOUR_ACTIVE_STREAM_ID --app-volume 0.8 \
+  --mic-volume 1 --noise-gate --gate-threshold -45 --seconds 30
 ```
 
 The microphone source must appear under `--list-inputs`; monitor and
@@ -94,10 +113,9 @@ SIGINT/SIGTERM. If the process is forcibly killed, remove any leftover
 modules with `pactl list short modules` and `pactl unload-module ID`.
 
 **Important:** specify a *physical* input, not the virtual source, to avoid
-feedback loops. This experiment routes only the physical microphone. It
-does not yet capture application streams, preserve the full IterVC mixed
-output, apply the existing noise gate or RNNoise, monitor locally, or provide
-an Avalonia UI on Linux. There is no sound-quality or latency guarantee.
+feedback loops. Application capture currently supports one explicitly
+selected active sink-input and relies on WirePlumber and pipewire-pulse.
+There is no sound-quality or latency guarantee on unverified hardware.
 
 ## Future integration gates
 
@@ -105,11 +123,9 @@ an Avalonia UI on Linux. There is no sound-quality or latency guarantee.
    occupancy, overflows, underflows, CPU and tail latency under load.
 2. Introduce a platform-neutral capture/routing layer in .NET; implement
    Windows with existing WASAPI and Linux with PipeWire nodes.
-3. Publish *one* post-processing microphone stream to both Linux virtual
-   microphone and local monitoring, keeping the meters at the same point.
-4. Support app sources per PipeWire node/stream (a Linux PID is not equivalent
-   to Windows' process-loopback semantics), manage device changes, and
-   integrate existing preferences/OSC/hotkeys/GUI.
+3. Integrate RNNoise on Linux once the separate PR #32 passes listening tests.
+4. Expand single-app routing into multiple dynamic PipeWire streams, device
+   hotplug handling, portal shortcuts and complete desktop/OSC parity.
 5. Manually test real Linux sessions (X11/Wayland + WirePlumber) and Windows
    10/11 hardware, in addition to CI. No deployment before those checks.
 
@@ -118,10 +134,10 @@ RNNoise PR #32.
 
 ## CI with a real headless PipeWire server
 
-In addition to Rust unit tests and simulated commands, Linux CI runs actual
-`pipewire` and `pipewire-pulse` processes. It creates a synthetic input via
-built-in modules, checks that IterVC's virtual microphone becomes available,
-and checks that all temporary devices are removed on exit.
+Alongside Rust unit tests, Linux CI runs actual `pipewire`,
+`pipewire-pulse` and `wireplumber` with a synthetic microphone and a
+real PulseAudio playback stream. It verifies app redirection to the capture
+sink, restoration to the original speakers and cleanup of temporary devices.
 
 This still does **not** verify a real physical microphone, real speaker audio,
 or the graphical UI under a Wayland/X11 desktop.
