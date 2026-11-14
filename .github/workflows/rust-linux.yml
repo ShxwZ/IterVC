@@ -25,6 +25,23 @@ jobs:
         run: cargo build --locked --manifest-path rust/Cargo.toml -p itervc-linux-pipewire --release
       - name: Smoke test Linux CLI without a PipeWire session
         run: ./rust/target/release/itervc-linux-pipewire --help
+      - name: Setup .NET 8 for Linux desktop preview
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Publish Linux portable desktop application
+        run: |
+          dotnet publish IterVC.Linux/IterVC.Linux.csproj -c Release -r linux-x64             --self-contained true -p:PublishSingleFile=true             -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugSymbols=false             -p:DebugType=None -o artifacts/linux-desktop
+          test -f artifacts/linux-desktop/IterVC.Linux
+      - name: Headless GUI/backend smoke test
+        run: ./artifacts/linux-desktop/IterVC.Linux --self-test
+      - name: Upload portable Linux desktop preview
+        uses: actions/upload-artifact@v4
+        with:
+          name: IterVC-Linux-Desktop-portable-x64
+          path: artifacts/linux-desktop/IterVC.Linux
+          if-no-files-found: error
+          retention-days: 7
       - name: Upload experimental Linux binary
         uses: actions/upload-artifact@v4
         with:

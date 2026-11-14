@@ -26,6 +26,32 @@ cargo build --locked --manifest-path rust/Cargo.toml -p itervc-linux-pipewire --
 ./rust/target/release/itervc-linux-pipewire --help
 ```
 
+## Linux desktop preview (portable, single executable)
+
+The Linux GitHub Actions workflow publishes **IterVC-Linux-Desktop-portable-x64**,
+a self-contained Avalonia GUI containing the compiled Rust audio backend as
+an embedded resource. You do not need the .NET SDK or Rust to launch it.
+
+Requirements on the Linux computer: a user PipeWire session, `pw-cat`,
+`pipewire-pulse`, and `pactl`. VB-Cable is Windows-specific and **is not
+required**. Set the downloaded `IterVC.Linux` binary executable and run it.
+
+The window lists physical microphones, lets you create a temporary PipeWire
+virtual microphone, optionally mirrors the exact same PCM samples to selected
+speakers, and displays the microphone level from the Rust audio worker.
+The monitor option is disabled by default to prevent audio feedback.
+
+**Shortcuts in this preview are window-focused only**: Ctrl+Shift+R toggles
+routing; Ctrl+Shift+M toggles microphone monitoring when idle. Windows Raw
+Input shortcuts cannot be reused on Linux. X11 system-wide bindings and the
+Wayland `org.freedesktop.portal.GlobalShortcuts` consent-based API are
+future work. This version is not yet feature-equivalent to Windows, including
+per-application mixing, OSC integration and all persisted preferences.
+
+The desktop binary can be smoke-tested without a graphical session using
+`IterVC.Linux --self-test`; this checks that the embedded Rust backend
+extracts and executes. GUI and real PipeWire audio require a Linux desktop.
+
 ## Manual PipeWire demonstration (Linux desktop)
 
 Requires a **running per-user PipeWire session**, `pipewire-pulse`, `pw-cat`

@@ -4,6 +4,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Layout;
+using Avalonia.Media;
 using Avalonia.Threading;
 
 namespace IterVC.Linux;
@@ -85,7 +86,8 @@ internal sealed class MainWindow : Window
         });
         Content = new ScrollViewer { Content = root };
 
-        _monitor.IsCheckedChanged += (_, _) => _speakers.IsEnabled = !_running && _monitor.IsChecked == true;
+        _monitor.Checked += (_, _) => _speakers.IsEnabled = !_running;
+        _monitor.Unchecked += (_, _) => _speakers.IsEnabled = false;
         _refresh.Click += async (_, _) => await RefreshAsync();
         _start.Click += async (_, _) => await StartAsync();
         _stop.Click += async (_, _) => await StopAsync();
