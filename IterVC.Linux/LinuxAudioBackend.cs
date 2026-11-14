@@ -13,6 +13,7 @@ internal sealed class LinuxAudioBackend : IDisposable
     private readonly string _directory;
     private readonly string _executable;
     private Process? _session;
+    private readonly SemaphoreSlim _gainWrite = new(1, 1);
     private bool _disposed;
 
     public LinuxAudioBackend()
@@ -108,6 +109,7 @@ internal sealed class LinuxAudioBackend : IDisposable
             process.StartInfo.ArgumentList.Add(gateThresholdDb.ToString("0.0", CultureInfo.InvariantCulture));
         }
         process.StartInfo.RedirectStandardError = true;
+        process.StartInfo.RedirectStandardInput = true;
         process.EnableRaisingEvents = true;
         process.ErrorDataReceived += (_, args) =>
         {
@@ -134,6 +136,31 @@ internal sealed class LinuxAudioBackend : IDisposable
             process.Dispose();
             throw;
         }
+    }
+
+    public Task SetMicrophoneVolumeAsync(double gain) =>
+        SetLiveVolumeAsync("mic-volume", gain, 3);
+
+    public Task SetApplicationVolumeAsync(double gain) =>
+        SetLiveVolumeAsync("app-volume", gain, 2);
+
+    private async Task SetLiveVolumeAsync(string target, double gain, double maximum)
+    {
+        ThrowIfDisposed();
+        if (!double.IsFinite(gain) || gain < 0 || gain > maximum)
+            throw new ArgumentOutOfRangeException(nameof(gain));
+        await _gainWrite.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            var process = _session;
+            if (process is null || process.HasExited)
+                throw new InvalidOperationException("The Linux microphone session is no longer running.");
+            await process.StandardInput.WriteLineAsync(
+                target + " " + gain.ToString("0.00000", CultureInfo.InvariantCulture))
+                .ConfigureAwait(false);
+            await process.StandardInput.FlushAsync().ConfigureAwait(false);
+        }
+        finally { _gainWrite.Release(); }
     }
 
     public async Task StopAsync()
@@ -186,6 +213,7 @@ internal sealed class LinuxAudioBackend : IDisposable
         if (_disposed) return;
         StopAsync().GetAwaiter().GetResult();
         _session?.Dispose();
+        _gainWrite.Dispose();
         try { Directory.Delete(_directory, recursive: true); }
         catch (IOException) { /* Cleanup may be deferred by the OS. */ }
         _disposed = true;

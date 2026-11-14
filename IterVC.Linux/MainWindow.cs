@@ -227,14 +227,30 @@ internal sealed class MainWindow : Window
             SavePreferences();
         };
         _applications.SelectionChanged += (_, _) => SavePreferences();
-        _applicationVolume.PropertyChanged += (_, args) => {
-            if (args.Property.Name == nameof(Slider.Value)) SavePreferences();
+        _applicationVolume.PropertyChanged += async (_, args) => {
+            if (args.Property.Name == nameof(Slider.Value))
+            {
+                SavePreferences();
+                if (_running && !_applicationMuted && _includeApplication.IsChecked == true)
+                {
+                    try { await _audio.SetApplicationVolumeAsync(_applicationVolume.Value); }
+                    catch (Exception error) { _status.Text = error.Message; }
+                }
+            }
         };
-        _microphoneVolume.PropertyChanged += (_, args) => {
-            if (args.Property.Name == nameof(Slider.Value)) SavePreferences();
+        _microphoneVolume.PropertyChanged += async (_, args) => {
+            if (args.Property.Name == nameof(Slider.Value))
+            {
+                SavePreferences();
+                await UpdateLiveMicrophoneVolumeAsync();
+            }
         };
-        _microphoneBoost.PropertyChanged += (_, args) => {
-            if (args.Property.Name == nameof(Slider.Value)) SavePreferences();
+        _microphoneBoost.PropertyChanged += async (_, args) => {
+            if (args.Property.Name == nameof(Slider.Value))
+            {
+                SavePreferences();
+                await UpdateLiveMicrophoneVolumeAsync();
+            }
         };
         _gateThreshold.PropertyChanged += (_, args) => {
             if (args.Property.Name == nameof(Slider.Value)) SavePreferences();
@@ -406,14 +422,33 @@ internal sealed class MainWindow : Window
         if (restart) await StartAsync();
     }
 
+    private async Task UpdateLiveMicrophoneVolumeAsync()
+    {
+        if (!_running || _microphoneMuted) return;
+        try
+        {
+            await _audio.SetMicrophoneVolumeAsync(
+                Math.Clamp(_microphoneVolume.Value * _microphoneBoost.Value, 0, 3));
+        }
+        catch (Exception error) { _status.Text = error.Message; }
+    }
+
     private async Task ToggleMicrophoneMuteAsync()
     {
-        var restart = _running;
-        if (restart && !await StopAsync()) return;
-        _microphoneMuted = !_microphoneMuted;
+        var nextMute = !_microphoneMuted;
+        if (_running)
+        {
+            try
+            {
+                var gain = nextMute ? 0.0
+                    : Math.Clamp(_microphoneVolume.Value * _microphoneBoost.Value, 0, 3);
+                await _audio.SetMicrophoneVolumeAsync(gain);
+            }
+            catch (Exception error) { _status.Text = error.Message; return; }
+        }
+        _microphoneMuted = nextMute;
         _settings.MicrophoneEnabled = !_microphoneMuted;
         SavePreferences();
-        if (restart) await StartAsync();
         _status.Text = _microphoneMuted
             ? L("Micrófono silenciado", "Microphone muted")
             : L("Micrófono activado", "Microphone unmuted");
@@ -422,10 +457,16 @@ internal sealed class MainWindow : Window
     private async Task ToggleApplicationMuteAsync()
     {
         if (_includeApplication.IsChecked != true) return;
-        var restart = _running;
-        if (restart && !await StopAsync()) return;
-        _applicationMuted = !_applicationMuted;
-        if (restart) await StartAsync();
+        var nextMute = !_applicationMuted;
+        if (_running)
+        {
+            try
+            {
+                await _audio.SetApplicationVolumeAsync(nextMute ? 0 : _applicationVolume.Value);
+            }
+            catch (Exception error) { _status.Text = error.Message; return; }
+        }
+        _applicationMuted = nextMute;
         _status.Text = _applicationMuted
             ? L("Audio de aplicaciones silenciado en la mezcla", "Application mix muted")
             : L("Audio de aplicaciones activado", "Application mix unmuted");
@@ -441,9 +482,11 @@ internal sealed class MainWindow : Window
         _speakers.IsEnabled = !active && _monitor.IsChecked == true;
         _includeApplication.IsEnabled = !active;
         _applications.IsEnabled = !active && _includeApplication.IsChecked == true;
-        _applicationVolume.IsEnabled = !active && _includeApplication.IsChecked == true;
-        _microphoneVolume.IsEnabled = !active;
-        _microphoneBoost.IsEnabled = !active;
+        // Gains can be adjusted live; gate configuration and app selection
+        // still require a restart so they remain locked during routing.
+        _applicationVolume.IsEnabled = _includeApplication.IsChecked == true;
+        _microphoneVolume.IsEnabled = true;
+        _microphoneBoost.IsEnabled = true;
         _gate.IsEnabled = !active;
         _gateThreshold.IsEnabled = !active && _gate.IsChecked == true;
         if (!active) { _level.Value = 0; _levelText.Text = L("Micrófono detenido", "Microphone stopped"); }
