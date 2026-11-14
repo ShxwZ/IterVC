@@ -16,6 +16,7 @@ pipewire_pid="$!"
 pipewire-pulse >"$test_dir/pipewire-pulse.log" 2>&1 &
 pulse_pid="$!"
 app_pid=""
+pulse_app_pid=""
 test_sink_module=""
 test_source_module=""
 
@@ -23,6 +24,10 @@ cleanup() {
   if [ -n "$app_pid" ]; then
     kill -TERM "$app_pid" 2>/dev/null || true
     wait "$app_pid" 2>/dev/null || true
+  fi
+  if [ -n "$pulse_app_pid" ]; then
+    kill -TERM "$pulse_app_pid" 2>/dev/null || true
+    wait "$pulse_app_pid" 2>/dev/null || true
   fi
   if [ -n "$test_source_module" ]; then
     pactl unload-module "$test_source_module" >/dev/null 2>&1 || true
@@ -84,4 +89,73 @@ if pactl list short sinks | grep -q "itervc_rust_sink"; then
 fi
 
 cat "$test_dir/session.log"
-echo "Real headless PipeWire virtual microphone lifecycle test passed."
+
+# Exercise a genuine PulseAudio playback stream through pipewire-pulse.
+# IterVC must capture the specifically selected sink-input, publish it to
+# the virtual microphone, keep speaker playback alive and restore the
+# original application output once it exits.
+if ! command -v pacat >/dev/null 2>&1; then
+  echo "pacat is required for the app routing integration test" >&2
+  exit 1
+fi
+original_sink_id="$(pactl list short sinks | awk '$2=="itervc_ci_audio_sink" {print $1}')"
+if [ -z "$original_sink_id" ]; then
+  echo "Missing original application speaker sink" >&2
+  exit 1
+fi
+
+pacat --playback --raw --format=float32le --rate=48000 --channels=2 \
+  --device=itervc_ci_audio_sink </dev/zero >"$test_dir/pacat.log" 2>&1 &
+pulse_app_pid="$!"
+
+stream_id=""
+for _ in $(seq 1 50); do
+  stream_id="$(pactl list short sink-inputs | awk -v sink="$original_sink_id" '$2==sink {print $1; exit}')"
+  if [ -n "$stream_id" ]; then break; fi
+  if ! kill -0 "$pulse_app_pid" 2>/dev/null; then break; fi
+  sleep 0.1
+done
+if [ -z "$stream_id" ]; then
+  cat "$test_dir/pacat.log" >&2
+  echo "Could not find synthetic PulseAudio application playback stream" >&2
+  exit 1
+fi
+
+"$app" --list-apps | grep -q "\"index\""
+"$app" --input itervc_ci_test_microphone --app-stream "$stream_id" --app-volume 0.75 \
+  --seconds 3 >"$test_dir/app-session.log" 2>&1 &
+app_pid="$!"
+
+moved=0
+for _ in $(seq 1 40); do
+  capture_sink="$(pactl list short sinks | awk '$2=="itervc_rust_apps_sink" {print $1}')"
+  current_sink="$(pactl list short sink-inputs | awk -v id="$stream_id" '$1==id {print $2}')"
+  if [ -n "$capture_sink" ] && [ "$current_sink" = "$capture_sink" ]; then
+    moved=1
+    break
+  fi
+  if ! kill -0 "$app_pid" 2>/dev/null; then break; fi
+  sleep 0.1
+done
+if [ "$moved" != 1 ]; then
+  cat "$test_dir/app-session.log" >&2
+  echo "Selected app was not captured by the isolated PipeWire sink" >&2
+  exit 1
+fi
+
+wait "$app_pid"
+app_pid=""
+
+restored_sink="$(pactl list short sink-inputs | awk -v id="$stream_id" '$1==id {print $2}')"
+if [ "$restored_sink" != "$original_sink_id" ]; then
+  cat "$test_dir/app-session.log" >&2
+  echo "Selected application was not returned to its original output" >&2
+  exit 1
+fi
+if pactl list short sinks | grep -q "itervc_rust_apps_sink"; then
+  echo "Temporary application capture sink was not removed" >&2
+  exit 1
+fi
+cat "$test_dir/app-session.log"
+echo "Real PipeWire virtual mic and selected app capture/restore tests passed."
+
