@@ -146,9 +146,10 @@ modules with `pactl list short modules` and `pactl unload-module ID`.
 
 **Important:** specify a *physical* input, not the virtual source, to avoid
 feedback loops. Selected playback streams are identified by unique PipeWire
-node and port IDs, **not** by display name alone or process ID. Only stereo
-streams with identifiable FL/FR ports are tapped; unsupported layouts fail
-without changing the original audio connections. There is no guarantee about
+node and port IDs, **not** by display name alone or process ID. Stereo streams with identifiable FL/FR ports and mono streams with
+a unique MONO port can be tapped; mono is centered into both channels of the
+virtual stereo mix. Ambiguous or other unsupported layouts fail without
+changing the application's original speaker connections. There is no guarantee about
 sound quality or latency on unverified hardware.
 
 

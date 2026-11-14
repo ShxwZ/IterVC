@@ -599,8 +599,10 @@ cat "$test_dir/app-session.log"
 
 # Verify two independent application sink-inputs can be selected together
 # without duplicating playback through their shared original speaker.
+# The second application is mono. IterVC must duplicate its sole
+# output port to both channels of the shared stereo capture sink.
 pacat --playback --device=itervc_ci_alt_audio_sink --raw --format=float32le \
-  --rate=48000 --channels=2 </dev/zero >"$test_dir/pacat2.log" 2>&1 &
+  --rate=48000 --channels=1 </dev/zero >"$test_dir/pacat2.log" 2>&1 &
 pulse_app_2_pid="$!"
 alternate_sink_id="$(pactl list short sinks | awk '$2=="itervc_ci_alt_audio_sink" {print $1; exit}')"
 if [ -z "$alternate_sink_id" ]; then
