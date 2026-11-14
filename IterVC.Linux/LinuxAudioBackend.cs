@@ -155,7 +155,6 @@ internal sealed class LinuxAudioBackend : IDisposable
     public async Task AddApplicationStreamAsync(uint streamId)
     {
         ThrowIfDisposed();
-        if (streamId == 0) throw new ArgumentOutOfRangeException(nameof(streamId));
         await _gainWrite.WaitAsync().ConfigureAwait(false);
         try
         {

@@ -89,7 +89,6 @@ fn parse_args(args: impl IntoIterator<Item = String>) -> Result<Mode, String> {
                 include_apps = true;
                 let raw = args.next().ok_or("Missing stream id after --app-stream")?;
                 let id = raw.parse::<u32>().map_err(|_| "Invalid app stream id")?;
-                if id == 0 { return Err("App stream ID must be positive".into()); }
                 if !app_streams.contains(&id) { app_streams.push(id); }
             }
             "--mic-volume" => {
@@ -730,7 +729,7 @@ fn parse_live_command(command: &str) -> Option<(GainTarget, f32)> {
     (0.0..=maximum).contains(&value).then_some((target, value))
 }
 
-/// App indices change when programs restart; only a valid positive ID is sent
+/// App indices change when programs restart; a valid zero-based ID is sent
 /// to the main thread, which owns all PipeWire link creation and cleanup.
 fn parse_add_app_command(command: &str) -> Option<u32> {
     let mut parts = command.split_whitespace();
@@ -738,7 +737,7 @@ fn parse_add_app_command(command: &str) -> Option<u32> {
         return None;
     }
     let id = parts.next()?.parse::<u32>().ok()?;
-    (id > 0 && parts.next().is_none()).then_some(id)
+    parts.next().is_none().then_some(id)
 }
 
 fn watch_live_controls(microphone: Arc<AtomicU32>, applications: Arc<AtomicU32>,
@@ -906,9 +905,10 @@ mod tests {
 
     #[test]
     fn app_hotplug_command_is_strict_and_cannot_modify_other_controls() {
+        assert_eq!(parse_add_app_command("add-app 0"), Some(0));
         assert_eq!(parse_add_app_command("add-app 42"), Some(42));
         assert_eq!(parse_add_app_command("add-app 400000"), Some(400000));
-        for bad in ["add-app", "add-app 0", "add-app -1", "add-app NaN",
+        for bad in ["add-app", "add-app -1", "add-app NaN",
             "add-app 23 24", "mic-volume 1", "add-app 9999999999999999"] {
             assert_eq!(parse_add_app_command(bad), None, "{bad}");
         }
@@ -971,7 +971,7 @@ mod tests {
                 app_streams: vec![], include_apps: true, app_volume: 0.5,
                 mic_volume: 1.0, gate_enabled: false, gate_threshold_db: -45.0 });
         assert!(parse(&["--list-apps", "--include-apps"]).is_err());
-        assert!(parse(&["--input", "mic", "--app-stream", "0"]).is_err());
+        assert!(parse(&["--input", "mic", "--app-stream", "0"]).is_ok());
     }
 
     #[test]
