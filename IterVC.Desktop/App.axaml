@@ -1,6 +1,6 @@
 <Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:controls="using:IterVC.Desktop.Views.Controls"
+             xmlns:ui="using:IterVC.UI"
              x:Class="IterVC.Desktop.App"
              RequestedThemeVariant="Dark">
 
@@ -48,7 +48,7 @@
 
   <Application.Styles>
     <FluentTheme />
-    <Style Selector="controls|CompactAudioMeter">
+    <Style Selector="ui|CompactAudioMeter">
       <Setter Property="TrackBrush" Value="{StaticResource SurfaceEmphasisBrush}" />
       <Setter Property="SafeLevelBrush" Value="{StaticResource SuccessBrush}" />
       <Setter Property="WarningLevelBrush" Value="{StaticResource WarningBrush}" />
