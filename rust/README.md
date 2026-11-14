@@ -23,6 +23,9 @@ justify adopting it in the existing .NET runtime.
 ```sh
 cargo test --locked --manifest-path rust/Cargo.toml --workspace --all-targets
 cargo build --locked --manifest-path rust/Cargo.toml -p itervc-linux-pipewire --release
+# Optional microphone suppression: build the SAME RNNoise crate as Windows.
+cargo build --manifest-path native/iter_vc_rnnoise/Cargo.toml --release
+cp native/iter_vc_rnnoise/target/release/libiter_vc_rnnoise.so rust/target/release/
 ./rust/target/release/itervc-linux-pipewire --help
 ```
 
@@ -47,9 +50,9 @@ The window now reuses the original Windows desktop's semantic dark palette
 directly from its Avalonia resources, with the two-column applications/settings
 layout, status pills and the original Devices / Mix / Noise Gate / OSC / Settings
 tab organization. Controls are connected to the Linux Rust/PipeWire backend,
-not Windows-only NAudio services. Per-application meters and automatic
-noise-gate calibration remain unimplemented on Linux rather than displayed
-with invented readings. Desktop language changes are saved and applied on
+not Windows-only NAudio services. Individual application meters are not yet supported, rather than displaying
+invented levels. Noise-gate calibration is implemented from the live physical
+microphone input independently of selected application playback. Desktop language changes are saved and applied on
 restart.
 
 Linux now supports live noise-gate enable, threshold and attack/release changes
@@ -58,6 +61,16 @@ calibrate the ambient threshold from the microphone's raw input meter; this
 measurement is independent of selected application audio. The input and
 post-gate microphone meters are reported separately from the virtual output
 mix meter.
+
+The Linux desktop now also includes the same opt-in RNNoise native model and
+engine as Windows. The original `native/iter_vc_rnnoise` crate builds a
+Linux `libiter_vc_rnnoise.so` which is embedded in the portable desktop and
+extracted to a private runtime directory. The Rust worker loads it only when
+suppression is enabled; it processes consecutive 10 ms / 48 kHz stereo frames
+**before** the microphone noise gate. Disabling suppression restores the
+ordinary direct PCM path; an unavailable or failed native processor reports a
+warning and leaves the microphone routing active. This is not a separately
+reimplemented Linux noise model.
 
 The window offers microphone gain, boost and optional noise gate, plus
 multiple explicitly selected active applications and independent app-mix volume.
@@ -77,8 +90,12 @@ sink may require manual removal using `pactl list short modules` and
 Optional VRChat OSC chatbox music status uses MPRIS metadata via `playerctl`
 and UDP port 9000 on localhost.
 
-**Shortcuts:** Ctrl+Shift+R toggles routing and Ctrl+Shift+M toggles
-monitoring when the window has focus. For **system-wide shortcuts on both
+**Shortcuts:** The settings page now allows enabling/disabling and editing
+focused-window hotkeys for start/stop, toggle routing, microphone mute and
+application mute, using the same `AppSettings` gesture fields as Windows.
+Ctrl+Shift+R toggles routing by default, and Ctrl+Shift+M toggles monitoring.
+Wayland compositors do not allow a normal application to intercept arbitrary
+global keys; for **system-wide shortcuts on both
 X11 and Wayland**, configure two custom keyboard commands in your desktop's
 shortcut preferences, pointing to the downloaded executable:
 
@@ -96,15 +113,19 @@ gain commands to the running Rust process over its stdin. They do **not**
 restart the PipeWire stream, disconnect selected applications or recreate the
 virtual microphone. For interactive CLI debugging, type `mic-volume 0.8`,
 `mic-volume 0`, `app-volume 0.5` or `app-volume 0` while running with
-`--seconds 0`. Invalid and non-finite values are ignored. The gate's
-activation and threshold still require restarting the session.
+`--seconds 0`. Invalid and non-finite values are ignored. Gate activation, threshold,
+attack and release are all live controls, and microphone suppression can be
+switched with `noise-suppression 1` or `noise-suppression 0` over the same IPC
+without recreating the PipeWire virtual microphone.
 
 
 These send short commands to a user-local Unix socket owned by the running GUI,
 so shortcuts work without intercepting arbitrary keyboard input or requiring
 root permissions. They must be registered in the desktop environment once,
-not through the Wayland portal. An automatic consent-based portal integration
-and customizable key combinations within IterVC remain future work.
+not through the Wayland portal. An automatic consent-based portal integration remains future work;
+focused-window customizable bindings are supported in the Settings tab.
+The same tab also offers a per-user XDG autostart registration (no root or
+system-wide startup hook), close behavior settings and tray preferences.
 The idle GUI refreshes its selectable application streams every four seconds,
 preserving saved selections when a player goes offline. When routing starts,
 the GUI resolves application names to current stream IDs, so a player closing
@@ -116,10 +137,12 @@ capture sink even if those applications are not running when routing starts;
 the GUI polls at intervals and only marks a new stream connected when Rust
 confirms its port links. Transient attachment failures are retried.
 
-The Linux preview is not yet fully feature-equivalent to Windows: RNNoise
-(separate PR #32), automatic native Wayland desktop-portal shortcut registration,
-complete physical-device hotplug recovery, and listening tests on real hardware
-are still pending.
+The Linux preview is not yet fully feature-equivalent to Windows: individual
+application audio meters, automatic native Wayland desktop-portal shortcut
+registration, Windows' full update-checking experience, complete physical-device
+hotplug recovery, and listening tests on real hardware are still pending.
+RNNoise has been integrated from the latest master, sharing Windows' native
+model, with automated Linux PipeWire smoke tests for live enable/disable.
 
 The desktop binary can be smoke-tested without a graphical session using
 `IterVC.Linux --self-test`; this checks that the embedded Rust backend
@@ -206,14 +229,15 @@ those links on shutdown.
    occupancy, overflows, underflows, CPU and tail latency under load.
 2. Introduce a platform-neutral capture/routing layer in .NET; implement
    Windows with existing WASAPI and Linux with PipeWire nodes.
-3. Integrate RNNoise on Linux once the separate PR #32 passes listening tests.
+3. Compare native RNNoise CPU usage and listening quality across the Windows
+   and Linux backends on representative real microphones.
 4. Extend the current selected-application auto-reconnection into robust
    device hotplug handling and consent-based portal shortcuts.
 5. Manually test real Linux sessions (X11/Wayland + WirePlumber) and Windows
    10/11 hardware, in addition to CI. No deployment before those checks.
 
-This proof of concept tracks issue #36 and does not incorporate unfinished
-RNNoise PR #32.
+This implementation tracks issue #36. The native RNNoise library merged into
+`master` is reused on Linux; it is not independently reimplemented.
 
 ## CI with a real headless PipeWire server
 
@@ -223,5 +247,6 @@ multiple real PulseAudio playback streams. It checks that the selected app
 ports are linked to the temporary capture sink while **their original
 speaker destinations remain unchanged**, and verifies cleanup on exit.
 
-This still does **not** verify a real physical microphone, real speaker audio,
-or the graphical UI under a Wayland/X11 desktop.
+The suite also starts the actual graphical UI under a virtual X11 display,
+but does **not** verify a real physical microphone, real speaker audio or a
+native Wayland desktop session.
