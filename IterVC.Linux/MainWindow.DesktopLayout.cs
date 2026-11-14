@@ -36,16 +36,6 @@ internal sealed partial class MainWindow
         FontWeight = bold ? FontWeight.SemiBold : FontWeight.Normal
     };
 
-    private static Border Card(Control child, Thickness? padding = null) => new()
-    {
-        Background = C("SurfaceBaseBrush"),
-        BorderBrush = C("BorderSubtleBrush"),
-        BorderThickness = new Thickness(1),
-        CornerRadius = new CornerRadius(8),
-        Padding = padding ?? new Thickness(16),
-        Child = child
-    };
-
     private static Button ActionButton(string text, bool primary = false) => new()
     {
         Content = text,
@@ -133,33 +123,22 @@ internal sealed partial class MainWindow
         };
         headerActions.Children.Add(_languageSelector);
 
-        var apps = new Grid { RowDefinitions = new RowDefinitions("Auto,*,Auto") };
-        var appsHead = Vertical(
-            Label(L("Aplicaciones", "Applications"), 13, "TextStrongBrush", true),
-            _appListHelp,
-            _includeApplication);
-        appsHead.Spacing = 8;
-        _appListHelp.Text = L("Selecciona los programas que se mezclarán en el micrófono virtual.",
-            "Choose which applications should be mixed into the virtual microphone.");
         _includeApplication.Content = L("Mezclar audio de aplicaciones", "Mix application audio");
-        apps.Children.Add(appsHead);
-        var appScroll = new ScrollViewer {
-            Content = _appCards,
-            Margin = new Thickness(0, 10, 0, 6),
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
-        };
-        Grid.SetRow(appScroll, 1);
-        apps.Children.Add(appScroll);
-
-        var appsBottom = Vertical(_applications, _status);
-        _applications.IsVisible = false; // Selection backing store for the PipeWire controller.
+        _applications.IsVisible = false; // Backing selection for the PipeWire controller.
         _status.TextWrapping = TextWrapping.Wrap;
         _status.Foreground = C("TextMutedBrush");
         _status.FontSize = 11;
+        var appsBottom = Vertical(_applications, _status);
         appsBottom.Spacing = 5;
-        Grid.SetRow(appsBottom, 2);
-        apps.Children.Add(appsBottom);
-        var appsCard = Card(apps);
+        var appsCard = new IterVC.UI.DesktopApplicationsPanel
+        {
+            Title = L("Aplicaciones", "Applications"),
+            Help = L("Selecciona los programas que se mezclarán en el micrófono virtual.",
+                "Choose which applications should be mixed into the virtual microphone."),
+            Actions = _includeApplication,
+            ApplicationItems = _appCards,
+            Status = appsBottom
+        };
 
         var settings = new IterVC.UI.DesktopSettingsTabs {
             DevicesTitle = L("Dispositivos", "Devices"),
