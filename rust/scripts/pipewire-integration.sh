@@ -158,7 +158,7 @@ import sys
 with open(sys.argv[1], "w") as file:
     json.dump({
         "MicrophoneDeviceId": "itervc_ci_test_microphone",
-        "IncludedProcessNames": ["IterVC-CI-AutoApp"],
+        "IncludedProcessNames": ["PipeWireAutoTestPlayer"],
         "MicrophoneEnabled": True,
         "AppsVolume": 0.75
     }, file)
@@ -211,7 +211,7 @@ PY
   pactl set-default-sink itervc_ci_audio_sink
   gui_original_sink="$(pactl list short sinks | awk '$2=="itervc_ci_audio_sink" {print $1}')"
   pacat --playback --device=itervc_ci_audio_sink \
-    --client-name=IterVC-CI-AutoApp --stream-name=IterVC-CI-AutoApp \
+    --client-name=PipeWireAutoTestPlayer --stream-name=PipeWireAutoTestPlayer \
     --raw --format=float32le --rate=48000 --channels=2 \
     <"$test_dir/gui-autoapp.pcm" >"$test_dir/gui-autoapp.log" 2>&1 &
   gui_autoplay_pid="$!"
