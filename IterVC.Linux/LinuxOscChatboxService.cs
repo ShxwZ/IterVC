@@ -89,9 +89,10 @@ internal sealed class LinuxOscChatboxService : IDisposable
                 return null;
             return (await result).Trim();
         }
-        catch (OperationCanceledException) when (!token.IsCancellationRequested)
+        catch (OperationCanceledException)
         {
             if (!process.HasExited) process.Kill(entireProcessTree: true);
+            token.ThrowIfCancellationRequested();
             return null;
         }
     }

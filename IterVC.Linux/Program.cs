@@ -1,5 +1,6 @@
 using Avalonia;
 using System.Diagnostics;
+using System.Text;
 using IterVC.Core.Settings;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Themes.Fluent;
@@ -87,7 +88,12 @@ internal static class Program
                     if (Directory.Exists(settingsDirectory))
                         Directory.Delete(settingsDirectory, recursive: true);
                 }
-                Console.WriteLine("Linux GUI, Rust audio, shortcuts and shared settings: OK");
+                var packet = LinuxOscChatboxService.EncodeChatbox("IterVC test");
+                var text = Encoding.UTF8.GetString(packet);
+                if (packet.Length % 4 != 0 || !text.Contains("/chatbox/input") ||
+                    !text.Contains(",sTF") || !text.Contains("IterVC test"))
+                    throw new InvalidOperationException("VRChat OSC message encoding failed.");
+                Console.WriteLine("Linux GUI, Rust audio, shortcuts, OSC and shared settings: OK");
                 return 0;
             }
             catch (Exception error)
