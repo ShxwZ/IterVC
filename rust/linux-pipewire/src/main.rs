@@ -938,7 +938,7 @@ mod tests {
                 input: "alsa_input.usb-microphone".into(),
                 seconds: 5,
                 monitor_output: None,
-                app_streams: vec![],
+                app_streams: vec![], include_apps: false,
                 app_volume: 1.0,
                 mic_volume: 1.0, gate_enabled: false, gate_threshold_db: -45.0
             }
