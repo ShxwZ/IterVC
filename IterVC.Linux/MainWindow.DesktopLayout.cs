@@ -148,8 +148,8 @@ internal sealed partial class MainWindow
         MinHeight = 550;
         Background = C("AppBackgroundBrush");
 
-        foreach (var meter in new[] { _micInputMeter, _micOutputMeter, _gateOutputMeter })
-            StyleMicMeter(meter);
+        foreach (var audioMeter in new[] { _micInputMeter, _micOutputMeter, _gateOutputMeter })
+            StyleMicMeter(audioMeter);
         _calibrateGate.Content = L("Calibrar ruido ambiente", "Calibrate ambient noise");
         StyleAction(_calibrateGate);
         _calibrateGate.Click += async (_, _) => await CalibrateGateAsync();
