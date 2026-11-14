@@ -408,10 +408,6 @@ fn process_audio_with_monitor(
     let mut pending = Vec::with_capacity(incoming.len() + FRAME_BYTES);
     let mut forwarded_bytes = 0u64;
     let start = Instant::now();
-    let mut last_meter = Instant::now();
-    let mut accumulated_power = 0.0f64;
-    let mut accumulated_samples = 0usize;
-
     while !STOP.load(Ordering::Relaxed) && start.elapsed() < duration {
         let read = match source.read(&mut incoming) {
             Ok(0) => break,
@@ -439,20 +435,6 @@ fn process_audio_with_monitor(
                     eprintln!("IterVC monitoring disabled: {error}");
                     monitor = None;
                 }
-            }
-            for sample in outbound[..written].chunks_exact(std::mem::size_of::<f32>()) {
-                let value = f32::from_le_bytes(sample.try_into().unwrap()) as f64;
-                if value.is_finite() {
-                    accumulated_power += value * value;
-                    accumulated_samples += 1;
-                }
-            }
-            if last_meter.elapsed() >= Duration::from_millis(100) && accumulated_samples > 0 {
-                let rms = (accumulated_power / accumulated_samples as f64).sqrt();
-                eprintln!("ITERVC_LEVEL:{rms:.5}");
-                last_meter = Instant::now();
-                accumulated_power = 0.0;
-                accumulated_samples = 0;
             }
             forwarded_bytes += written as u64;
         }
