@@ -116,7 +116,7 @@ internal sealed class LinuxAudioBackend : IDisposable
         process.ErrorDataReceived += (_, args) =>
         {
             var line = args.Data;
-            if (line is null)
+            if (line is null || !ReferenceEquals(Volatile.Read(ref _session), process))
                 return;
             if (line.StartsWith("ITERVC_LEVEL:", StringComparison.Ordinal) &&
                 double.TryParse(line.AsSpan("ITERVC_LEVEL:".Length),

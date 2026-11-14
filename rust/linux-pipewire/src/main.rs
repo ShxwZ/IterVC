@@ -821,8 +821,9 @@ fn run(input: &str, seconds: u64, monitor_output: Option<&str>,
         // Add newly started opted-in app streams without restarting the
         // physical microphone, the virtual sink or existing app taps.
         for stream_id in new_app_rx.try_iter() {
-            if let Err(error) = session.add_application_stream(stream_id) {
-                eprintln!("Could not add application stream {stream_id}: {error}");
+            match session.add_application_stream(stream_id) {
+                Ok(()) => eprintln!("ITERVC_APP_LINKED:{stream_id}"),
+                Err(error) => eprintln!("ITERVC_APP_FAILED:{stream_id}:{error}"),
             }
         }
         // Keep the physical mic alive even if one application closes.

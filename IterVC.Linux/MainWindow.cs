@@ -19,6 +19,8 @@ internal sealed class MainWindow : Window
     private readonly LinuxAudioBackend _audio = new();
     private readonly DispatcherTimer _appWatchTimer = new() { Interval = TimeSpan.FromSeconds(4) };
     private readonly HashSet<uint> _trackedAppStreams = new();
+    private readonly Dictionary<uint, DateTimeOffset> _pendingAppStreams = new();
+    private readonly Dictionary<uint, DateTimeOffset> _appRetryAfter = new();
     private readonly LinuxSettingsStore _settingsStore = new();
     private readonly AppSettings _settings;
     private readonly LinuxOscChatboxService _osc;
@@ -274,7 +276,35 @@ internal sealed class MainWindow : Window
         _stop.Click += async (_, _) => await StopAsync();
         KeyDown += OnKeyDown;
         Closing += OnClosing;
-        _audio.MessageReceived += text => Dispatcher.UIThread.Post(() => _status.Text = text);
+        _audio.MessageReceived += text => Dispatcher.UIThread.Post(() =>
+        {
+            if (text.StartsWith("ITERVC_APP_LINKED:", StringComparison.Ordinal) &&
+                uint.TryParse(text.AsSpan("ITERVC_APP_LINKED:".Length), out var addedId))
+            {
+                _pendingAppStreams.Remove(addedId);
+                _appRetryAfter.Remove(addedId);
+                if (_running)
+                {
+                    _trackedAppStreams.Add(addedId);
+                    _status.Text = L("Aplicación conectada a la mezcla.",
+                        "Application audio connected to the mix.");
+                }
+                return;
+            }
+            if (text.StartsWith("ITERVC_APP_FAILED:", StringComparison.Ordinal))
+            {
+                var fields = text.Split(':', 3);
+                if (fields.Length >= 2 && uint.TryParse(fields[1], out var failedId))
+                {
+                    _pendingAppStreams.Remove(failedId);
+                    _appRetryAfter[failedId] = DateTimeOffset.UtcNow.AddSeconds(15);
+                    _status.Text = L("No se pudo conectar una aplicación. Se reintentará.",
+                        "Could not connect an application. Will retry.");
+                    return;
+                }
+            }
+            _status.Text = text;
+        });
         _audio.LevelChanged += rms => Dispatcher.UIThread.Post(() =>
         {
             var decibels = 20 * Math.Log10(Math.Max(0.00001, rms));
@@ -349,15 +379,28 @@ internal sealed class MainWindow : Window
             {
                 if (!selectedNames.Contains(app.Name) || _trackedAppStreams.Contains(app.Id))
                     continue;
+                var now = DateTimeOffset.UtcNow;
+                if (_pendingAppStreams.TryGetValue(app.Id, out var sentAt) &&
+                    now - sentAt < TimeSpan.FromSeconds(12))
+                    continue;
+                if (_appRetryAfter.TryGetValue(app.Id, out var retryAfter) &&
+                    now < retryAfter)
+                    continue;
 
-                // The PipeWire bridge accepts the new ID while recording,
-                // without restarting the physical microphone or touching the
-                // application's original speaker output.
-                await _audio.AddApplicationStreamAsync(app.Id);
-                _trackedAppStreams.Add(app.Id);
-                _status.Text = L(
-                    "Nueva instancia de la aplicación detectada: ",
-                    "New application stream detected: ") + app.Name;
+                // Mark pending *before* writing: Rust may acknowledge on stderr
+                // before our awaited stdin flush completes.
+                _pendingAppStreams[app.Id] = now;
+                try
+                {
+                    await _audio.AddApplicationStreamAsync(app.Id);
+                }
+                catch
+                {
+                    _pendingAppStreams.Remove(app.Id);
+                    throw;
+                }
+                // Only the Rust ITERVC_APP_LINKED acknowledgement marks an app
+                // as connected. Failed or timed-out links will be retried.
             }
         }
         catch (Exception error)
@@ -449,6 +492,8 @@ internal sealed class MainWindow : Window
                 _gate.IsChecked == true, _gateThreshold.Value,
                 includeApplicationCapture: _includeApplication.IsChecked == true);
             _trackedAppStreams.Clear();
+            _pendingAppStreams.Clear();
+            _appRetryAfter.Clear();
             foreach (var app in selectedApps)
                 _trackedAppStreams.Add(app.Id);
             SetRunning(true);
@@ -535,7 +580,12 @@ internal sealed class MainWindow : Window
     private void SetRunning(bool active)
     {
         _running = active;
-        if (!active) _trackedAppStreams.Clear();
+        if (!active)
+        {
+            _trackedAppStreams.Clear();
+            _pendingAppStreams.Clear();
+            _appRetryAfter.Clear();
+        }
         _start.IsEnabled = !active;
         _stop.IsEnabled = active;
         _microphone.IsEnabled = !active;
