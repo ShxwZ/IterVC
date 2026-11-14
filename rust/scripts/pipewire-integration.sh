@@ -801,6 +801,32 @@ sleep 0.5
 capture_mic_virtual "$test_dir/mic-restored.pcm"
 check_virtual_level "$test_dir/mic-restored.pcm" sound
 
+# The exact same virtual microphone must stay alive when gate state and
+# its threshold/attack/release settings change through live Rust IPC.
+# At 0.3 PCM amplitude, -10 dBFS keeps the gate closed; -40 dBFS opens it.
+printf 'gate-attack 10\ngate-release 60\ngate-threshold -10\ngate-enabled 1\n' >&8
+sleep 0.6
+capture_mic_virtual "$test_dir/gate-closed.pcm"
+check_virtual_level "$test_dir/gate-closed.pcm" silence
+if ! kill -0 "$app_pid" 2>/dev/null; then
+  echo "Changing live noise gate settings terminated routing" >&2
+  exit 1
+fi
+printf 'gate-threshold -40\n' >&8
+sleep 0.5
+capture_mic_virtual "$test_dir/gate-open.pcm"
+check_virtual_level "$test_dir/gate-open.pcm" sound
+printf 'gate-enabled 0\n' >&8
+sleep 0.5
+capture_mic_virtual "$test_dir/gate-bypassed.pcm"
+check_virtual_level "$test_dir/gate-bypassed.pcm" sound
+if ! grep -q 'ITERVC_MIC_INPUT_LEVEL:' "$test_dir/mic-session.log" ||
+   ! grep -q 'ITERVC_MIC_OUTPUT_LEVEL:' "$test_dir/mic-session.log"; then
+  cat "$test_dir/mic-session.log" >&2
+  echo "Separate real microphone input/output PCM meter telemetry was missing" >&2
+  exit 1
+fi
+
 kill -TERM "$app_pid"
 wait "$app_pid"
 app_pid=""
@@ -814,5 +840,5 @@ if pactl list short sources | grep -q "itervc_rust_microphone"; then
   exit 1
 fi
 cat "$test_dir/mic-session.log"
-echo "Real PipeWire virtual mic, non-invasive app taps, and live mic/app gains passed."
+echo "Real PipeWire virtual mic, non-invasive app taps, live gain/gate, and microphone meters passed."
 
