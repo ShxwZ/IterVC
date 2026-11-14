@@ -820,6 +820,39 @@ printf 'gate-enabled 0\n' >&8
 sleep 0.5
 capture_mic_virtual "$test_dir/gate-bypassed.pcm"
 check_virtual_level "$test_dir/gate-bypassed.pcm" sound
+
+# Turn on the *same* native RNNoise runtime as Windows, via the production
+# IPC, then disable it without interrupting PipeWire virtual microphone.
+printf 'noise-suppression 1\n' >&8
+rnnoise_ready=0
+for _ in $(seq 1 100); do
+  if grep -q 'ITERVC_RNNOISE_ACTIVE' "$test_dir/mic-session.log"; then
+    rnnoise_ready=1
+    break
+  fi
+  if ! kill -0 "$app_pid" 2>/dev/null; then break; fi
+  sleep 0.1
+done
+if [ "$rnnoise_ready" != 1 ]; then
+  cat "$test_dir/mic-session.log" >&2
+  echo "The native Windows RNNoise library did not activate on Linux" >&2
+  exit 1
+fi
+capture_mic_virtual "$test_dir/rnnoise-active.pcm"
+test "$(wc -c < "$test_dir/rnnoise-active.pcm")" -gt 8192
+if ! kill -0 "$app_pid" 2>/dev/null; then
+  echo "Native RNNoise caused the microphone session to crash" >&2
+  exit 1
+fi
+printf 'noise-suppression 0\n' >&8
+sleep 0.5
+capture_mic_virtual "$test_dir/rnnoise-bypassed.pcm"
+check_virtual_level "$test_dir/rnnoise-bypassed.pcm" sound
+if ! grep -q 'ITERVC_RNNOISE_DISABLED' "$test_dir/mic-session.log"; then
+  cat "$test_dir/mic-session.log" >&2
+  echo "RNNoise could not be disabled in the live microphone worker" >&2
+  exit 1
+fi
 if ! grep -q 'ITERVC_MIC_INPUT_LEVEL:' "$test_dir/mic-session.log" ||
    ! grep -q 'ITERVC_MIC_OUTPUT_LEVEL:' "$test_dir/mic-session.log"; then
   cat "$test_dir/mic-session.log" >&2
