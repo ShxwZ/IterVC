@@ -1,20 +1,9 @@
-//! Optional, explicitly selected application-stream capture on PipeWire.
-//!
-//! A single PulseAudio-compatible playback stream is temporarily redirected
-//! into an isolated sink. Its monitor is copied into IterVC's output mixer and
-//! simultaneously replayed to the original physical sink. The session owner
-//! must restore the application's original sink before unloading the module.
-//! Never change any sink-input that is not explicitly selected.
+//! Copy opted-in PipeWire playback streams into the virtual microphone.
+//! Native PipeWire links fan out each selected app's original audio to a
+//! temporary capture sink, leaving the physical speaker connections intact.
+//! This Rust stage adjusts only the copy destined for IterVC's microphone.
 
 use std::io::{self, Read, Write};
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StreamRoute {
-    pub stream_id: u32,
-    pub original_sink_id: u32,
-    pub original_sink_name: String,
-    pub capture_sink_id: u32,
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SinkInput {
@@ -41,68 +30,6 @@ pub fn parse_sink_name(text: &str, id: u32) -> Option<String> {
         let name = columns.next()?;
         (this_id == id).then(|| name.to_owned())
     })
-}
-
-pub fn find_sink_id(text: &str, name: &str) -> Option<u32> {
-    text.lines().find_map(|line| {
-        let mut columns = line.split_whitespace();
-        let this_id: u32 = columns.next()?.parse().ok()?;
-        (columns.next()? == name).then_some(this_id)
-    })
-}
-
-/// Decides whether a moved application still belongs to our capture sink.
-/// We must not overwrite an output changed by the user during the session.
-pub fn should_restore(current_inputs: &str, route: &StreamRoute) -> bool {
-    parse_sink_inputs(current_inputs)
-        .iter()
-        .any(|entry| entry.id == route.stream_id && entry.sink_id == route.capture_sink_id)
-}
-
-/// Extract a selected playback stream's PipeWire node name from pactl's
-/// human-readable listing. The command is run with LC_ALL=C by the caller.
-/// We never guess a node from an application's display name or PID.
-pub fn parse_pactl_node_name(text: &str, sink_input_id: u32) -> Option<String> {
-    let section = format!("Sink Input #{sink_input_id}");
-    let mut selected = false;
-    for line in text.lines() {
-        let trimmed = line.trim();
-        if trimmed.starts_with("Sink Input #") {
-            selected = trimmed == section;
-        } else if selected {
-            if let Some(value) = trimmed.strip_prefix("node.name =") {
-                let node = value.trim().trim_matches('"');
-                if !node.is_empty() {
-                    return Some(node.to_owned());
-                }
-            }
-        }
-    }
-    None
-}
-
-/// Find matching 48 kHz stereo output ports without routing the original
-/// playback away from its current speakers. pw-link supports fan-out to
-/// multiple sinks. Refuse unknown layouts rather than guessing a connection.
-pub fn capture_ports(node_name: &str, output_ports: &str, input_ports: &str,
-    capture_sink_name: &str) -> Option<Vec<(String, String)>>
-{
-    let output: Vec<&str> = output_ports.lines().map(str::trim).collect();
-    let inputs: Vec<&str> = input_ports.lines().map(str::trim).collect();
-    let mut pairs = Vec::new();
-    for (channel, accepted) in [
-        ("playback_FL", ["output_FL", "output_AUX0"]),
-        ("playback_FR", ["output_FR", "output_AUX1"]),
-    ] {
-        let destination = format!("{capture_sink_name}:{channel}");
-        if !inputs.contains(&destination.as_str()) {
-            return None;
-        }
-        let source = accepted.iter().map(|suffix| format!("{node_name}:{suffix}"))
-            .find(|candidate| output.contains(&candidate.as_str()))?;
-        pairs.push((source, destination));
-    }
-    Some(pairs)
 }
 
 /// The PulseAudio sink-input index is its PipeWire object serial, not the
@@ -181,14 +108,12 @@ pub fn find_output_port_ids(port_listing: &str, node_id: u32) -> Option<(u32, u3
     }
 }
 
-/// Read raw 48 kHz stereo float32 PCM from the app monitor. Send the
-/// gain-adjusted audio to IterVC's virtual microphone and the original audio
-/// to its previous output device. An unavailable speaker must not interrupt
-/// routing to the virtual microphone.
+/// Read raw 48 kHz stereo float32 PCM from the isolated app tap, apply
+/// independent mix gain, and copy to the final virtual microphone. PipeWire
+/// simultaneously preserves the application's original speaker connections.
 pub fn forward_app(
     mut source: impl Read,
     mut virtual_output: impl Write,
-    mut original_output: impl Write,
     gain: f32,
 ) -> io::Result<u64> {
     if !gain.is_finite() || !(0.0..=2.0).contains(&gain) {
@@ -199,7 +124,6 @@ pub fn forward_app(
     let mut altered = [0u8; 4096];
     let mut pending = Vec::with_capacity(4096 + FRAME_BYTES);
     let mut copied = 0u64;
-    let mut speaker_available = true;
 
     loop {
         let length = match source.read(&mut data) {
@@ -227,12 +151,6 @@ pub fn forward_app(
         }
 
         virtual_output.write_all(&altered[..count])?;
-        if speaker_available {
-            if let Err(error) = original_output.write_all(&pending[..count]) {
-                eprintln!("Application speaker passthrough stopped: {error}");
-                speaker_available = false;
-            }
-        }
         copied += count as u64;
         pending.drain(..count);
     }
@@ -244,31 +162,20 @@ mod tests {
     use super::*;
 
     #[test]
-    fn sink_list_parsing_and_restore_only_while_owned() {
+    fn app_list_parsing_handles_multiple_outputs_without_changing_them() {
         let sinks = "2\talsa_output.a\tPipeWire\n8\titervc_rust_apps_sink\tPipeWire\n";
         assert_eq!(parse_sink_name(sinks, 2).as_deref(), Some("alsa_output.a"));
-        assert_eq!(find_sink_id(sinks, "itervc_rust_apps_sink"), Some(8));
-        assert_eq!(parse_sink_inputs("17\t2\t48\tPipeWire\n20\t8\t49\tPipeWire\n").len(), 2);
-        let route = StreamRoute {
-            stream_id: 20,
-            original_sink_id: 2,
-            original_sink_name: "alsa_output.a".into(),
-            capture_sink_id: 8,
-        };
-        assert!(should_restore("20\t8\t49\tPipeWire\n", &route));
-        assert!(!should_restore("20\t2\t49\tPipeWire\n", &route));
-        assert!(!should_restore("19\t8\t49\tPipeWire\n", &route));
+        assert_eq!(parse_sink_inputs("17\t2\t48\tPipeWire\n20\t8\t49\tPipeWire\n"),
+            vec![SinkInput { id: 17, sink_id: 2 }, SinkInput { id: 20, sink_id: 8 }]);
     }
 
     #[test]
-    fn app_audio_reaches_both_outputs_with_independent_volume() {
+    fn app_audio_is_gain_adjusted_only_in_virtual_microphone() {
         let samples = [0.5f32, -0.25, -0.5, 0.25];
         let input: Vec<u8> = samples.iter().flat_map(|value| value.to_le_bytes()).collect();
         let mut virtual_output = Vec::new();
-        let mut original_output = Vec::new();
-        let count = forward_app(&input[..], &mut virtual_output, &mut original_output, 0.5).unwrap();
+        let count = forward_app(&input[..], &mut virtual_output, 0.5).unwrap();
         assert_eq!(count, input.len() as u64);
-        assert_eq!(original_output, input);
         let processed: Vec<f32> = virtual_output.chunks_exact(4)
             .map(|item| f32::from_le_bytes(item.try_into().unwrap())).collect();
         assert_eq!(processed, [0.25, -0.125, -0.25, 0.125]);
@@ -285,28 +192,9 @@ mod tests {
         }
         let original: Vec<u8> = (0..48).map(|i| (i % 127) as u8).collect();
         let mut virtual_output = Vec::new();
-        let mut speaker = Vec::new();
         forward_app(Chunks(std::io::Cursor::new(original.clone())),
-            &mut virtual_output, &mut speaker, 0.0).unwrap();
-        assert_eq!(speaker, original);
+            &mut virtual_output, 0.0).unwrap();
         assert_eq!(virtual_output, vec![0u8; original.len()]);
-    }
-
-    #[test]
-    fn port_selection_keeps_physical_routes_untouched() {
-        let pactl = "Sink Input #11\n  Properties:\n    node.name = \"Music App\"\n\
-                     Sink Input #22\n  Properties:\n    node.name = \"Chat App\"\n";
-        assert_eq!(parse_pactl_node_name(pactl, 11).as_deref(), Some("Music App"));
-        assert_eq!(parse_pactl_node_name(pactl, 22).as_deref(), Some("Chat App"));
-        assert_eq!(parse_pactl_node_name(pactl, 23), None);
-        let outputs = "Music App:output_FL\nMusic App:output_FR\nChat App:output_FL\n";
-        let inputs = "itervc_rust_apps_sink:playback_FL\nitervc_rust_apps_sink:playback_FR\n";
-        assert_eq!(capture_ports("Music App", outputs, inputs, "itervc_rust_apps_sink").unwrap(),
-            vec![
-                ("Music App:output_FL".into(), "itervc_rust_apps_sink:playback_FL".into()),
-                ("Music App:output_FR".into(), "itervc_rust_apps_sink:playback_FR".into())
-            ]);
-        assert!(capture_ports("Chat App", outputs, inputs, "itervc_rust_apps_sink").is_none());
     }
 
     #[test]
@@ -355,8 +243,8 @@ mod tests {
 
     #[test]
     fn refuses_invalid_gain() {
-        assert!(forward_app(&[][..], Vec::new(), Vec::new(), f32::NAN).is_err());
-        assert!(forward_app(&[][..], Vec::new(), Vec::new(), -0.5).is_err());
-        assert!(forward_app(&[][..], Vec::new(), Vec::new(), 2.1).is_err());
+        assert!(forward_app(&[][..], Vec::new(), f32::NAN).is_err());
+        assert!(forward_app(&[][..], Vec::new(), -0.5).is_err());
+        assert!(forward_app(&[][..], Vec::new(), 2.1).is_err());
     }
 }

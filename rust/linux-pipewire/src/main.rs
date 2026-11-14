@@ -663,7 +663,7 @@ fn run(input: &str, seconds: u64, monitor_output: Option<&str>,
     let monitor_worker = std::thread::spawn(move || monitor_final_stream(mixed_monitor, monitor_pipe));
     let app_worker = app_pipes.map(|(source, virtual_output)|
         std::thread::spawn(move || app_audio::forward_app(
-            source, virtual_output, io::sink(), app_volume)));
+            source, virtual_output, app_volume)));
     let mic_settings = MicrophoneConfig { volume: mic_volume, gate_enabled,
         gate_threshold_db, ..MicrophoneConfig::default() };
     let worker = std::thread::spawn(move ||
