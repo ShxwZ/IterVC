@@ -723,10 +723,23 @@ fn run(input: &str, seconds: u64, monitor_output: Option<&str>,
         process_audio_live(source, destination, None, duration, mic_settings,
             mic_gain_worker.as_ref()));
     watch_live_controls(mic_gain, app_gain);
+    let mut app_worker_warning_sent = false;
+    let mut mixed_monitor_warning_sent = false;
     while !worker.is_finished()
         && !STOP.load(Ordering::Relaxed)
         && !deadline.is_some_and(|cutoff| Instant::now() >= cutoff)
     {
+        // Keep the physical mic alive even if one application closes.
+        // Report partial failures immediately instead of showing "routing"
+        // while the app audio / final meter worker has already stopped.
+        if !app_worker_warning_sent && app_worker.as_ref().is_some_and(|job| job.is_finished()) {
+            eprintln!("IterVC application capture stream stopped; microphone routing continues.");
+            app_worker_warning_sent = true;
+        }
+        if !mixed_monitor_warning_sent && monitor_worker.is_finished() {
+            eprintln!("IterVC mixed output monitor stopped; level meter and speaker monitoring are unavailable.");
+            mixed_monitor_warning_sent = true;
+        }
         std::thread::sleep(STOP_POLL_INTERVAL);
     }
     let interrupted = STOP.load(Ordering::Relaxed)
