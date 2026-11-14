@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Input;
 using IterVC.Desktop.ViewModels;
+using IterVC.UI;
 
 namespace IterVC.Desktop.Views;
 
@@ -13,7 +14,7 @@ public sealed partial class ApplicationsPanel : UserControl
 
     private async void OnAppRowPointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        if (sender is Border { DataContext: AppAudioItemViewModel app })
+        if (sender is ApplicationCard { DataContext: AppAudioItemViewModel app })
         {
             await app.ToggleInclusionCommand.ExecuteAsync(null);
             e.Handled = true;
