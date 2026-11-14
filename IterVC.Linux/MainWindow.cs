@@ -14,7 +14,7 @@ namespace IterVC.Linux;
 /// Linux proof-of-concept UI. Does not instantiate any Windows-only NAudio
 /// services. All capture and monitoring go through the same Rust PCM stream.
 /// </summary>
-internal sealed class MainWindow : Window
+internal sealed partial class MainWindow : Window
 {
     private readonly LinuxAudioBackend _audio = new();
     private readonly DispatcherTimer _appWatchTimer = new() { Interval = TimeSpan.FromSeconds(4) };
@@ -65,8 +65,8 @@ internal sealed class MainWindow : Window
         Activate();
     }
 
-    private static string L(string spanish, string english) =>
-        CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "es" ? spanish : english;
+    private string L(string spanish, string english) =>
+        _settings.Language == "English" ? english : spanish;
 
     public MainWindow()
     {
@@ -75,10 +75,6 @@ internal sealed class MainWindow : Window
         _osc = new LinuxOscChatboxService(message =>
             Dispatcher.UIThread.Post(() => _status.Text = message));
         Title = "IterVC — Linux (PipeWire)";
-        Width = 600;
-        MinWidth = 500;
-        Height = 930;
-        MinHeight = 580;
         _monitor.Content = L("Monitorizar micrófono (opcional)", "Monitor microphone (optional)");
         _monitor.IsChecked = _settings.MonitorMicrophone;
         _minimizeToTray.Content = L("Minimizar a la bandeja del sistema", "Minimize to system tray");
@@ -88,7 +84,11 @@ internal sealed class MainWindow : Window
         _gate.Content = L("Activar puerta de ruido", "Enable noise gate");
         _gate.IsChecked = _settings.NoiseGateEnabled;
         _gateThreshold.Value = Math.Clamp(_settings.NoiseGateThresholdDb, -80, -15);
+        _gateAttack.Value = Math.Clamp(_settings.NoiseGateAttackMilliseconds, 1, 1000);
+        _gateRelease.Value = Math.Clamp(_settings.NoiseGateReleaseMilliseconds, 1, 2000);
         _gateThreshold.IsEnabled = _gate.IsChecked == true;
+        _gateAttack.IsEnabled = _gate.IsChecked == true;
+        _gateRelease.IsEnabled = _gate.IsChecked == true;
         _oscEnabled.Content = L("Enviar música al chatbox OSC (VRChat)",
             "Send music to the OSC chatbox (VRChat)");
         _oscEnabled.IsChecked = _settings.EnableOscChatbox;
@@ -110,77 +110,7 @@ internal sealed class MainWindow : Window
         _stop.IsEnabled = false;
         _speakers.IsEnabled = false;
 
-        var root = new StackPanel { Spacing = 13, Margin = new Thickness(22) };
-        root.Children.Add(new TextBlock
-        {
-            Text = L("IterVC para Linux · Vista previa", "IterVC for Linux · Preview"),
-            FontSize = 22, FontWeight = Avalonia.Media.FontWeight.SemiBold
-        });
-        root.Children.Add(new TextBlock {
-            Text = L("Micrófono virtual sin VB-Cable, mediante PipeWire.",
-                "Virtual microphone via PipeWire, without VB-Cable."),
-            TextWrapping = TextWrapping.Wrap
-        });
-        root.Children.Add(new TextBlock { Text = L("Micrófono físico", "Physical microphone") });
-        root.Children.Add(_microphone);
-        root.Children.Add(_refresh);
-        root.Children.Add(new TextBlock { Text = L("Volumen del micrófono", "Microphone volume") });
-        root.Children.Add(_microphoneVolume);
-        root.Children.Add(new TextBlock { Text = L("Amplificación del micrófono", "Microphone boost") });
-        root.Children.Add(_microphoneBoost);
-        root.Children.Add(_gate);
-        root.Children.Add(new TextBlock { Text = L("Umbral de la puerta (dBFS)", "Noise gate threshold (dBFS)") });
-        root.Children.Add(_gateThreshold);
-        root.Children.Add(_monitor);
-        root.Children.Add(_minimizeToTray);
-        root.Children.Add(new TextBlock { Text = L("Salida para escuchar el micrófono", "Speaker output for monitoring") });
-        root.Children.Add(_speakers);
-        root.Children.Add(new TextBlock { Text = L("Audio por aplicación", "Application audio"),
-            FontWeight = Avalonia.Media.FontWeight.SemiBold });
-        root.Children.Add(_includeApplication);
-        root.Children.Add(_applications);
-        root.Children.Add(new TextBlock { Text = L("Volumen en la mezcla virtual",
-            "Volume in the virtual microphone mix") });
-        root.Children.Add(_applicationVolume);
-        root.Children.Add(new TextBlock { Text = L("Chatbox OSC", "OSC chatbox"),
-            FontWeight = Avalonia.Media.FontWeight.SemiBold });
-        root.Children.Add(_oscEnabled);
-        root.Children.Add(new TextBlock { Text = L("Plantilla del mensaje", "Message template") });
-        root.Children.Add(_oscTemplate);
-        var mediaControls = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-        mediaControls.Children.Add(_previousTrack);
-        mediaControls.Children.Add(_playPause);
-        mediaControls.Children.Add(_nextTrack);
-        root.Children.Add(mediaControls);
-        root.Children.Add(new TextBlock { Text = L("Requiere playerctl para detectar música mediante MPRIS.",
-            "Requires playerctl to detect music through MPRIS."),
-            FontSize = 11, TextWrapping = TextWrapping.Wrap });
-        root.Children.Add(new TextBlock { Text = L(
-            "La aplicación seleccionada seguirá escuchándose por sus altavoces originales.",
-            "The selected application will continue playing through its original speakers."),
-            FontSize = 11, TextWrapping = TextWrapping.Wrap });
-
-        var controls = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
-        controls.Children.Add(_start);
-        controls.Children.Add(_stop);
-        root.Children.Add(controls);
-        root.Children.Add(_levelText);
-        root.Children.Add(_level);
-        root.Children.Add(new TextBlock { Text = L("Estado", "Status"), FontWeight = Avalonia.Media.FontWeight.SemiBold });
-        root.Children.Add(_status);
-        root.Children.Add(new TextBlock {
-            Text = L("Atajos con esta ventana activa: Ctrl+Shift+R iniciar/detener; Ctrl+Shift+M monitor.",
-                "Shortcuts while this window is focused: Ctrl+Shift+R start/stop; Ctrl+Shift+M monitor."),
-            FontSize = 11, TextWrapping = TextWrapping.Wrap
-        });
-        root.Children.Add(new TextBlock {
-            Text = L("Atajos globales X11/Wayland: configura comandos de teclado en tu escritorio: "
-                + "IterVC.Linux --toggle-routing y --toggle-monitor.",
-                "Global X11/Wayland shortcuts: configure desktop keyboard commands "
-                + "IterVC.Linux --toggle-routing and --toggle-monitor."),
-            FontSize = 11, TextWrapping = TextWrapping.Wrap
-        });
-        Content = new ScrollViewer { Content = root };
+        Content = BuildDesktopLayout();
         try
         {
             _shortcuts = new ShortcutControlServer(command => Dispatcher.UIThread.Post(async () =>
@@ -232,9 +162,12 @@ internal sealed class MainWindow : Window
             var enabled = !_running && _includeApplication.IsChecked == true;
             _applications.IsEnabled = enabled;
             _applicationVolume.IsEnabled = enabled;
-            if (!_loadingPreferences && _includeApplication.IsChecked == true)
-                _settings.IncludedProcessNames = SelectedApplicationNames();
+            // A temporarily closed, previously selected player must not be
+            // silently forgotten when the user enables app capture.
             SavePreferences();
+            RenderApplicationCards(_applications.ItemsSource?.OfType<ApplicationStream>().ToArray()
+                ?? Array.Empty<ApplicationStream>());
+            UpdateDesktopStatus();
         };
         _applications.SelectionChanged += (_, _) => {
             // Explicit user edits replace the previous selection, including
@@ -273,8 +206,16 @@ internal sealed class MainWindow : Window
         _gateThreshold.PropertyChanged += (_, args) => {
             if (args.Property.Name == nameof(Slider.Value)) SavePreferences();
         };
+        _gateAttack.PropertyChanged += (_, args) => {
+            if (args.Property.Name == nameof(Slider.Value)) SavePreferences();
+        };
+        _gateRelease.PropertyChanged += (_, args) => {
+            if (args.Property.Name == nameof(Slider.Value)) SavePreferences();
+        };
         _gate.IsCheckedChanged += (_, _) => {
             _gateThreshold.IsEnabled = !_running && _gate.IsChecked == true;
+            _gateAttack.IsEnabled = !_running && _gate.IsChecked == true;
+            _gateRelease.IsEnabled = !_running && _gate.IsChecked == true;
             SavePreferences();
         };
         _oscEnabled.IsCheckedChanged += (_, _) => { SavePreferences(); UpdateOsc(); };
@@ -367,6 +308,7 @@ internal sealed class MainWindow : Window
                 _applications.IsEnabled = !_running && _includeApplication.IsChecked == true;
             }
             finally { _loadingPreferences = false; }
+            RenderApplicationCards(applications);
             _status.Text = inputs.Length == 0
                 ? L("No se detectaron micrófonos físicos.", "No physical microphones found.")
                 : L("Selecciona el micrófono y pulsa Iniciar.", "Choose a microphone and press Start.");
@@ -458,6 +400,7 @@ internal sealed class MainWindow : Window
                     _applications.SelectedItems?.Add(app);
             }
             finally { _loadingPreferences = false; }
+            RenderApplicationCards(available);
         }
         catch (Exception error)
         {
@@ -490,6 +433,8 @@ internal sealed class MainWindow : Window
         _settings.MicrophoneBoost = (float)_microphoneBoost.Value;
         _settings.NoiseGateEnabled = _gate.IsChecked == true;
         _settings.NoiseGateThresholdDb = (float)_gateThreshold.Value;
+        _settings.NoiseGateAttackMilliseconds = (float)_gateAttack.Value;
+        _settings.NoiseGateReleaseMilliseconds = (float)_gateRelease.Value;
         _settings.EnableOscChatbox = _oscEnabled.IsChecked == true;
         _settings.OscTemplate = _oscTemplate.Text ?? "{title} - {status}";
         try { _settingsStore.Save(_settings); }
@@ -632,6 +577,7 @@ internal sealed class MainWindow : Window
         _status.Text = _microphoneMuted
             ? L("Micrófono silenciado", "Microphone muted")
             : L("Micrófono activado", "Microphone unmuted");
+        UpdateDesktopStatus();
     }
 
     private async Task ToggleApplicationMuteAsync()
@@ -650,6 +596,7 @@ internal sealed class MainWindow : Window
         _status.Text = _applicationMuted
             ? L("Audio de aplicaciones silenciado en la mezcla", "Application mix muted")
             : L("Audio de aplicaciones activado", "Application mix unmuted");
+        UpdateDesktopStatus();
     }
 
     private void SetRunning(bool active)
@@ -675,6 +622,11 @@ internal sealed class MainWindow : Window
         _microphoneBoost.IsEnabled = true;
         _gate.IsEnabled = !active;
         _gateThreshold.IsEnabled = !active && _gate.IsChecked == true;
+        _gateAttack.IsEnabled = !active && _gate.IsChecked == true;
+        _gateRelease.IsEnabled = !active && _gate.IsChecked == true;
+        RenderApplicationCards(_applications.ItemsSource?.OfType<ApplicationStream>().ToArray()
+            ?? Array.Empty<ApplicationStream>());
+        UpdateDesktopStatus();
         if (!active) { _level.Value = 0; _levelText.Text = L("Micrófono detenido", "Microphone stopped"); }
     }
 
