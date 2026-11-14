@@ -17,6 +17,7 @@ const FRAME_BYTES: usize = CHANNELS * std::mem::size_of::<f32>();
 const RING_MS: usize = 200;
 const SINK_NAME: &str = "itervc_rust_sink";
 const MIC_NAME: &str = "itervc_rust_microphone";
+const STOP_POLL_INTERVAL: Duration = Duration::from_millis(20);
 
 static STOP: AtomicBool = AtomicBool::new(false);
 
@@ -82,7 +83,7 @@ fn parse_args(args: impl IntoIterator<Item = String>) -> Result<Mode, String> {
     }
 
     let input = input.ok_or("Use --input NODE_NAME (see --list-inputs)")?;
-    if input.is_empty() || input == MIC_NAME || input.contains('\0') {
+    if !is_physical_input(&input) {
         return Err("Specify a physical PipeWire input, not the virtual microphone".into());
     }
     Ok(Mode::Run { input, seconds })
@@ -115,6 +116,34 @@ fn command_output(exe: &str, args: &[&str]) -> Result<String, String> {
         ));
     }
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_owned())
+}
+
+/// Prevent feedback by routing only explicit physical sources.
+fn is_physical_input(name: &str) -> bool {
+    !name.trim().is_empty()
+        && !name.contains('\0')
+        && !name.ends_with(".monitor")
+        && !name.starts_with("itervc_rust_")
+}
+
+fn available_inputs() -> Result<Vec<String>, String> {
+    let output = command_output("pactl", &["list", "short", "sources"])?;
+    Ok(output
+        .lines()
+        .filter_map(|line| line.split_whitespace().nth(1))
+        .filter(|name| is_physical_input(name))
+        .map(str::to_owned)
+        .collect())
+}
+
+fn validate_input(name: &str) -> Result<(), String> {
+    if !is_physical_input(name) {
+        return Err("Select a physical microphone, not a monitor or virtual source".into());
+    }
+    if !available_inputs()?.iter().any(|available| available == name) {
+        return Err(format!("Microphone '{name}' was not found. Use --list-inputs."));
+    }
+    Ok(())
 }
 
 fn check_dependencies() -> Result<(), String> {
@@ -173,6 +202,7 @@ impl PipeWireSession {
         let mut recorder = Command::new("pw-cat")
             .args([
                 "--record",
+                "--raw",
                 "--format=f32",
                 "--rate=48000",
                 "--channels=2",
@@ -192,6 +222,7 @@ impl PipeWireSession {
         let mut playback = Command::new("pw-cat")
             .args([
                 "--playback",
+                "--raw",
                 "--format=f32",
                 "--rate=48000",
                 "--channels=2",
@@ -207,6 +238,13 @@ impl PipeWireSession {
         let audio_output = playback.stdin.take().ok_or("Missing playback stdin")?;
         self.playback = Some(playback);
         Ok((audio_input, audio_output))
+    }
+    // Stop both subprocesses to unblock any pending pipe I/O on cancellation.
+    fn stop_streams(&mut self) {
+        for child in [&mut self.recorder, &mut self.playback].into_iter().flatten() {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
     }
 }
 
@@ -293,6 +331,7 @@ fn process_audio(
 
 fn run(input: &str, seconds: u64) -> Result<(), String> {
     check_dependencies()?;
+    validate_input(input)?;
     #[cfg(target_os = "linux")]
     shutdown::install();
 
@@ -306,8 +345,25 @@ fn run(input: &str, seconds: u64) -> Result<(), String> {
     );
     eprintln!("Select 'IterVC Rust Microphone' as the input in your target app.");
 
-    process_audio(source, destination, Duration::from_secs(seconds))
-        .map_err(|error| format!("PipeWire audio transport error: {error}"))?;
+    // A silent or disconnected microphone may leave capture blocked in read().
+    // Supervise it independently so timeout and shutdown still clean up.
+    let duration = Duration::from_secs(seconds);
+    let deadline = Instant::now() + duration;
+    let worker = std::thread::spawn(move || process_audio(source, destination, duration));
+    while !worker.is_finished()
+        && !STOP.load(Ordering::Relaxed)
+        && Instant::now() < deadline
+    {
+        std::thread::sleep(STOP_POLL_INTERVAL);
+    }
+    let interrupted = STOP.load(Ordering::Relaxed) || Instant::now() >= deadline;
+    if !worker.is_finished() {
+        session.stop_streams();
+    }
+    let result = worker.join().map_err(|_| "PipeWire audio worker panicked".to_owned())?;
+    if !interrupted {
+        result.map_err(|error| format!("PipeWire audio transport error: {error}"))?;
+    }
     Ok(())
 }
 
@@ -318,8 +374,15 @@ fn main() {
             Ok(())
         }
         Ok(Mode::Check) => check_dependencies().map(|_| println!("PipeWire tools and session ready.")),
-        Ok(Mode::ListInputs) => command_output("pactl", &["list", "short", "sources"])
-            .map(|sources| println!("{sources}")),
+        Ok(Mode::ListInputs) => available_inputs().map(|sources| {
+            if sources.is_empty() {
+                println!("No physical microphones were found.");
+            } else {
+                for source in sources {
+                    println!("{source}");
+                }
+            }
+        }),
         Ok(Mode::Run { input, seconds }) => run(&input, seconds),
         Err(error) => Err(error),
     };
@@ -383,6 +446,15 @@ mod tests {
         let bytes = process_audio(reader, &mut result, Duration::from_secs(10)).unwrap();
         assert_eq!(bytes as usize, frames.len());
         assert_eq!(result, frames);
+    }
+
+    #[test]
+    fn rejects_monitor_and_own_virtual_sources() {
+        assert!(!is_physical_input("alsa_output.monitor"));
+        assert!(!is_physical_input("itervc_rust_microphone"));
+        assert!(!is_physical_input("itervc_rust_sink.monitor"));
+        assert!(!is_physical_input(" "));
+        assert!(is_physical_input("alsa_input.usb_microphone"));
     }
 
     #[test]

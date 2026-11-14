@@ -10,42 +10,48 @@ working audio mixer before comparing latency, throughput and output parity
 would risk regressions. The Rust component is optional until those measurements
 justify adopting it in the existing .NET runtime.
 
-- \`audio-buffers\`: platform-independent bounded PCM ring, with an opaque C
+- `audio-buffers`: platform-independent bounded PCM ring, with an opaque C
   ABI for a **future** managed wrapper. The C ABI requires externally serialized
-  access. One frame is \`channels * bytes_per_sample\`; only full frames are
+  access. One frame is `channels * bytes_per_sample`; only full frames are
   stored. On overflow the **oldest** frames are discarded.
-- \`linux-pipewire\`: small **Linux command-line proof of concept**. It uses
+- `linux-pipewire`: small **Linux command-line proof of concept**. It uses
   the Rust ring and PipeWire's tools to capture a selected microphone and
   publish a temporary virtual microphone. No sound processing/gating yet.
 
 ## Build and test (Linux)
 
-\`\`\`sh
+```sh
 cargo test --locked --manifest-path rust/Cargo.toml --workspace --all-targets
 cargo build --locked --manifest-path rust/Cargo.toml -p itervc-linux-pipewire --release
 ./rust/target/release/itervc-linux-pipewire --help
-\`\`\`
+```
 
 ## Manual PipeWire demonstration (Linux desktop)
 
-Requires a **running per-user PipeWire session**, \`pipewire-pulse\`, \`pw-cat\`
-and \`pactl\` (from \`pulseaudio-utils\` on Debian/Ubuntu). These tools are
+Requires a **running per-user PipeWire session**, `pipewire-pulse`, `pw-cat`
+and `pactl` (from `pulseaudio-utils` on Debian/Ubuntu). These tools are
 runtime dependencies only for the prototype, not for Windows.
 
-\`\`\`sh
+```sh
 ./rust/target/release/itervc-linux-pipewire --check
 ./rust/target/release/itervc-linux-pipewire --list-inputs
 ./rust/target/release/itervc-linux-pipewire \
   --input alsa_input.your_actual_microphone_node --seconds 30
-\`\`\`
+```
 
-The command creates \`itervc_rust_sink\` (a null sink) plus a remapped source
-named \`itervc_rust_microphone\`. While running, select **IterVC Rust
+The microphone source must appear under `--list-inputs`; monitor and
+IterVC virtual sources are filtered out to avoid feedback. Capture and
+playback explicitly use PipeWire `--raw` float32 mode to avoid sending
+an audio file header through the PCM buffer. Shutdown and session timeout
+are supervised even when capture blocks waiting for microphone input.
+
+The command creates `itervc_rust_sink` (a null sink) plus a remapped source
+named `itervc_rust_microphone`. While running, select **IterVC Rust
 Microphone** as your microphone in another application. Samples go through
 the Rust PCM buffer and are written to that virtual source. The two
-\`pactl\` modules are automatically unloaded on normal exit or a caught
+`pactl` modules are automatically unloaded on normal exit or a caught
 SIGINT/SIGTERM. If the process is forcibly killed, remove any leftover
-modules with \`pactl list short modules\` and \`pactl unload-module ID\`.
+modules with `pactl list short modules` and `pactl unload-module ID`.
 
 **Important:** specify a *physical* input, not the virtual source, to avoid
 feedback loops. This experiment routes only the physical microphone. It
