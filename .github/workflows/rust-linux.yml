@@ -40,19 +40,10 @@ jobs:
       - name: Install Xvfb and desktop rendering dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y xvfb xauth libfontconfig1 libice6 libsm6
-      - name: Smoke test Avalonia Linux window under a virtual X11 display
+          sudo apt-get install -y xvfb xauth xdotool libfontconfig1 libice6 libsm6
+      - name: Interact with Linux desktop and hotkeys on virtual X11
         shell: bash
-        run: |
-          set +e
-          timeout --signal=TERM 6s xvfb-run -a ./artifacts/linux-desktop/IterVC.Linux > /tmp/itervc-xvfb.log 2>&1
-          result=$?
-          set -e
-          cat /tmp/itervc-xvfb.log
-          if [ "$result" -ne 124 ]; then
-            echo "Linux GUI exited unexpectedly (exit code: $result)" >&2
-            exit 1
-          fi
+        run: timeout --signal=TERM 20s xvfb-run -a bash rust/scripts/gui-xvfb-smoke.sh ./artifacts/linux-desktop/IterVC.Linux
       - name: Package Linux portable executable with Unix permissions
         run: |
           chmod 755 artifacts/linux-desktop/IterVC.Linux
