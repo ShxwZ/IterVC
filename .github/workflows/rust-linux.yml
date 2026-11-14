@@ -5,6 +5,8 @@ on:
     branches: [master]
     paths:
       - 'rust/**'
+      - 'IterVC.Linux/**'
+      - 'IterVC.Core/**'
       - '.github/workflows/rust-linux.yml'
   workflow_dispatch:
 
