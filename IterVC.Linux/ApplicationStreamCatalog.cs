@@ -13,6 +13,16 @@ internal sealed record ApplicationStream(uint Id, string Name)
 /// </summary>
 internal static class ApplicationStreamCatalog
 {
+    /// <summary>
+    /// Resolve saved application names against the *current* PulseAudio stream
+    /// IDs. IDs may disappear or be recycled between GUI refresh and Start.
+    /// </summary>
+    public static ApplicationStream[] SelectActive(string json, IEnumerable<string> selectedNames)
+    {
+        var names = selectedNames.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return Parse(json).Where(app => names.Contains(app.Name)).ToArray();
+    }
+
     public static ApplicationStream[] Parse(string json)
     {
         using var document = JsonDocument.Parse(json);
