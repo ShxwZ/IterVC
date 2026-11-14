@@ -1,6 +1,9 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="IterVC.UI.DesktopShell">
+  <UserControl.Styles>
+    <StyleInclude Source="avares://IterVC.UI/DesktopStyles.axaml" />
+  </UserControl.Styles>
   <!-- One canonical shell for both Windows and Linux. Platform-specific
        control panels live in slots; dimensions and visual hierarchy do not. -->
   <Grid>
