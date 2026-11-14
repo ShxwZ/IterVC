@@ -9,7 +9,7 @@ mod mic_dsp;
 use mic_dsp::{MicrophoneConfig, MicrophoneProcessor};
 
 use itervc_audio_buffers::PcmRingBuffer;
-use app_audio::{parse_sink_inputs, parse_sink_name, parse_pactl_node_name, capture_ports};
+use app_audio::{parse_sink_inputs, parse_sink_name, parse_pactl_node_id, find_output_port_ids};
 use std::env;
 use std::io::{self, Read, Write};
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
@@ -366,7 +366,7 @@ impl PipeWireSession {
             &command_output("pactl", &["list", "short", "sink-inputs"])?);
         let sinks = command_output("pactl", &["list", "short", "sinks"])?;
         let detailed_inputs = command_output("pactl", &["list", "sink-inputs"])?;
-        let mut nodes = Vec::new();
+        let mut node_ids = Vec::new();
         for id in stream_ids {
             let stream = available.iter().find(|entry| entry.id == *id)
                 .ok_or_else(|| format!("App stream {id} is not available"))?;
@@ -375,12 +375,12 @@ impl PipeWireSession {
             if original_name.starts_with("itervc_rust_") {
                 return Err("Refusing to capture IterVC's own audio stream".into());
             }
-            let node = parse_pactl_node_name(&detailed_inputs, *id)
-                .ok_or_else(|| format!("PipeWire node.name for app stream {id} was not found"))?;
-            if node.starts_with("itervc_rust_") || nodes.contains(&node) {
-                return Err(format!("App stream {id} cannot be uniquely identified for safe capture"));
+            let node_id = parse_pactl_node_id(&detailed_inputs, *id)
+                .ok_or_else(|| format!("PipeWire object.id for app stream {id} was not found"))?;
+            if node_ids.contains(&node_id) {
+                return Err(format!("App stream {id} resolves to an already selected PipeWire node"));
             }
-            nodes.push(node);
+            node_ids.push(node_id);
         }
 
         // Only the selected applications' output ports are connected to this
@@ -407,24 +407,41 @@ impl PipeWireSession {
         let virtual_pipe = mixer.stdin.take().ok_or("No app mix stdin")?;
         self.app_playback = Some(mixer);
 
-        // Port enumeration is repeated briefly to account for PipeWire's
-        // asynchronous node creation. Fail safely if a channel is missing.
+        // Match the object.id from pactl to pw-cli Port's node.id, obtaining
+        // unique numeric port IDs. Duplicate display names are common: two
+        // playback streams may both be called "pacat" or "Spotify".
         let mut ports = None;
-        for _ in 0..20 {
-            let output = command_output("pw-link", &["--output"])?;
-            let input = command_output("pw-link", &["--input"])?;
-            let candidates = nodes.iter()
-                .map(|node| capture_ports(node, &output, &input, APP_SINK_NAME)
-                    .ok_or_else(|| format!("48 kHz stereo output ports unavailable for app node '{node}'")))
-                .collect::<Result<Vec<_>, _>>();
-            if let Ok(channels) = candidates {
-                ports = Some(channels);
+        for _ in 0..25 {
+            let listing = command_output("pw-cli", &["ls", "Port"])?;
+            let inputs = command_output("pw-link", &["--input"])?;
+            let capture_left = format!("{APP_SINK_NAME}:playback_FL");
+            let capture_right = format!("{APP_SINK_NAME}:playback_FR");
+            if !inputs.lines().any(|line| line.trim() == capture_left) ||
+                !inputs.lines().any(|line| line.trim() == capture_right) {
+                std::thread::sleep(Duration::from_millis(50));
+                continue;
+            }
+            let mut links = Vec::new();
+            let mut all_found = true;
+            for node_id in &node_ids {
+                if let Some((left, right)) = find_output_port_ids(&listing, *node_id) {
+                    links.push(vec![
+                        (left.to_string(), capture_left.clone()),
+                        (right.to_string(), capture_right.clone()),
+                    ]);
+                } else {
+                    all_found = false;
+                    break;
+                }
+            }
+            if all_found {
+                ports = Some(links);
                 break;
             }
             std::thread::sleep(Duration::from_millis(50));
         }
         let ports = ports.ok_or(
-            "Could not identify stereo PipeWire ports for selected apps; no audio routes were changed")?;
+            "Could not identify unique stereo PipeWire port IDs for selected apps; existing speaker routes were not changed")?;
 
         for (source, destination) in ports.into_iter().flatten() {
             command_output("pw-link", &[&source, &destination])?;
