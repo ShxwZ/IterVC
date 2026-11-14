@@ -52,6 +52,13 @@ noise-gate calibration remain unimplemented on Linux rather than displayed
 with invented readings. Desktop language changes are saved and applied on
 restart.
 
+Linux now supports live noise-gate enable, threshold and attack/release changes
+through validated Rust IPC without restarting PipeWire. The desktop can
+calibrate the ambient threshold from the microphone's raw input meter; this
+measurement is independent of selected application audio. The input and
+post-gate microphone meters are reported separately from the virtual output
+mix meter.
+
 The window offers microphone gain, boost and optional noise gate, plus
 multiple explicitly selected active applications and independent app-mix volume.
 The **same final mixed output** feeds the virtual microphone, optional
