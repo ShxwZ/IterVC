@@ -172,8 +172,11 @@ if [ -z "$stream_id" ]; then
 fi
 
 "$app" --list-apps | grep -q "\"index\""
+# Keep a writable stdin channel for gain changes without restarting PipeWire.
+mkfifo "$test_dir/live-gain.fifo"
+exec 9<>"$test_dir/live-gain.fifo"
 "$app" --input itervc_ci_test_microphone --app-stream "$stream_id" --app-volume 0.75 \
-  --seconds 0 >"$test_dir/app-session.log" 2>&1 &
+  --seconds 0 <"$test_dir/live-gain.fifo" >"$test_dir/app-session.log" 2>&1 &
 app_pid="$!"
 
 linked=0
@@ -241,9 +244,64 @@ if nonzero < 1000:
 print(f"Application PCM audibility check: {nonzero} nonzero samples from virtual source.")
 PY
 
+# Mute the selected application in the virtual microphone *without*
+# restarting the Rust process or touching its original speaker connection.
+printf 'app-volume 0\n' >&9
+sleep 0.5
+pw-cat --record --raw --format=f32 --rate=48000 --channels=2 \
+  --target=itervc_rust_microphone - >"$test_dir/muted-output.pcm" 2>"$test_dir/muted.log" &
+output_capture_pid="$!"
+sleep 1.1
+kill -TERM "$output_capture_pid" 2>/dev/null || true
+wait "$output_capture_pid" 2>/dev/null || true
+output_capture_pid=""
+python3 - "$test_dir/muted-output.pcm" <<'PY'
+from array import array
+import os
+import sys
+path = sys.argv[1]
+if os.path.getsize(path) < 8192:
+    raise SystemExit("Live app-mute test did not record enough virtual microphone PCM")
+samples = array("f")
+with open(path, "rb") as stream:
+    samples.frombytes(stream.read())
+if sum(abs(value) > 0.04 for value in samples) > 500:
+    raise SystemExit("Application mute did not silence the mixed virtual microphone")
+print("Live application mute: verified virtual microphone silence.")
+PY
+if ! kill -0 "$app_pid" 2>/dev/null; then
+  echo "Live gain command unexpectedly terminated microphone routing" >&2
+  exit 1
+fi
+printf 'app-volume 0.75\n' >&9
+sleep 0.5
+pw-cat --record --raw --format=f32 --rate=48000 --channels=2 \
+  --target=itervc_rust_microphone - >"$test_dir/restored-output.pcm" 2>"$test_dir/restored.log" &
+output_capture_pid="$!"
+sleep 1.1
+kill -TERM "$output_capture_pid" 2>/dev/null || true
+wait "$output_capture_pid" 2>/dev/null || true
+output_capture_pid=""
+python3 - "$test_dir/restored-output.pcm" <<'PY'
+from array import array
+import os
+import sys
+path = sys.argv[1]
+if os.path.getsize(path) < 8192:
+    raise SystemExit("Live app-unmute test did not record enough PCM")
+samples = array("f")
+with open(path, "rb") as stream:
+    samples.frombytes(stream.read())
+if sum(abs(value) > 0.04 for value in samples) < 1000:
+    raise SystemExit("Application audio did not resume after live unmute")
+print("Live application unmute: nonzero audio restored without restarting PipeWire.")
+PY
+
 kill -TERM "$app_pid"
 wait "$app_pid"
 app_pid=""
+exec 9>&-
+exec 9<&-
 
 restored_sink="$(pactl list short sink-inputs | awk -v id="$stream_id" '$1==id {print $2}')"
 if [ "$restored_sink" != "$original_sink_id" ]; then
