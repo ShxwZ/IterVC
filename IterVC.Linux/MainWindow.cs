@@ -6,6 +6,7 @@ using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
+using IterVC.Core.Settings;
 
 namespace IterVC.Linux;
 
@@ -16,6 +17,8 @@ namespace IterVC.Linux;
 internal sealed class MainWindow : Window
 {
     private readonly LinuxAudioBackend _audio = new();
+    private readonly LinuxSettingsStore _settingsStore = new();
+    private readonly AppSettings _settings;
     private ShortcutControlServer? _shortcuts;
     private readonly ComboBox _microphone = new() { MinWidth = 360 };
     private readonly ComboBox _speakers = new() { MinWidth = 360 };
@@ -28,18 +31,21 @@ internal sealed class MainWindow : Window
     private readonly TextBlock _levelText = new();
     private bool _running;
     private bool _closing;
+    private bool _loadingPreferences;
 
     private static string L(string spanish, string english) =>
         CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "es" ? spanish : english;
 
     public MainWindow()
     {
+        _settings = _settingsStore.Load();
         Title = "IterVC — Linux (PipeWire)";
         Width = 600;
         MinWidth = 500;
         Height = 520;
         MinHeight = 460;
         _monitor.Content = L("Monitorizar micrófono (opcional)", "Monitor microphone (optional)");
+        _monitor.IsChecked = _settings.MonitorMicrophone;
         _refresh.Content = L("Actualizar dispositivos", "Refresh devices");
         _start.Content = L("Iniciar enrutamiento", "Start routing");
         _stop.Content = L("Detener", "Stop");
@@ -102,8 +108,10 @@ internal sealed class MainWindow : Window
         }
         catch (Exception error) { _status.Text = error.Message; }
 
-        _monitor.Checked += (_, _) => _speakers.IsEnabled = !_running;
-        _monitor.Unchecked += (_, _) => _speakers.IsEnabled = false;
+        _monitor.Checked += (_, _) => { _speakers.IsEnabled = !_running; SavePreferences(); };
+        _monitor.Unchecked += (_, _) => { _speakers.IsEnabled = false; SavePreferences(); };
+        _microphone.SelectionChanged += (_, _) => SavePreferences();
+        _speakers.SelectionChanged += (_, _) => SavePreferences();
         _refresh.Click += async (_, _) => await RefreshAsync();
         _start.Click += async (_, _) => await StartAsync();
         _stop.Click += async (_, _) => await StopAsync();
@@ -132,16 +140,38 @@ internal sealed class MainWindow : Window
             var outputs = (await _audio.QueryAsync("--list-outputs"))
                 .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                 .Where(item => !item.StartsWith("No ", StringComparison.Ordinal)).ToArray();
-            _microphone.ItemsSource = inputs;
-            _microphone.SelectedIndex = inputs.Length > 0 ? 0 : -1;
-            _speakers.ItemsSource = outputs;
-            _speakers.SelectedIndex = outputs.Length > 0 ? 0 : -1;
+            _loadingPreferences = true;
+            try
+            {
+                _microphone.ItemsSource = inputs;
+                _microphone.SelectedItem = inputs.FirstOrDefault(item => item == _settings.MicrophoneDeviceId)
+                    ?? inputs.FirstOrDefault();
+                _speakers.ItemsSource = outputs;
+                _speakers.SelectedItem = outputs.FirstOrDefault(item => item == _settings.OutputDeviceId)
+                    ?? outputs.FirstOrDefault();
+                _speakers.IsEnabled = !_running && _monitor.IsChecked == true;
+            }
+            finally { _loadingPreferences = false; }
             _status.Text = inputs.Length == 0
                 ? L("No se detectaron micrófonos físicos.", "No physical microphones found.")
                 : L("Selecciona el micrófono y pulsa Iniciar.", "Choose a microphone and press Start.");
         }
         catch (Exception error) { _status.Text = error.Message; }
         finally { _refresh.IsEnabled = true; }
+    }
+
+    private void SavePreferences()
+    {
+        if (_loadingPreferences) return;
+        _settings.MicrophoneDeviceId = _microphone.SelectedItem as string;
+        _settings.OutputDeviceId = _speakers.SelectedItem as string;
+        _settings.MonitorMicrophone = _monitor.IsChecked == true;
+        try { _settingsStore.Save(_settings); }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            _status.Text = L("No se pudo guardar la configuración: ",
+                "Unable to save settings: ") + error.Message;
+        }
     }
 
     private Task StartAsync()
