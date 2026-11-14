@@ -56,7 +56,7 @@ enum Mode {
     ListApps,
     Check,
     Run { input: String, seconds: u64, monitor_output: Option<String>,
-        app_stream: Option<u32>, app_volume: f32, mic_volume: f32,
+        app_streams: Vec<u32>, app_volume: f32, mic_volume: f32,
         gate_enabled: bool, gate_threshold_db: f32 },
 }
 
@@ -65,7 +65,7 @@ fn parse_args(args: impl IntoIterator<Item = String>) -> Result<Mode, String> {
     let mut input = None;
     let mut seconds = 30u64;
     let mut monitor_output = None;
-    let mut app_stream = None;
+    let mut app_streams: Vec<u32> = Vec::new();
     let mut app_volume = 1.0f32;
     let mut mic_volume = 1.0f32;
     let mut gate_enabled = false;
@@ -84,7 +84,8 @@ fn parse_args(args: impl IntoIterator<Item = String>) -> Result<Mode, String> {
             }
             "--app-stream" => {
                 let raw = args.next().ok_or("Missing stream id after --app-stream")?;
-                app_stream = Some(raw.parse::<u32>().map_err(|_| "Invalid app stream id")?);
+                let id = raw.parse::<u32>().map_err(|_| "Invalid app stream id")?;
+                if !app_streams.contains(&id) { app_streams.push(id); }
             }
             "--mic-volume" => {
                 let raw = args.next().ok_or("Missing value after --mic-volume")?;
@@ -123,7 +124,7 @@ fn parse_args(args: impl IntoIterator<Item = String>) -> Result<Mode, String> {
     }
 
     if let Some(mode) = mode {
-        if input.is_some() || monitor_output.is_some() || app_stream.is_some() ||
+        if input.is_some() || monitor_output.is_some() || !app_streams.is_empty() ||
             app_volume != 1.0 || mic_volume != 1.0 || gate_enabled || gate_threshold_db != -45.0 {
             return Err("--input cannot be combined with a query option".into());
         }
@@ -137,10 +138,10 @@ fn parse_args(args: impl IntoIterator<Item = String>) -> Result<Mode, String> {
     if monitor_output.as_deref().is_some_and(|name| !is_physical_output(name)) {
         return Err("Select a real speaker output, not the virtual sink".into());
     }
-    if app_stream.is_none() && app_volume != 1.0 {
+    if app_streams.is_empty() && app_volume != 1.0 {
         return Err("--app-volume needs --app-stream".into());
     }
-    Ok(Mode::Run { input, seconds, monitor_output, app_stream, app_volume,
+    Ok(Mode::Run { input, seconds, monitor_output, app_streams, app_volume,
         mic_volume, gate_enabled, gate_threshold_db })
 }
 
@@ -612,7 +613,7 @@ fn process_audio_configured(
 }
 
 fn run(input: &str, seconds: u64, monitor_output: Option<&str>,
-    app_stream: Option<u32>, app_volume: f32,
+    app_streams: &[u32], app_volume: f32,
     mic_volume: f32, gate_enabled: bool, gate_threshold_db: f32) -> Result<(), String> {
     check_dependencies()?;
     validate_input(input)?;
@@ -626,8 +627,8 @@ fn run(input: &str, seconds: u64, monitor_output: Option<&str>,
     session.create_virtual_microphone()?;
     let (source, destination, mixed_monitor, monitor_pipe) =
         session.start_streams(input, monitor_output)?;
-    let app_pipes = if let Some(stream_id) = app_stream {
-        Some(session.start_application(stream_id)?)
+    let app_pipes = if !app_streams.is_empty() {
+        Some(session.start_application(app_streams)?)
     } else {
         None
     };
@@ -700,9 +701,9 @@ fn main() {
                 }
             }
         }),
-        Ok(Mode::Run { input, seconds, monitor_output, app_stream, app_volume,
+        Ok(Mode::Run { input, seconds, monitor_output, app_streams, app_volume,
             mic_volume, gate_enabled, gate_threshold_db }) =>
-            run(&input, seconds, monitor_output.as_deref(), app_stream, app_volume,
+            run(&input, seconds, monitor_output.as_deref(), &app_streams, app_volume,
                 mic_volume, gate_enabled, gate_threshold_db),
         Err(error) => Err(error),
     };
@@ -736,7 +737,7 @@ mod tests {
                 input: "alsa_input.usb-microphone".into(),
                 seconds: 5,
                 monitor_output: None,
-                app_stream: None,
+                app_streams: vec![],
                 app_volume: 1.0,
                 mic_volume: 1.0, gate_enabled: false, gate_threshold_db: -45.0
             }
@@ -749,12 +750,16 @@ mod tests {
     fn app_capture_is_opt_in_and_gain_is_validated() {
         assert_eq!(parse(&["--input", "mic", "--app-stream", "42", "--app-volume", "0.75"]).unwrap(),
             Mode::Run { input: "mic".into(), seconds: 30, monitor_output: None,
-                app_stream: Some(42), app_volume: 0.75,
+                app_streams: vec![42], app_volume: 0.75,
                 mic_volume: 1.0, gate_enabled: false, gate_threshold_db: -45.0 });
         assert!(parse(&["--input", "mic", "--app-stream", "unknown"]).is_err());
         assert!(parse(&["--input", "mic", "--app-volume", "0.2"]).is_err());
         assert!(parse(&["--input", "mic", "--app-stream", "2", "--app-volume", "nan"]).is_err());
         assert_eq!(parse(&["--list-apps"]).unwrap(), Mode::ListApps);
+        assert_eq!(parse(&["--input", "mic", "--app-stream", "14", "--app-stream", "7", "--app-stream", "14"]).unwrap(),
+            Mode::Run { input: "mic".into(), seconds: 30, monitor_output: None,
+                app_streams: vec![14, 7], app_volume: 1.0,
+                mic_volume: 1.0, gate_enabled: false, gate_threshold_db: -45.0 });
     }
 
     #[test]
@@ -762,7 +767,7 @@ mod tests {
         assert_eq!(parse(&["--input", "mic", "--mic-volume", "1.25",
             "--noise-gate", "--gate-threshold", "-38"]).unwrap(),
             Mode::Run { input: "mic".into(), seconds: 30, monitor_output: None,
-                app_stream: None, app_volume: 1.0,
+                app_streams: vec![], app_volume: 1.0,
                 mic_volume: 1.25, gate_enabled: true, gate_threshold_db: -38.0 });
         assert!(parse(&["--input", "mic", "--mic-volume", "5"]).is_err());
         assert!(parse(&["--input", "mic", "--gate-threshold", "nan"]).is_err());
@@ -810,7 +815,7 @@ mod tests {
         assert_eq!(parse(&["--input", "physical", "--monitor-output", "alsa_output.speakers"]).unwrap(),
             Mode::Run { input: "physical".into(), seconds: 30,
                 monitor_output: Some("alsa_output.speakers".into()),
-                app_stream: None, app_volume: 1.0,
+                app_streams: vec![], app_volume: 1.0,
                 mic_volume: 1.0, gate_enabled: false, gate_threshold_db: -45.0 });
     }
 
