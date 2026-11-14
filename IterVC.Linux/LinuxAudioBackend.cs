@@ -69,7 +69,8 @@ internal sealed class LinuxAudioBackend : IDisposable
     public void Start(string microphone, string? monitoringOutput,
         IReadOnlyCollection<uint>? applicationStreamIds = null, double appVolume = 1.0,
         double micVolume = 1.0, bool gateEnabled = false, double gateThresholdDb = -45,
-        bool includeApplicationCapture = false)
+        bool includeApplicationCapture = false,
+        double gateAttackMs = 10, double gateReleaseMs = 150)
     {
         ThrowIfDisposed();
         if (_session is { HasExited: false })
@@ -99,6 +100,10 @@ internal sealed class LinuxAudioBackend : IDisposable
             throw new ArgumentOutOfRangeException(nameof(micVolume));
         if (!double.IsFinite(gateThresholdDb) || gateThresholdDb < -100 || gateThresholdDb > 0)
             throw new ArgumentOutOfRangeException(nameof(gateThresholdDb));
+        if (!double.IsFinite(gateAttackMs) || gateAttackMs < 1 || gateAttackMs > 1000)
+            throw new ArgumentOutOfRangeException(nameof(gateAttackMs));
+        if (!double.IsFinite(gateReleaseMs) || gateReleaseMs < 1 || gateReleaseMs > 2000)
+            throw new ArgumentOutOfRangeException(nameof(gateReleaseMs));
         if (micVolume != 1.0)
         {
             process.StartInfo.ArgumentList.Add("--mic-volume");
@@ -109,6 +114,10 @@ internal sealed class LinuxAudioBackend : IDisposable
             process.StartInfo.ArgumentList.Add("--noise-gate");
             process.StartInfo.ArgumentList.Add("--gate-threshold");
             process.StartInfo.ArgumentList.Add(gateThresholdDb.ToString("0.0", CultureInfo.InvariantCulture));
+            process.StartInfo.ArgumentList.Add("--gate-attack");
+            process.StartInfo.ArgumentList.Add(gateAttackMs.ToString("0.0", CultureInfo.InvariantCulture));
+            process.StartInfo.ArgumentList.Add("--gate-release");
+            process.StartInfo.ArgumentList.Add(gateReleaseMs.ToString("0.0", CultureInfo.InvariantCulture));
         }
         process.StartInfo.RedirectStandardError = true;
         process.StartInfo.RedirectStandardInput = true;
