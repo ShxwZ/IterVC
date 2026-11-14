@@ -57,7 +57,7 @@ enum Mode {
     ListApps,
     Check,
     Run { input: String, seconds: u64, monitor_output: Option<String>,
-        app_streams: Vec<u32>, app_volume: f32, mic_volume: f32,
+        app_streams: Vec<u32>, include_apps: bool, app_volume: f32, mic_volume: f32,
         gate_enabled: bool, gate_threshold_db: f32 },
 }
 
@@ -67,6 +67,7 @@ fn parse_args(args: impl IntoIterator<Item = String>) -> Result<Mode, String> {
     let mut seconds = 30u64;
     let mut monitor_output = None;
     let mut app_streams: Vec<u32> = Vec::new();
+    let mut include_apps = false;
     let mut app_volume = 1.0f32;
     let mut mic_volume = 1.0f32;
     let mut gate_enabled = false;
@@ -83,9 +84,12 @@ fn parse_args(args: impl IntoIterator<Item = String>) -> Result<Mode, String> {
             "--input" => {
                 input = Some(args.next().ok_or("Missing device after --input")?);
             }
+            "--include-apps" => include_apps = true,
             "--app-stream" => {
+                include_apps = true;
                 let raw = args.next().ok_or("Missing stream id after --app-stream")?;
                 let id = raw.parse::<u32>().map_err(|_| "Invalid app stream id")?;
+                if id == 0 { return Err("App stream ID must be positive".into()); }
                 if !app_streams.contains(&id) { app_streams.push(id); }
             }
             "--mic-volume" => {
@@ -125,7 +129,7 @@ fn parse_args(args: impl IntoIterator<Item = String>) -> Result<Mode, String> {
     }
 
     if let Some(mode) = mode {
-        if input.is_some() || monitor_output.is_some() || !app_streams.is_empty() ||
+        if input.is_some() || monitor_output.is_some() || include_apps ||
             app_volume != 1.0 || mic_volume != 1.0 || gate_enabled || gate_threshold_db != -45.0 {
             return Err("--input cannot be combined with a query option".into());
         }
@@ -139,10 +143,10 @@ fn parse_args(args: impl IntoIterator<Item = String>) -> Result<Mode, String> {
     if monitor_output.as_deref().is_some_and(|name| !is_physical_output(name)) {
         return Err("Select a real speaker output, not the virtual sink".into());
     }
-    if app_streams.is_empty() && app_volume != 1.0 {
-        return Err("--app-volume needs --app-stream".into());
+    if !include_apps && app_volume != 1.0 {
+        return Err("--app-volume needs --include-apps or --app-stream".into());
     }
-    Ok(Mode::Run { input, seconds, monitor_output, app_streams, app_volume,
+    Ok(Mode::Run { input, seconds, monitor_output, app_streams, include_apps, app_volume,
         mic_volume, gate_enabled, gate_threshold_db })
 }
 
@@ -159,7 +163,8 @@ fn print_help() {
          A temporary IterVC virtual microphone is created and removed after exit.\n\
          Selected apps are tapped via PipeWire links; their speaker routing remains unchanged.\n\
          --seconds 0 runs until stopped. --monitor-output is optional.\n\
-         --app-stream ID selects an app (repeatable); --app-volume 0..2.\n\
+         --app-stream ID selects an app (repeatable); --include-apps waits for future streams.\\n\\
+          --app-volume 0..2.\n\
          --mic-volume 0..3, --noise-gate and --gate-threshold -100..0."
     );
 }
@@ -360,9 +365,6 @@ impl PipeWireSession {
     fn start_application(&mut self, stream_ids: &[u32])
         -> Result<(ChildStdout, ChildStdin), String>
     {
-        if stream_ids.is_empty() {
-            return Err("Select at least one application stream".into());
-        }
         let available = parse_sink_inputs(
             &command_output("pactl", &["list", "short", "sink-inputs"])?);
         let sinks = command_output("pactl", &["list", "short", "sinks"])?;
@@ -765,7 +767,7 @@ fn watch_live_controls(microphone: Arc<AtomicU32>, applications: Arc<AtomicU32>,
 }
 
 fn run(input: &str, seconds: u64, monitor_output: Option<&str>,
-    app_streams: &[u32], app_volume: f32,
+    app_streams: &[u32], include_apps: bool, app_volume: f32,
     mic_volume: f32, gate_enabled: bool, gate_threshold_db: f32) -> Result<(), String> {
     check_dependencies()?;
     validate_input(input)?;
@@ -779,7 +781,7 @@ fn run(input: &str, seconds: u64, monitor_output: Option<&str>,
     session.create_virtual_microphone()?;
     let (source, destination, mixed_monitor, monitor_pipe) =
         session.start_streams(input, monitor_output)?;
-    let app_pipes = if !app_streams.is_empty() {
+    let app_pipes = if include_apps {
         Some(session.start_application(app_streams)?)
     } else {
         None
@@ -880,9 +882,9 @@ fn main() {
                 }
             }
         }),
-        Ok(Mode::Run { input, seconds, monitor_output, app_streams, app_volume,
+        Ok(Mode::Run { input, seconds, monitor_output, app_streams, include_apps, app_volume,
             mic_volume, gate_enabled, gate_threshold_db }) =>
-            run(&input, seconds, monitor_output.as_deref(), &app_streams, app_volume,
+            run(&input, seconds, monitor_output.as_deref(), &app_streams, include_apps, app_volume,
                 mic_volume, gate_enabled, gate_threshold_db),
         Err(error) => Err(error),
     };
@@ -949,7 +951,7 @@ mod tests {
     fn app_capture_is_opt_in_and_gain_is_validated() {
         assert_eq!(parse(&["--input", "mic", "--app-stream", "42", "--app-volume", "0.75"]).unwrap(),
             Mode::Run { input: "mic".into(), seconds: 30, monitor_output: None,
-                app_streams: vec![42], app_volume: 0.75,
+                app_streams: vec![42], include_apps: true, app_volume: 0.75,
                 mic_volume: 1.0, gate_enabled: false, gate_threshold_db: -45.0 });
         assert!(parse(&["--input", "mic", "--app-stream", "unknown"]).is_err());
         assert!(parse(&["--input", "mic", "--app-volume", "0.2"]).is_err());
@@ -957,8 +959,18 @@ mod tests {
         assert_eq!(parse(&["--list-apps"]).unwrap(), Mode::ListApps);
         assert_eq!(parse(&["--input", "mic", "--app-stream", "14", "--app-stream", "7", "--app-stream", "14"]).unwrap(),
             Mode::Run { input: "mic".into(), seconds: 30, monitor_output: None,
-                app_streams: vec![14, 7], app_volume: 1.0,
+                app_streams: vec![14, 7], include_apps: true, app_volume: 1.0,
                 mic_volume: 1.0, gate_enabled: false, gate_threshold_db: -45.0 });
+    }
+
+    #[test]
+    fn application_capture_can_wait_for_selected_programs() {
+        assert_eq!(parse(&["--input", "mic", "--include-apps", "--app-volume", "0.5"]).unwrap(),
+            Mode::Run { input: "mic".into(), seconds: 30, monitor_output: None,
+                app_streams: vec![], include_apps: true, app_volume: 0.5,
+                mic_volume: 1.0, gate_enabled: false, gate_threshold_db: -45.0 });
+        assert!(parse(&["--list-apps", "--include-apps"]).is_err());
+        assert!(parse(&["--input", "mic", "--app-stream", "0"]).is_err());
     }
 
     #[test]
@@ -966,7 +978,7 @@ mod tests {
         assert_eq!(parse(&["--input", "mic", "--mic-volume", "1.25",
             "--noise-gate", "--gate-threshold", "-38"]).unwrap(),
             Mode::Run { input: "mic".into(), seconds: 30, monitor_output: None,
-                app_streams: vec![], app_volume: 1.0,
+                app_streams: vec![], include_apps: false, app_volume: 1.0,
                 mic_volume: 1.25, gate_enabled: true, gate_threshold_db: -38.0 });
         assert!(parse(&["--input", "mic", "--mic-volume", "5"]).is_err());
         assert!(parse(&["--input", "mic", "--gate-threshold", "nan"]).is_err());
@@ -1014,7 +1026,7 @@ mod tests {
         assert_eq!(parse(&["--input", "physical", "--monitor-output", "alsa_output.speakers"]).unwrap(),
             Mode::Run { input: "physical".into(), seconds: 30,
                 monitor_output: Some("alsa_output.speakers".into()),
-                app_streams: vec![], app_volume: 1.0,
+                app_streams: vec![], include_apps: false, app_volume: 1.0,
                 mic_volume: 1.0, gate_enabled: false, gate_threshold_db: -45.0 });
     }
 
