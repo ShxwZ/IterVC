@@ -669,6 +669,19 @@ fn process_audio_configured(
     process_audio_live(source, destination, monitor, duration, settings, &gain)
 }
 
+/// Aggregate finite stereo PCM power without allocating per audio callback.
+/// The input and processed microphone meters are kept separate from the
+/// final PipeWire mix meter (which can also contain selected applications).
+fn accumulate_pcm_power(data: &[u8], power: &mut f64, count: &mut u64) {
+    for sample in data.chunks_exact(std::mem::size_of::<f32>()) {
+        let value = f32::from_le_bytes(sample.try_into().unwrap()) as f64;
+        if value.is_finite() {
+            *power += value * value;
+            *count += 1;
+        }
+    }
+}
+
 fn process_audio_live(
     mut source: impl Read, mut destination: impl Write,
     mut monitor: Option<&mut dyn Write>, duration: Duration,
@@ -682,6 +695,11 @@ fn process_audio_live(
     let mut outbound = [0u8; 4096];
     let mut pending = Vec::with_capacity(incoming.len() + FRAME_BYTES);
     let mut forwarded_bytes = 0u64;
+    let mut mic_input_power = 0.0f64;
+    let mut mic_output_power = 0.0f64;
+    let mut mic_sample_count = 0u64;
+    let mut mic_output_count = 0u64;
+    let mut mic_last_report = Instant::now();
     let start = Instant::now();
     while !STOP.load(Ordering::Relaxed) && start.elapsed() < duration {
         let read = match source.read(&mut incoming) {
@@ -704,8 +722,21 @@ fn process_audio_live(
             }
             let count = available.min(outbound.len());
             let written = ring.read(&mut outbound[..count]);
+            accumulate_pcm_power(&outbound[..written], &mut mic_input_power, &mut mic_sample_count);
             processor.set_volume(f32::from_bits(gain_bits.load(Ordering::Relaxed)))?;
             processor.apply(&mut outbound[..written]);
+            accumulate_pcm_power(&outbound[..written], &mut mic_output_power, &mut mic_output_count);
+            if mic_last_report.elapsed() >= Duration::from_millis(100) && mic_sample_count > 0 {
+                eprintln!("ITERVC_MIC_INPUT_LEVEL:{:.5}",
+                    (mic_input_power / mic_sample_count as f64).sqrt());
+                eprintln!("ITERVC_MIC_OUTPUT_LEVEL:{:.5}",
+                    (mic_output_power / mic_output_count.max(1) as f64).sqrt());
+                mic_input_power = 0.0;
+                mic_output_power = 0.0;
+                mic_sample_count = 0;
+                mic_output_count = 0;
+                mic_last_report = Instant::now();
+            }
             destination.write_all(&outbound[..written])?;
             if let Some(speaker) = monitor.as_deref_mut() {
                 if let Err(error) = speaker.write_all(&outbound[..written]) {
@@ -920,6 +951,20 @@ mod tests {
 
     fn parse(args: &[&str]) -> Result<Mode, String> {
         parse_args(args.iter().map(|arg| (*arg).to_string()))
+    }
+
+    #[test]
+    fn microphone_meter_ignores_non_finite_pcm_and_reports_raw_power() {
+        let bytes: Vec<u8> = [0.25f32, -0.5, f32::NAN, f32::INFINITY]
+            .iter().flat_map(|sample| sample.to_le_bytes()).collect();
+        let (mut power, mut count) = (0.0, 0);
+        accumulate_pcm_power(&bytes, &mut power, &mut count);
+        assert_eq!(count, 2);
+        assert!((power - 0.3125).abs() < 0.00001);
+        let (mut silence_power, mut silence_count) = (0.0, 0);
+        accumulate_pcm_power(&[0u8; 16], &mut silence_power, &mut silence_count);
+        assert_eq!(silence_power, 0.0);
+        assert_eq!(silence_count, 4);
     }
 
     #[test]
