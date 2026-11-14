@@ -207,6 +207,8 @@ public sealed partial class MicrophoneViewModel : ViewModelBase
 
     private async Task RunAfterAsync(Task previous, Func<Task> operation, string description)
     {
+        // Defer execution until the queued task is assigned, including for synchronous failures.
+        await Task.Yield();
         try { await previous; }
         catch { }
         if (Volatile.Read(ref _stopped) != 0) return;
