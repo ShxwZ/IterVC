@@ -73,10 +73,6 @@ if [ "$ready" != 1 ]; then
   exit 1
 fi
 
-# Keep this isolated test session deterministic: disable WirePlumber's
-# per-stream saved destination restoration, which may overwrite a requested
-# move when reusing client stream identifiers on shared CI runners.
-wpctl settings stream.restore-target false
 test_sink_module="$(pactl load-module module-null-sink sink_name=itervc_ci_audio_sink)"
 test_source_module="$(pactl load-module module-remap-source master=itervc_ci_audio_sink.monitor source_name=itervc_ci_test_microphone)"
 
@@ -116,9 +112,8 @@ fi
 cat "$test_dir/session.log"
 
 # Exercise a genuine PulseAudio playback stream through pipewire-pulse.
-# IterVC must capture the specifically selected sink-input, publish it to
-# the virtual microphone, keep speaker playback alive and restore the
-# original application output once it exits.
+# IterVC taps selected sink-input output ports without moving the
+# original physical speaker connections.
 if ! command -v pacat >/dev/null 2>&1; then
   echo "pacat is required for the app routing integration test" >&2
   exit 1
@@ -161,20 +156,27 @@ fi
   --seconds 0 >"$test_dir/app-session.log" 2>&1 &
 app_pid="$!"
 
-moved=0
-for _ in $(seq 1 90); do
-  capture_sink="$(pactl list short sinks | awk '$2=="itervc_rust_apps_sink" {print $1}')"
+linked=0
+for _ in $(seq 1 100); do
   current_sink="$(pactl list short sink-inputs | awk -v id="$stream_id" '$1==id {print $2}')"
-  if [ -n "$capture_sink" ] && [ "$current_sink" = "$capture_sink" ]; then
-    moved=1
+  links="$(pw-link --links || true)"
+  if [ "$current_sink" = "$original_sink_id" ] \
+    && printf '%s\n' "$links" | grep -Fq "itervc_rust_apps_sink"; then
+    linked=1
     break
   fi
   if ! kill -0 "$app_pid" 2>/dev/null; then break; fi
   sleep 0.1
 done
-if [ "$moved" != 1 ]; then
+if [ "$linked" != 1 ]; then
   cat "$test_dir/app-session.log" >&2
-  echo "Selected app was not captured by the isolated PipeWire sink" >&2
+  echo "App output ports:" >&2
+  pw-link --output >&2 || true
+  echo "Capture input ports:" >&2
+  pw-link --input >&2 || true
+  echo "Current PipeWire links:" >&2
+  pw-link --links >&2 || true
+  echo "Selected app did not connect while preserving its original output" >&2
   exit 1
 fi
 
@@ -185,7 +187,7 @@ app_pid=""
 restored_sink="$(pactl list short sink-inputs | awk -v id="$stream_id" '$1==id {print $2}')"
 if [ "$restored_sink" != "$original_sink_id" ]; then
   cat "$test_dir/app-session.log" >&2
-  echo "Selected application was not returned to its original output" >&2
+  echo "Selected application's original speaker connection was modified" >&2
   exit 1
 fi
 if pactl list short sinks | grep -q "itervc_rust_apps_sink"; then
@@ -193,6 +195,7 @@ if pactl list short sinks | grep -q "itervc_rust_apps_sink"; then
   exit 1
 fi
 cat "$test_dir/app-session.log"
+
 # Verify two independent application sink-inputs can be selected together
 # without duplicating playback through their shared original speaker.
 pacat --playback --raw --format=float32le --rate=48000 --channels=2 \
@@ -217,22 +220,28 @@ fi
   --app-volume 0.8 --seconds 0 >"$test_dir/multi-app.log" 2>&1 &
 app_pid="$!"
 
-both_moved=0
-for _ in $(seq 1 90); do
-  capture_sink="$(pactl list short sinks | awk '$2=="itervc_rust_apps_sink" {print $1}')"
+both_linked=0
+for _ in $(seq 1 100); do
   current_1="$(pactl list short sink-inputs | awk -v id="$stream_id" '$1==id {print $2}')"
   current_2="$(pactl list short sink-inputs | awk -v id="$stream_2_id" '$1==id {print $2}')"
-  if [ -n "$capture_sink" ] && [ "$current_1" = "$capture_sink" ] && [ "$current_2" = "$capture_sink" ]; then
-    both_moved=1
+  links="$(pw-link --links || true)"
+  if [ "$current_1" = "$original_sink_id" ] && [ "$current_2" = "$original_sink_id" ] \
+    && printf '%s\n' "$links" | grep -Fq "itervc_rust_apps_sink"; then
+    both_linked=1
     break
   fi
   if ! kill -0 "$app_pid" 2>/dev/null; then break; fi
   sleep 0.1
 done
-if [ "$both_moved" != 1 ]; then
+if [ "$both_linked" != 1 ]; then
   cat "$test_dir/multi-app.log" >&2
-  pactl list short sink-inputs >&2
-  echo "Not all selected application streams were captured" >&2
+  echo "Available output ports:" >&2
+  pw-link --output >&2 || true
+  echo "Available input ports:" >&2
+  pw-link --input >&2 || true
+  echo "Current links:" >&2
+  pw-link --links >&2 || true
+  echo "Selected apps did not connect to the capture sink" >&2
   exit 1
 fi
 kill -TERM "$app_pid"
@@ -242,10 +251,14 @@ for id in "$stream_id" "$stream_2_id"; do
   final_sink="$(pactl list short sink-inputs | awk -v stream="$id" '$1==stream {print $2}')"
   if [ "$final_sink" != "$original_sink_id" ]; then
     cat "$test_dir/multi-app.log" >&2
-    echo "Application $id was not restored to its original speaker" >&2
+    echo "Application $id speaker destination was modified" >&2
     exit 1
   fi
 done
+if pactl list short sinks | grep -q "itervc_rust_apps_sink"; then
+  echo "Temporary application capture sink was not removed" >&2
+  exit 1
+fi
 cat "$test_dir/multi-app.log"
-echo "Real PipeWire virtual mic and multi-app capture/restore tests passed."
+echo "Real PipeWire virtual mic and non-invasive multi-app tap tests passed."
 
