@@ -179,6 +179,44 @@ PY
   fi
   # Allow the GUI's asynchronous device catalogue to load.
   sleep 1
+  # A saved app can start while routing is idle and then exit just before
+  # Start. The picker should see it, but Start must NOT pass its stale ID to
+  # Rust (which would otherwise fail the whole microphone session).
+  python3 - "$test_dir/gui-autoapp.pcm" <<'PY'
+import struct
+import sys
+with open(sys.argv[1], "wb") as output:
+    output.write(struct.pack("<ff", 0.35, -0.35) * (48_000 * 25))
+PY
+  gui_prestart_sink="$(pactl list short sinks | awk '$2=="itervc_ci_audio_sink" {print $1}')"
+  pacat --playback --device=itervc_ci_audio_sink \
+    --client-name=PipeWireAutoTestPlayer --stream-name=PipeWireAutoTestPlayer \
+    --raw --format=float32le --rate=48000 --channels=2 \
+    <"$test_dir/gui-autoapp.pcm" >"$test_dir/gui-before-start.log" 2>&1 &
+  gui_autoplay_pid="$!"
+  gui_stale_stream=""
+  for _ in $(seq 1 60); do
+    gui_stale_stream="$(pactl list short sink-inputs |
+      awk -v sink="$gui_prestart_sink" '$2==sink {print $1; exit}')"
+    if [ -n "$gui_stale_stream" ]; then break; fi
+    sleep 0.1
+  done
+  if [ -z "$gui_stale_stream" ]; then
+    cat "$test_dir/gui-before-start.log" >&2
+    echo "Pre-start playback stream never appeared" >&2
+    exit 1
+  fi
+  sleep 5
+  kill -TERM "$gui_autoplay_pid" 2>/dev/null || true
+  wait "$gui_autoplay_pid" 2>/dev/null || true
+  gui_autoplay_pid=""
+  # Wait until PulseAudio has removed the dead stream before starting.
+  for _ in $(seq 1 50); do
+    if ! pactl list short sink-inputs | awk -v id="$gui_stale_stream" '$1==id {found=1} END {exit !found}'; then
+      break
+    fi
+    sleep 0.1
+  done
   "$gui" --start-routing
   gui_source=0
   for _ in $(seq 1 80); do
@@ -202,12 +240,6 @@ PY
     echo "GUI did not prepare application capture for the saved, currently absent app" >&2
     exit 1
   fi
-  python3 - "$test_dir/gui-autoapp.pcm" <<'PY'
-import struct
-import sys
-with open(sys.argv[1], "wb") as output:
-    output.write(struct.pack("<ff", 0.35, -0.35) * (48_000 * 25))
-PY
   pactl set-default-sink itervc_ci_audio_sink
   gui_original_sink="$(pactl list short sinks | awk '$2=="itervc_ci_audio_sink" {print $1}')"
   pacat --playback --device=itervc_ci_audio_sink \
