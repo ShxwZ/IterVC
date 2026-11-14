@@ -6,6 +6,8 @@
 
 mod app_audio;
 mod mic_dsp;
+#[cfg(target_os = "linux")]
+mod rnnoise;
 use mic_dsp::{MicrophoneConfig, MicrophoneProcessor};
 
 use itervc_audio_buffers::PcmRingBuffer;
@@ -692,8 +694,15 @@ fn process_audio_live(
     let mut ring = PcmRingBuffer::new(RATE * RING_MS / 1000, FRAME_BYTES)
         .expect("Fixed ring configuration is valid");
     let mut processor = MicrophoneProcessor::new(settings)?;
+    #[cfg(target_os = "linux")]
+    let mut suppressor: Option<rnnoise::NoiseSuppressor> = None;
+    #[cfg(target_os = "linux")]
+    let mut suppressor_failed = false;
     let mut incoming = [0u8; 4096];
-    let mut outbound = [0u8; 4096];
+    // Fixed 10ms chunks allow lossless RNNoise processing without allocating
+    // or blocking the PipeWire capture callback. Non-suppressed audio is
+    // forwarded identically (only the write chunk size changes).
+    let mut outbound = [0u8; 3840];
     let mut pending = Vec::with_capacity(incoming.len() + FRAME_BYTES);
     let mut forwarded_bytes = 0u64;
     let mut mic_input_power = 0.0f64;
@@ -721,9 +730,40 @@ fn process_audio_live(
             if available == 0 {
                 break;
             }
+            #[cfg(target_os = "linux")]
+            {
+                let requested = gate.noise_suppression.load(Ordering::Relaxed);
+                if !requested {
+                    if suppressor.is_some() { eprintln!("ITERVC_RNNOISE_DISABLED"); }
+                    suppressor = None;
+                    suppressor_failed = false;
+                } else if suppressor.is_none() && !suppressor_failed {
+                    match rnnoise::NoiseSuppressor::new() {
+                        Ok(runtime) => {
+                            suppressor = Some(runtime);
+                            eprintln!("ITERVC_RNNOISE_ACTIVE");
+                        }
+                        Err(error) => {
+                            suppressor_failed = true;
+                            eprintln!("ITERVC_RNNOISE_ERROR:{error}; falling back to original microphone audio");
+                        }
+                    }
+                }
+                if suppressor.is_some() && available < rnnoise::FRAME_BYTES {
+                    break; // Wait for a complete 10 ms stereo frame.
+                }
+            }
             let count = available.min(outbound.len());
             let written = ring.read(&mut outbound[..count]);
             accumulate_pcm_power(&outbound[..written], &mut mic_input_power, &mut mic_sample_count);
+            #[cfg(target_os = "linux")]
+            if let Some(runtime) = suppressor.as_mut() {
+                if let Err(error) = runtime.process_frame(&mut outbound[..written]) {
+                    eprintln!("ITERVC_RNNOISE_ERROR:{error}; falling back to original microphone audio");
+                    suppressor = None;
+                    suppressor_failed = true;
+                }
+            }
             processor.set_volume(f32::from_bits(gain_bits.load(Ordering::Relaxed)))?;
             processor.set_gate(
                 gate.enabled.load(Ordering::Relaxed),
@@ -753,6 +793,21 @@ fn process_audio_live(
             }
             forwarded_bytes += written as u64;
         }
+    }
+
+    // Release any sub-10ms tail as unprocessed PCM instead of silently
+    // truncating the end of a source when suppression is active.
+    while ring.available_frames() > 0 {
+        let available = ring.available_frames() * FRAME_BYTES;
+        let count = available.min(outbound.len());
+        let written = ring.read(&mut outbound[..count]);
+        processor.set_volume(f32::from_bits(gain_bits.load(Ordering::Relaxed)))?;
+        processor.apply(&mut outbound[..written]);
+        destination.write_all(&outbound[..written])?;
+        if let Some(speaker) = monitor.as_deref_mut() {
+            if speaker.write_all(&outbound[..written]).is_err() { monitor = None; }
+        }
+        forwarded_bytes += written as u64;
     }
 
     let stats = ring.stats();
@@ -786,10 +841,11 @@ fn parse_live_command(command: &str) -> Option<(GainTarget, f32)> {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum GateTarget { Enabled, Threshold, Attack, Release }
+enum GateTarget { Enabled, Threshold, Attack, Release, NoiseSuppression }
 
 struct LiveGateSettings {
     enabled: AtomicBool,
+    noise_suppression: AtomicBool,
     threshold_db: AtomicU32,
     attack_ms: AtomicU32,
     release_ms: AtomicU32,
@@ -799,6 +855,7 @@ impl LiveGateSettings {
     fn new(config: MicrophoneConfig) -> Self {
         Self {
             enabled: AtomicBool::new(config.gate_enabled),
+            noise_suppression: AtomicBool::new(false),
             threshold_db: AtomicU32::new(config.gate_threshold_db.to_bits()),
             attack_ms: AtomicU32::new(config.attack_ms.to_bits()),
             release_ms: AtomicU32::new(config.release_ms.to_bits()),
@@ -808,6 +865,7 @@ impl LiveGateSettings {
     fn update(&self, target: GateTarget, value: f32) {
         match target {
             GateTarget::Enabled => self.enabled.store(value == 1.0, Ordering::Relaxed),
+            GateTarget::NoiseSuppression => self.noise_suppression.store(value == 1.0, Ordering::Relaxed),
             GateTarget::Threshold => self.threshold_db.store(value.to_bits(), Ordering::Relaxed),
             GateTarget::Attack => self.attack_ms.store(value.to_bits(), Ordering::Relaxed),
             GateTarget::Release => self.release_ms.store(value.to_bits(), Ordering::Relaxed),
@@ -819,6 +877,7 @@ fn parse_gate_command(command: &str) -> Option<(GateTarget, f32)> {
     let mut parts = command.split_whitespace();
     let target = match parts.next()? {
         "gate-enabled" => GateTarget::Enabled,
+        "noise-suppression" => GateTarget::NoiseSuppression,
         "gate-threshold" => GateTarget::Threshold,
         "gate-attack" => GateTarget::Attack,
         "gate-release" => GateTarget::Release,
@@ -827,7 +886,7 @@ fn parse_gate_command(command: &str) -> Option<(GateTarget, f32)> {
     let value = parts.next()?.parse::<f32>().ok()?;
     if parts.next().is_some() || !value.is_finite() { return None; }
     let valid = match target {
-        GateTarget::Enabled => value == 0.0 || value == 1.0,
+        GateTarget::Enabled | GateTarget::NoiseSuppression => value == 0.0 || value == 1.0,
         GateTarget::Threshold => (-100.0..=0.0).contains(&value),
         GateTarget::Attack => (1.0..=1000.0).contains(&value),
         GateTarget::Release => (1.0..=2000.0).contains(&value),
@@ -1032,13 +1091,15 @@ mod tests {
     fn live_gate_ipc_validates_settings_before_publication() {
         assert_eq!(parse_gate_command("gate-enabled 1"), Some((GateTarget::Enabled, 1.0)));
         assert_eq!(parse_gate_command("gate-enabled 0"), Some((GateTarget::Enabled, 0.0)));
+        assert_eq!(parse_gate_command("noise-suppression 1"), Some((GateTarget::NoiseSuppression, 1.0)));
+        assert_eq!(parse_gate_command("noise-suppression 0"), Some((GateTarget::NoiseSuppression, 0.0)));
         assert_eq!(parse_gate_command("gate-threshold -31"), Some((GateTarget::Threshold, -31.0)));
         assert_eq!(parse_gate_command("gate-attack 12"), Some((GateTarget::Attack, 12.0)));
         assert_eq!(parse_gate_command("gate-release 500"), Some((GateTarget::Release, 500.0)));
         for invalid in ["gate-enabled 2", "gate-enabled -1",
             "gate-threshold nan", "gate-threshold -101", "gate-threshold 1",
             "gate-attack 0", "gate-attack inf", "gate-attack 1001",
-            "gate-release 0", "gate-release 2001", "gate-enabled 1 0",
+            "gate-release 0", "gate-release 2001", "noise-suppression 2", "gate-enabled 1 0",
             "noise-gate 1", "gate-enabled", "gate-threshold NaN"] {
             assert_eq!(parse_gate_command(invalid), None, "{invalid}");
         }
