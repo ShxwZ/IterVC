@@ -42,6 +42,8 @@ internal sealed class MainWindow : Window
     private bool _running;
     private bool _closing;
     private bool _loadingPreferences;
+    private bool _microphoneMuted;
+    private bool _applicationMuted;
 
     private static string L(string spanish, string english) =>
         CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "es" ? spanish : english;
@@ -49,6 +51,7 @@ internal sealed class MainWindow : Window
     public MainWindow()
     {
         _settings = _settingsStore.Load();
+        _microphoneMuted = !_settings.MicrophoneEnabled;
         _osc = new LinuxOscChatboxService(message =>
             Dispatcher.UIThread.Post(() => _status.Text = message));
         Title = "IterVC — Linux (PipeWire)";
@@ -155,8 +158,16 @@ internal sealed class MainWindow : Window
                 {
                     if (_running) await StopAsync(); else await StartAsync();
                 }
+                else if (command == "start-routing" && !_running)
+                    await StartAsync();
+                else if (command == "stop-routing" && _running)
+                    await StopAsync();
                 else if (command == "toggle-monitor")
                     await ToggleMonitorAsync();
+                else if (command == "toggle-microphone")
+                    await ToggleMicrophoneMuteAsync();
+                else if (command == "toggle-applications-mute")
+                    await ToggleApplicationMuteAsync();
             }));
         }
         catch (Exception error) { _status.Text = error.Message; }
@@ -299,8 +310,9 @@ internal sealed class MainWindow : Window
         }
         try
         {
-            _audio.Start(mic, speaker, selectedApp?.Id, _applicationVolume.Value,
-                Math.Clamp(_microphoneVolume.Value * _microphoneBoost.Value, 0, 3),
+            _audio.Start(mic, speaker, selectedApp?.Id,
+                _applicationMuted ? 0.0 : _applicationVolume.Value,
+                _microphoneMuted ? 0.0 : Math.Clamp(_microphoneVolume.Value * _microphoneBoost.Value, 0, 3),
                 _gate.IsChecked == true, _gateThreshold.Value);
             SetRunning(true);
             _status.Text = L("Enrutando al micrófono virtual «IterVC Rust Microphone».",
@@ -333,6 +345,31 @@ internal sealed class MainWindow : Window
         if (restart) await StartAsync();
     }
 
+    private async Task ToggleMicrophoneMuteAsync()
+    {
+        var restart = _running;
+        if (restart && !await StopAsync()) return;
+        _microphoneMuted = !_microphoneMuted;
+        _settings.MicrophoneEnabled = !_microphoneMuted;
+        SavePreferences();
+        if (restart) await StartAsync();
+        _status.Text = _microphoneMuted
+            ? L("Micrófono silenciado", "Microphone muted")
+            : L("Micrófono activado", "Microphone unmuted");
+    }
+
+    private async Task ToggleApplicationMuteAsync()
+    {
+        if (_includeApplication.IsChecked != true) return;
+        var restart = _running;
+        if (restart && !await StopAsync()) return;
+        _applicationMuted = !_applicationMuted;
+        if (restart) await StartAsync();
+        _status.Text = _applicationMuted
+            ? L("Audio de aplicaciones silenciado en la mezcla", "Application mix muted")
+            : L("Audio de aplicaciones activado", "Application mix unmuted");
+    }
+
     private void SetRunning(bool active)
     {
         _running = active;
@@ -362,6 +399,16 @@ internal sealed class MainWindow : Window
         else if (e.Key == Key.M)
         {
             await ToggleMonitorAsync();
+            e.Handled = true;
+        }
+        else if (e.Key == Key.U)
+        {
+            await ToggleMicrophoneMuteAsync();
+            e.Handled = true;
+        }
+        else if (e.Key == Key.P)
+        {
+            await ToggleApplicationMuteAsync();
             e.Handled = true;
         }
     }
