@@ -6,6 +6,7 @@ on:
     paths:
       - 'rust/**'
       - 'IterVC.Linux/**'
+      - 'native/iter_vc_rnnoise/**'
       - 'IterVC.Core/**'
       - '.github/workflows/rust-linux.yml'
   workflow_dispatch:
@@ -25,6 +26,11 @@ jobs:
         run: cargo test --locked --manifest-path rust/Cargo.toml --workspace --all-targets
       - name: Build experimental Linux PipeWire command
         run: cargo build --locked --manifest-path rust/Cargo.toml -p itervc-linux-pipewire --release
+      - name: Build same native RNNoise library used by Windows
+        run: |
+          cargo build --manifest-path native/iter_vc_rnnoise/Cargo.toml --release
+          cp native/iter_vc_rnnoise/target/release/libiter_vc_rnnoise.so rust/target/release/
+          test -s rust/target/release/libiter_vc_rnnoise.so
       - name: Smoke test Linux CLI without a PipeWire session
         run: ./rust/target/release/itervc-linux-pipewire --help
       - name: Setup .NET 8 for Linux desktop preview
@@ -89,6 +95,11 @@ jobs:
           sudo apt-get install -y pipewire pipewire-pulse pipewire-bin pulseaudio-utils dbus-user-session
       - name: Build Rust Linux backend
         run: cargo build --locked --manifest-path rust/Cargo.toml -p itervc-linux-pipewire --release
+      - name: Build same native RNNoise library used by Windows
+        run: |
+          cargo build --manifest-path native/iter_vc_rnnoise/Cargo.toml --release
+          cp native/iter_vc_rnnoise/target/release/libiter_vc_rnnoise.so rust/target/release/
+          test -s rust/target/release/libiter_vc_rnnoise.so
       - name: Setup .NET 8 for graphical PipeWire integration
         uses: actions/setup-dotnet@v4
         with:
