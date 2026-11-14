@@ -149,17 +149,20 @@ impl PipeWireSession {
     }
 
     fn create_virtual_microphone(&mut self) -> Result<(), String> {
+        let sink_arg = format!("sink_name={SINK_NAME}");
+        let monitor_arg = format!("master={SINK_NAME}.monitor");
+        let source_arg = format!("source_name={MIC_NAME}");
         self.load_module(&[
             "load-module",
             "module-null-sink",
-            "sink_name=itervc_rust_sink",
+            sink_arg.as_str(),
             "sink_properties=device.description=IterVC_Rust_Virtual_Output",
         ])?;
         self.load_module(&[
             "load-module",
             "module-remap-source",
-            "master=itervc_rust_sink.monitor",
-            "source_name=itervc_rust_microphone",
+            monitor_arg.as_str(),
+            source_arg.as_str(),
             "source_properties=device.description=IterVC_Rust_Microphone",
         ])?;
         Ok(())
@@ -185,6 +188,7 @@ impl PipeWireSession {
         let audio_input = recorder.stdout.take().ok_or("Missing capture stdout")?;
         self.recorder = Some(recorder);
 
+        let sink_target = format!("--target={SINK_NAME}");
         let mut playback = Command::new("pw-cat")
             .args([
                 "--playback",
@@ -192,7 +196,7 @@ impl PipeWireSession {
                 "--rate=48000",
                 "--channels=2",
                 "--latency=20ms",
-                "--target=itervc_rust_sink",
+                sink_target.as_str(),
                 "-",
             ])
             .stdin(Stdio::piped())
@@ -208,9 +212,25 @@ impl PipeWireSession {
 
 impl Drop for PipeWireSession {
     fn drop(&mut self) {
-        for child in [&mut self.recorder, &mut self.playback].into_iter().flatten() {
-            let _ = child.kill();
-            let _ = child.wait();
+        if let Some(recorder) = self.recorder.as_mut() {
+            let _ = recorder.kill();
+            let _ = recorder.wait();
+        }
+        if let Some(playback) = self.playback.as_mut() {
+            // Give pw-cat a short chance to drain the pipe after stdin closes;
+            // killing immediately can truncate the last PCM frames.
+            let deadline = Instant::now() + Duration::from_millis(500);
+            loop {
+                if matches!(playback.try_wait(), Ok(Some(_))) {
+                    break;
+                }
+                if Instant::now() >= deadline {
+                    let _ = playback.kill();
+                    let _ = playback.wait();
+                    break;
+                }
+                std::thread::sleep(Duration::from_millis(10));
+            }
         }
         for id in self.modules.drain(..).rev() {
             let _ = Command::new("pactl")
