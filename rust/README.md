@@ -74,7 +74,7 @@ shortcut preferences, pointing to the downloaded executable:
 When monitoring is toggled during an active session, the app briefly restarts
 the microphone stream with the new monitoring option.
 
-**Micrófono y aplicaciones: volumen en directo.** While routing, microphone
+**Live volume and mute.** While routing, microphone
 volume, boost, application volume and the mute/unmute hotkeys send validated
 gain commands to the running Rust process over its stdin. They do **not**
 restart the PipeWire stream, disconnect selected applications or recreate the
@@ -89,10 +89,16 @@ so shortcuts work without intercepting arbitrary keyboard input or requiring
 root permissions. They must be registered in the desktop environment once,
 not through the Wayland portal. An automatic consent-based portal integration
 and customizable key combinations within IterVC remain future work.
-The preview is not yet fully feature-equivalent to Windows: automatic
-capture of newly created playback streams, RNNoise (separate PR #32),
-native Wayland desktop-portal shortcut registration and complete device
-hotplug handling still need further development.
+Previously selected applications can now rejoin the capture automatically
+if they restart and expose a new PipeWire playback stream. IterVC prepares the
+capture sink even if those applications are not running when routing starts;
+the GUI polls at intervals and only marks a new stream connected when Rust
+confirms its port links. Transient attachment failures are retried.
+
+The Linux preview is not yet fully feature-equivalent to Windows: RNNoise
+(separate PR #32), automatic native Wayland desktop-portal shortcut registration,
+complete physical-device hotplug recovery, and listening tests on real hardware
+are still pending.
 
 The desktop binary can be smoke-tested without a graphical session using
 `IterVC.Linux --self-test`; this checks that the embedded Rust backend
@@ -116,6 +122,12 @@ runtime dependencies only for the prototype, not for Windows.
   --input alsa_input.your_actual_microphone_node \
   --app-stream APP_ID_1 --app-stream APP_ID_2 --app-volume 0.8 \
   --mic-volume 1 --noise-gate --gate-threshold -45 --seconds 30
+
+# Or prepare application capture before a selected program starts.
+./rust/target/release/itervc-linux-pipewire \
+  --input alsa_input.your_actual_microphone_node \
+  --include-apps --app-volume 0.8 --seconds 0
+# While it runs, submit 'add-app APP_ID' on stdin to attach a new stream.
 ```
 
 The microphone source must appear under `--list-inputs`; monitor and
@@ -152,16 +164,19 @@ stops the audio backend and removes additional PipeWire application taps.
 The Linux preview includes MPRIS play/pause, previous and next controls
 using optional `playerctl`. Desktop X11/Wayland hotkey commands are
 `--media-play-pause`, `--media-previous`, and `--media-next`, alongside
-`--start-routing`, `--stop-routing`, `--toggle-microphone` and
-`--toggle-applications-mute`.
+`--start-routing`, `--stop-routing`, `--toggle-microphone`,
+`--toggle-applications-mute` and `--exit` (gracefully close the GUI).
 
 Multiple application streams can be selected simultaneously, including
 streams using different physical outputs. Each stream keeps its own original
 speaker connection.
 The CI captures nonzero application PCM from the actual virtual microphone,
 then verifies both application and microphone mute/unmute produce sound,
-silence and restored sound while the same routing process remains active. The Rust backend adds **only** the selected application
-port links and removes those links on shutdown.
+silence and restored sound while the same routing process remains active.
+Additional tests prepare an empty application capture sink, dynamically attach
+a late-starting app and verify both applications keep their original outputs.
+The Rust backend adds **only** the selected application port links and removes
+those links on shutdown.
 
 ## Future integration gates
 
@@ -170,8 +185,8 @@ port links and removes those links on shutdown.
 2. Introduce a platform-neutral capture/routing layer in .NET; implement
    Windows with existing WASAPI and Linux with PipeWire nodes.
 3. Integrate RNNoise on Linux once the separate PR #32 passes listening tests.
-4. Expand the current explicitly selected multi-app taps into dynamic
-   discovery, device hotplug handling and consent-based portal shortcuts.
+4. Extend the current selected-application auto-reconnection into robust
+   device hotplug handling and consent-based portal shortcuts.
 5. Manually test real Linux sessions (X11/Wayland + WirePlumber) and Windows
    10/11 hardware, in addition to CI. No deployment before those checks.
 
