@@ -356,6 +356,19 @@ internal sealed partial class MainWindow : Window
         {
             var available = ApplicationStreamCatalog.Parse(
                 await _audio.QueryAsync("--list-apps"));
+            if (!_running || _closing) return;
+
+            // A linked playback stream can vanish while the microphone stays
+            // active. Retire its ephemeral sink-input index so reopening the
+            // selected program can attach the new PipeWire stream. Do not
+            // retain timeouts/failures for a stream that no longer exists.
+            var presentIds = available.Select(app => app.Id).ToHashSet();
+            _trackedAppStreams.RemoveWhere(id => !presentIds.Contains(id));
+            foreach (var id in _pendingAppStreams.Keys.Where(id => !presentIds.Contains(id)).ToArray())
+                _pendingAppStreams.Remove(id);
+            foreach (var id in _appRetryAfter.Keys.Where(id => !presentIds.Contains(id)).ToArray())
+                _appRetryAfter.Remove(id);
+
             foreach (var app in available)
             {
                 if (!selectedNames.Contains(app.Name) || _trackedAppStreams.Contains(app.Id))
