@@ -2,6 +2,7 @@
 	xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 	xmlns:vm="using:IterVC.Desktop.ViewModels"
 	xmlns:views="using:IterVC.Desktop.Views"
+	xmlns:ui="using:IterVC.UI"
 	x:Class="IterVC.Desktop.Views.MainWindow"
 	x:DataType="vm:MainViewModel"
 	Title="{Binding Texts.AppTitle}"
@@ -156,15 +157,10 @@
 		</Style>
 	</Window.Styles>
 
-	<Grid>
-		<!-- LÃ­nea decorativa muy sutil superior -->
-		<Border Height="2" VerticalAlignment="Top" Background="{DynamicResource AccentBrush}" Opacity="0.5" />
-
-		<Grid Margin="24,18,24,12" RowDefinitions="Auto,Auto,*,Auto">
-
-			<!-- PANEL SUPERIOR (HEADER) -->
-			<DockPanel Grid.Row="0" LastChildFill="False" Margin="0,0,0,16">
-				<StackPanel DockPanel.Dock="Left" Orientation="Horizontal" Spacing="10"
+	<!-- Shared canonical Avalonia desktop shell used by Windows and Linux. -->
+	<ui:DesktopShell>
+		<ui:DesktopShell.HeaderLeft>
+			<StackPanel Orientation="Horizontal" Spacing="10"
 					VerticalAlignment="Center">
 					<TextBlock Text="{Binding Texts.AppTitle}" FontSize="20" FontWeight="Bold"
 						Foreground="{DynamicResource TextStrongBrush}" LetterSpacing="0.5" />
@@ -205,9 +201,9 @@
 						</StackPanel>
 					</Button>
 				</StackPanel>
-
-				<!-- Botones de AcciÃ³n + Selector de Idioma -->
-				<StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="10"
+		</ui:DesktopShell.HeaderLeft>
+		<ui:DesktopShell.HeaderRight>
+			<StackPanel Orientation="Horizontal" Spacing="10"
 					VerticalAlignment="Center">
 					<Button Classes="secondary" Content="{Binding Texts.ButtonRefreshApps}"
 						Command="{Binding Applications.RefreshCommand}" />
@@ -221,9 +217,9 @@
 						VerticalContentAlignment="Center" />
 
 				</StackPanel>
-			</DockPanel>
-
-			<StackPanel Grid.Row="1" Spacing="8" Margin="0,0,0,12">
+		</ui:DesktopShell.HeaderRight>
+		<ui:DesktopShell.Notices>
+			<StackPanel Spacing="8">
 				<Border Background="{DynamicResource SurfaceInteractiveBrush}" BorderBrush="{DynamicResource AccentBorderBrush}" BorderThickness="1"
 					CornerRadius="8" Padding="12" IsVisible="{Binding Settings.Updates.IsConsentVisible}">
 					<Grid ColumnDefinitions="*,Auto">
@@ -250,16 +246,16 @@
 					</Grid>
 				</Border>
 			</StackPanel>
-
-			<!-- ESPACIO DE TRABAJO SIMÃ‰TRICO (2 Tarjetas Principales del mismo alto) -->
-			<Grid Grid.Row="2" ColumnDefinitions="0.85*,1.15*">
-				<views:ApplicationsPanel Grid.Column="0" Margin="0,0,8,0" DataContext="{Binding Applications}" />
-				<views:SettingsPanel Grid.Column="1" Margin="8,0,0,0" />
-			</Grid>
-
-			<!-- PIE DE PÃGINA (FOOTER) -->
-			<TextBlock Grid.Row="3" Text="{Binding Texts.AppFooter}" FontSize="11"
-				Foreground="{DynamicResource TextDisabledBrush}" HorizontalAlignment="Center" Margin="0,12,0,0" />
-		</Grid>
-	</Grid>
+		</ui:DesktopShell.Notices>
+		<ui:DesktopShell.Applications>
+			<views:ApplicationsPanel DataContext="{Binding Applications}" />
+		</ui:DesktopShell.Applications>
+		<ui:DesktopShell.Settings>
+			<views:SettingsPanel />
+		</ui:DesktopShell.Settings>
+		<ui:DesktopShell.Footer>
+			<TextBlock Text="{Binding Texts.AppFooter}" FontSize="11"
+				Foreground="{DynamicResource TextDisabledBrush}" HorizontalAlignment="Center" />
+		</ui:DesktopShell.Footer>
+	</ui:DesktopShell>
 </Window>
