@@ -1,0 +1,27 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="IterVC.UI.DesktopApplicationsPanel"
+             x:Name="Root">
+  <!-- Canonical application list panel extracted from the original desktop UI.
+       Both operating systems supply the actions/items/status as separate slots. -->
+  <Border Background="{DynamicResource SurfaceBaseBrush}"
+          BorderBrush="{DynamicResource BorderSubtleBrush}"
+          BorderThickness="1" CornerRadius="8" Padding="16">
+    <Grid RowDefinitions="Auto,*,Auto">
+      <StackPanel Grid.Row="0" Margin="0,0,0,12">
+        <TextBlock Text="{Binding Title, ElementName=Root}"
+                   FontWeight="Bold" FontSize="12"
+                   Foreground="{DynamicResource TextSecondaryBrush}" />
+        <TextBlock Text="{Binding Help, ElementName=Root}"
+                   Foreground="{DynamicResource TextSubtleBrush}"
+                   FontSize="11" TextWrapping="Wrap" Margin="0,2,0,8" />
+        <ContentControl Content="{Binding Actions, ElementName=Root}" />
+      </StackPanel>
+      <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+        <ContentControl Content="{Binding ApplicationItems, ElementName=Root}" />
+      </ScrollViewer>
+      <ContentControl Grid.Row="2" Margin="0,12,0,0"
+                      Content="{Binding Status, ElementName=Root}" />
+    </Grid>
+  </Border>
+</UserControl>
