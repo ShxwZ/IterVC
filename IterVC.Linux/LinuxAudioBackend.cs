@@ -12,6 +12,7 @@ internal sealed class LinuxAudioBackend : IDisposable
 {
     private readonly string _directory;
     private readonly string _executable;
+    private readonly string _nativeNoise;
     private Process? _session;
     private readonly SemaphoreSlim _gainWrite = new(1, 1);
     private bool _disposed;
@@ -26,6 +27,12 @@ internal sealed class LinuxAudioBackend : IDisposable
             ?? throw new InvalidOperationException("The Rust audio backend is not embedded.");
         using (var output = File.Create(_executable))
             input.CopyTo(output);
+        _nativeNoise = Path.Combine(_directory, "libiter_vc_rnnoise.so");
+        using (var native = Assembly.GetExecutingAssembly()
+            .GetManifestResourceStream("IterVC.Linux.NativeRnNoise")
+            ?? throw new InvalidOperationException("Native RNNoise was not bundled."))
+        using (var destination = File.Create(_nativeNoise))
+            native.CopyTo(destination);
         if (OperatingSystem.IsLinux())
         {
             File.SetUnixFileMode(_directory, UnixFileMode.UserRead | UnixFileMode.UserWrite |
@@ -174,6 +181,9 @@ internal sealed class LinuxAudioBackend : IDisposable
     public Task SetApplicationVolumeAsync(double gain) =>
         SetLiveVolumeAsync("app-volume", gain, 2);
 
+    public Task SetNoiseSuppressionEnabledAsync(bool enabled) =>
+        SetLiveParameterAsync("noise-suppression", enabled ? 1 : 0, 0, 1);
+
     public Task SetGateEnabledAsync(bool enabled) =>
         SetLiveParameterAsync("gate-enabled", enabled ? 1 : 0, 0, 1);
 
@@ -272,6 +282,7 @@ internal sealed class LinuxAudioBackend : IDisposable
         };
         foreach (var arg in args)
             info.ArgumentList.Add(arg);
+        info.Environment["ITERVC_RNNOISE_LIBRARY"] = _nativeNoise;
         return info;
     }
 
