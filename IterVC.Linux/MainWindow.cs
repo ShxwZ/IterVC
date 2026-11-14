@@ -25,6 +25,10 @@ internal sealed class MainWindow : Window
     private readonly CheckBox _includeApplication = new();
     private readonly ComboBox _applications = new() { MinWidth = 360 };
     private readonly Slider _applicationVolume = new() { Minimum = 0, Maximum = 1, Width = 250 };
+    private readonly Slider _microphoneVolume = new() { Minimum = 0, Maximum = 1, Width = 250 };
+    private readonly Slider _microphoneBoost = new() { Minimum = 0.5, Maximum = 3, Width = 250 };
+    private readonly CheckBox _gate = new();
+    private readonly Slider _gateThreshold = new() { Minimum = -80, Maximum = -15, Width = 250 };
     private readonly CheckBox _monitor = new();
     private readonly Button _refresh = new();
     private readonly Button _start = new();
@@ -45,10 +49,16 @@ internal sealed class MainWindow : Window
         Title = "IterVC — Linux (PipeWire)";
         Width = 600;
         MinWidth = 500;
-        Height = 640;
-        MinHeight = 540;
+        Height = 820;
+        MinHeight = 580;
         _monitor.Content = L("Monitorizar micrófono (opcional)", "Monitor microphone (optional)");
         _monitor.IsChecked = _settings.MonitorMicrophone;
+        _microphoneVolume.Value = Math.Clamp(_settings.MicrophoneVolume, 0, 1);
+        _microphoneBoost.Value = Math.Clamp(_settings.MicrophoneBoost, 0.5, 3);
+        _gate.Content = L("Activar puerta de ruido", "Enable noise gate");
+        _gate.IsChecked = _settings.NoiseGateEnabled;
+        _gateThreshold.Value = Math.Clamp(_settings.NoiseGateThresholdDb, -80, -15);
+        _gateThreshold.IsEnabled = _gate.IsChecked == true;
         _includeApplication.Content = L("Mezclar audio de una aplicación", "Mix an application's audio");
         _includeApplication.IsChecked = _settings.IncludedProcessNames.Count > 0;
         _applicationVolume.Value = Math.Clamp(_settings.AppsVolume, 0, 1);
@@ -77,6 +87,13 @@ internal sealed class MainWindow : Window
         root.Children.Add(new TextBlock { Text = L("Micrófono físico", "Physical microphone") });
         root.Children.Add(_microphone);
         root.Children.Add(_refresh);
+        root.Children.Add(new TextBlock { Text = L("Volumen del micrófono", "Microphone volume") });
+        root.Children.Add(_microphoneVolume);
+        root.Children.Add(new TextBlock { Text = L("Amplificación del micrófono", "Microphone boost") });
+        root.Children.Add(_microphoneBoost);
+        root.Children.Add(_gate);
+        root.Children.Add(new TextBlock { Text = L("Umbral de la puerta (dBFS)", "Noise gate threshold (dBFS)") });
+        root.Children.Add(_gateThreshold);
         root.Children.Add(_monitor);
         root.Children.Add(new TextBlock { Text = L("Salida para escuchar el micrófono", "Speaker output for monitoring") });
         root.Children.Add(_speakers);
@@ -145,6 +162,17 @@ internal sealed class MainWindow : Window
         _applicationVolume.PropertyChanged += (_, args) => {
             if (args.Property.Name == nameof(Slider.Value)) SavePreferences();
         };
+        _microphoneVolume.PropertyChanged += (_, args) => {
+            if (args.Property.Name == nameof(Slider.Value)) SavePreferences();
+        };
+        _microphoneBoost.PropertyChanged += (_, args) => {
+            if (args.Property.Name == nameof(Slider.Value)) SavePreferences();
+        };
+        _gateThreshold.PropertyChanged += (_, args) => {
+            if (args.Property.Name == nameof(Slider.Value)) SavePreferences();
+        };
+        _gate.Checked += (_, _) => { _gateThreshold.IsEnabled = !_running; SavePreferences(); };
+        _gate.Unchecked += (_, _) => { _gateThreshold.IsEnabled = false; SavePreferences(); };
         _refresh.Click += async (_, _) => await RefreshAsync();
         _start.Click += async (_, _) => await StartAsync();
         _stop.Click += async (_, _) => await StopAsync();
@@ -208,6 +236,10 @@ internal sealed class MainWindow : Window
             _applications.SelectedItem is ApplicationStream selectedApp
             ? new List<string> { selectedApp.Name } : new List<string>();
         _settings.AppsVolume = (float)_applicationVolume.Value;
+        _settings.MicrophoneVolume = (float)_microphoneVolume.Value;
+        _settings.MicrophoneBoost = (float)_microphoneBoost.Value;
+        _settings.NoiseGateEnabled = _gate.IsChecked == true;
+        _settings.NoiseGateThresholdDb = (float)_gateThreshold.Value;
         try { _settingsStore.Save(_settings); }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException)
         {
@@ -241,7 +273,9 @@ internal sealed class MainWindow : Window
         }
         try
         {
-            _audio.Start(mic, speaker, selectedApp?.Id, _applicationVolume.Value);
+            _audio.Start(mic, speaker, selectedApp?.Id, _applicationVolume.Value,
+                Math.Clamp(_microphoneVolume.Value * _microphoneBoost.Value, 0, 3),
+                _gate.IsChecked == true, _gateThreshold.Value);
             SetRunning(true);
             _status.Text = L("Enrutando al micrófono virtual «IterVC Rust Microphone».",
                 "Routing to virtual microphone «IterVC Rust Microphone».");
@@ -284,6 +318,10 @@ internal sealed class MainWindow : Window
         _includeApplication.IsEnabled = !active;
         _applications.IsEnabled = !active && _includeApplication.IsChecked == true;
         _applicationVolume.IsEnabled = !active && _includeApplication.IsChecked == true;
+        _microphoneVolume.IsEnabled = !active;
+        _microphoneBoost.IsEnabled = !active;
+        _gate.IsEnabled = !active;
+        _gateThreshold.IsEnabled = !active && _gate.IsChecked == true;
         if (!active) { _level.Value = 0; _levelText.Text = L("Micrófono detenido", "Microphone stopped"); }
     }
 
