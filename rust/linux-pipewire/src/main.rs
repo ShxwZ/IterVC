@@ -427,6 +427,22 @@ impl PipeWireSession {
                 capture_sink_id,
             });
         }
+        // WirePlumber may override a move when an application pins its output.
+        // Reject the capture if it did not really attach all chosen streams:
+        // a successful pactl exit code alone is not sufficient.
+        let mut all_linked = false;
+        for _ in 0..15 {
+            let current = command_output("pactl", &["list", "short", "sink-inputs"])?;
+            if self.app_routes.iter().all(|route| should_restore(&current, route)) {
+                all_linked = true;
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(70));
+        }
+        if !all_linked {
+            return Err("PipeWire did not keep the selected applications on IterVC's capture sink. Check their output device settings and retry.".into());
+        }
+
         eprintln!("Capturing {} application streams from physical output {}",
             stream_ids.len(), original_sink_id);
         Ok((app_source, virtual_pipe, speaker_pipe))
