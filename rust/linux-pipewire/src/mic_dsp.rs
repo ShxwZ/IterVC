@@ -103,10 +103,11 @@ impl MicrophoneProcessor {
 
             let amp = self.gate_gain * self.settings.volume;
             for (offset, sample) in [(0, left), (4, right)] {
-                let result = if sample.is_finite() {
-                    (sample * amp).clamp(-1.0, 1.0)
-                } else {
+                let result = if !sample.is_finite() || amp == 0.0 {
+                    // Canonical zero even for negative input samples while muted.
                     0.0
+                } else {
+                    (sample * amp).clamp(-1.0, 1.0)
                 };
                 frame[offset..offset + 4].copy_from_slice(&result.to_le_bytes());
             }
@@ -175,6 +176,9 @@ mod tests {
         let mut muted = stereo(0.5, 512);
         processor.apply(&mut muted);
         assert!(muted.iter().all(|byte| *byte == 0));
+        let mut negative = stereo(-0.5, 512);
+        processor.apply(&mut negative);
+        assert!(negative.iter().all(|byte| *byte == 0));
         processor.set_volume(1.0).unwrap();
         let mut restored = stereo(0.5, 512);
         processor.apply(&mut restored);
