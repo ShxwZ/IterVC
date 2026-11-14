@@ -2,6 +2,7 @@
 			 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
 			 xmlns:vm="using:IterVC.Desktop.ViewModels"
 			 xmlns:views="using:IterVC.Desktop.Views"
+             xmlns:ui="using:IterVC.UI"
 			 xmlns:ui="using:IterVC.UI"
 			 x:Class="IterVC.Desktop.Views.SettingsPanel"
 			 x:DataType="vm:MainViewModel">
@@ -73,13 +74,15 @@
 			<Setter Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
 		</Style>
 	</UserControl.Styles>
-	<Border Background="{DynamicResource SurfaceBaseBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}"
-			BorderThickness="1" CornerRadius="8" Padding="16">
-		<TabControl x:Name="SettingsTabs">
-
-			<!-- PESTAÑA 1: Dispositivos de Audio -->
-			<TabItem Header="{Binding Texts.CardDevicesTitle}">
-				<ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+	<!-- Shared exact same settings-tab control as Linux. Native bindings remain here. -->
+	<ui:DesktopSettingsTabs x:Name="SettingsTabs"
+      DevicesTitle="{Binding Texts.CardDevicesTitle}"
+      MixTitle="{Binding Texts.CardMixTitle}"
+      GateTitle="{Binding Texts.NoiseGateTitle}"
+      OscTitle="OSC"
+      PreferencesTitle="{Binding Texts.SettingsTitle}">
+		<ui:DesktopSettingsTabs.Devices>
+<ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
 					<StackPanel Spacing="12" Margin="0,4,8,8">
 						<StackPanel Spacing="4">
 							<TextBlock Text="{Binding Texts.DeviceReference}"
@@ -126,11 +129,9 @@
 						</StackPanel>
 					</StackPanel>
 				</ScrollViewer>
-			</TabItem>
-
-			<!-- PESTAÑA 2: Mezclador de Volúmenes -->
-			<TabItem Header="{Binding Texts.CardMixTitle}">
-				<ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+		</ui:DesktopSettingsTabs.Devices>
+		<ui:DesktopSettingsTabs.Mix>
+<ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
 					<StackPanel Spacing="12" Margin="0,4,8,8">
 						<!-- Slider Apps -->
 						<Border Background="{DynamicResource SurfaceRaisedBrush}" CornerRadius="6" Padding="10,8">
@@ -172,10 +173,9 @@
 								  IsChecked="{Binding Audio.Microphone.Monitor}" />
 					</StackPanel>
 				</ScrollViewer>
-			</TabItem>
-
-			<TabItem Header="{Binding Texts.NoiseGateTitle}">
-				<ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+		</ui:DesktopSettingsTabs.Mix>
+		<ui:DesktopSettingsTabs.Gate>
+<ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
 					<StackPanel Spacing="12" Margin="0,4,8,8">
 						<CheckBox Content="{Binding Texts.NoiseGateEnable}"
 								  IsChecked="{Binding Audio.NoiseGate.IsEnabled}" />
@@ -307,11 +307,9 @@
 						</Expander>
 					</StackPanel>
 				</ScrollViewer>
-			</TabItem>
-
-			<!-- PESTAÑA 3: Integración OSC (VRChat) -->
-			<TabItem Header="OSC">
-				<ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+		</ui:DesktopSettingsTabs.Gate>
+		<ui:DesktopSettingsTabs.Osc>
+<ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
 					<StackPanel Spacing="10" Margin="0,4,8,8">
 						<CheckBox Content="{Binding Texts.OscEnableChatbox}"
 								  IsChecked="{Binding OscChatbox.IsEnabled}" />
@@ -365,10 +363,9 @@
 						</StackPanel>
 					</StackPanel>
 				</ScrollViewer>
-			</TabItem>
-
-			<TabItem x:Name="SettingsTab" Header="{Binding Texts.SettingsTitle}">
-				<ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+		</ui:DesktopSettingsTabs.Osc>
+		<ui:DesktopSettingsTabs.Preferences>
+<ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
 					<StackPanel Spacing="12" Margin="0,4,8,8">
 						<views:HotkeyCaptureControl x:Name="ShortcutCapture" Hotkeys="{Binding Settings.Hotkeys}" IsVisible="False" />
 						<StackPanel Spacing="3">
@@ -445,8 +442,6 @@
 								Command="{Binding Settings.Diagnostics.OpenLogFolderCommand}" />
 					</StackPanel>
 				</ScrollViewer>
-			</TabItem>
-
-		</TabControl>
-	</Border>
+		</ui:DesktopSettingsTabs.Preferences>
+	</ui:DesktopSettingsTabs>
 </UserControl>
