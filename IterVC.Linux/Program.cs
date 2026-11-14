@@ -115,6 +115,9 @@ internal static class Program
                     new[] { "voice chat", "PreviouslyClosedPlayer" });
                 if (activeSelection.Length != 1 || activeSelection[0].Id != 42)
                     throw new InvalidOperationException("Stale application selection was not filtered.");
+                // Theme contract: the Linux preview renders the original
+                // desktop semantic palette instead of inventing new colors.
+                LinuxTheme.Validate();
                 var packet = LinuxOscChatboxService.EncodeChatbox("IterVC test");
                 var text = Encoding.UTF8.GetString(packet);
                 if (packet.Length % 4 != 0 || !text.Contains("/chatbox/input") ||
