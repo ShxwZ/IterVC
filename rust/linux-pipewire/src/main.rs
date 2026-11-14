@@ -58,7 +58,8 @@ enum Mode {
     Check,
     Run { input: String, seconds: u64, monitor_output: Option<String>,
         app_streams: Vec<u32>, include_apps: bool, app_volume: f32, mic_volume: f32,
-        gate_enabled: bool, gate_threshold_db: f32 },
+        gate_enabled: bool, gate_threshold_db: f32, gate_attack_ms: f32,
+        gate_release_ms: f32 },
 }
 
 fn parse_args(args: impl IntoIterator<Item = String>) -> Result<Mode, String> {
@@ -72,6 +73,8 @@ fn parse_args(args: impl IntoIterator<Item = String>) -> Result<Mode, String> {
     let mut mic_volume = 1.0f32;
     let mut gate_enabled = false;
     let mut gate_threshold_db = -45.0f32;
+    let mut gate_attack_ms = 10.0f32;
+    let mut gate_release_ms = 150.0f32;
     let mut args = args.into_iter();
 
     while let Some(arg) = args.next() {
@@ -106,6 +109,20 @@ fn parse_args(args: impl IntoIterator<Item = String>) -> Result<Mode, String> {
                     return Err("Gate threshold must be between -100 and 0".into());
                 }
             }
+            "--gate-attack" => {
+                let raw = args.next().ok_or("Missing milliseconds after --gate-attack")?;
+                gate_attack_ms = raw.parse::<f32>().map_err(|_| "Invalid gate attack")?;
+                if !gate_attack_ms.is_finite() || !(1.0..=1000.0).contains(&gate_attack_ms) {
+                    return Err("Gate attack must be between 1 and 1000 ms".into());
+                }
+            }
+            "--gate-release" => {
+                let raw = args.next().ok_or("Missing milliseconds after --gate-release")?;
+                gate_release_ms = raw.parse::<f32>().map_err(|_| "Invalid gate release")?;
+                if !gate_release_ms.is_finite() || !(1.0..=2000.0).contains(&gate_release_ms) {
+                    return Err("Gate release must be between 1 and 2000 ms".into());
+                }
+            }
             "--app-volume" => {
                 let raw = args.next().ok_or("Missing volume after --app-volume")?;
                 app_volume = raw.parse::<f32>().map_err(|_| "Invalid app volume")?;
@@ -129,7 +146,8 @@ fn parse_args(args: impl IntoIterator<Item = String>) -> Result<Mode, String> {
 
     if let Some(mode) = mode {
         if input.is_some() || monitor_output.is_some() || include_apps ||
-            app_volume != 1.0 || mic_volume != 1.0 || gate_enabled || gate_threshold_db != -45.0 {
+            app_volume != 1.0 || mic_volume != 1.0 || gate_enabled || gate_threshold_db != -45.0 ||
+            gate_attack_ms != 10.0 || gate_release_ms != 150.0 {
             return Err("--input cannot be combined with a query option".into());
         }
         return Ok(mode);
@@ -146,7 +164,7 @@ fn parse_args(args: impl IntoIterator<Item = String>) -> Result<Mode, String> {
         return Err("--app-volume needs --include-apps or --app-stream".into());
     }
     Ok(Mode::Run { input, seconds, monitor_output, app_streams, include_apps, app_volume,
-        mic_volume, gate_enabled, gate_threshold_db })
+        mic_volume, gate_enabled, gate_threshold_db, gate_attack_ms, gate_release_ms })
 }
 
 fn print_help() {
@@ -767,7 +785,8 @@ fn watch_live_controls(microphone: Arc<AtomicU32>, applications: Arc<AtomicU32>,
 
 fn run(input: &str, seconds: u64, monitor_output: Option<&str>,
     app_streams: &[u32], include_apps: bool, app_volume: f32,
-    mic_volume: f32, gate_enabled: bool, gate_threshold_db: f32) -> Result<(), String> {
+    mic_volume: f32, gate_enabled: bool, gate_threshold_db: f32,
+    gate_attack_ms: f32, gate_release_ms: f32) -> Result<(), String> {
     check_dependencies()?;
     validate_input(input)?;
     if let Some(output) = monitor_output {
@@ -804,7 +823,7 @@ fn run(input: &str, seconds: u64, monitor_output: Option<&str>,
         std::thread::spawn(move || app_audio::forward_app_live(
             source, virtual_output, app_gain_worker.as_ref())));
     let mic_settings = MicrophoneConfig { volume: mic_volume, gate_enabled,
-        gate_threshold_db, ..MicrophoneConfig::default() };
+        gate_threshold_db, attack_ms: gate_attack_ms, release_ms: gate_release_ms };
     let mic_gain_worker = Arc::clone(&mic_gain);
     let worker = std::thread::spawn(move ||
         process_audio_live(source, destination, None, duration, mic_settings,
@@ -883,9 +902,9 @@ fn main() {
             }
         }),
         Ok(Mode::Run { input, seconds, monitor_output, app_streams, include_apps, app_volume,
-            mic_volume, gate_enabled, gate_threshold_db }) =>
+            mic_volume, gate_enabled, gate_threshold_db, gate_attack_ms, gate_release_ms }) =>
             run(&input, seconds, monitor_output.as_deref(), &app_streams, include_apps, app_volume,
-                mic_volume, gate_enabled, gate_threshold_db),
+                mic_volume, gate_enabled, gate_threshold_db, gate_attack_ms, gate_release_ms),
         Err(error) => Err(error),
     };
     if let Err(error) = result {
@@ -941,7 +960,7 @@ mod tests {
                 monitor_output: None,
                 app_streams: vec![], include_apps: false,
                 app_volume: 1.0,
-                mic_volume: 1.0, gate_enabled: false, gate_threshold_db: -45.0
+                mic_volume: 1.0, gate_enabled: false, gate_threshold_db: -45.0, gate_attack_ms: 10.0, gate_release_ms: 150.0
             }
         );
         assert!(parse(&["--input", "mic", "--seconds", "0"]).is_ok());
@@ -953,7 +972,7 @@ mod tests {
         assert_eq!(parse(&["--input", "mic", "--app-stream", "42", "--app-volume", "0.75"]).unwrap(),
             Mode::Run { input: "mic".into(), seconds: 30, monitor_output: None,
                 app_streams: vec![42], include_apps: true, app_volume: 0.75,
-                mic_volume: 1.0, gate_enabled: false, gate_threshold_db: -45.0 });
+                mic_volume: 1.0, gate_enabled: false, gate_threshold_db: -45.0, gate_attack_ms: 10.0, gate_release_ms: 150.0 });
         assert!(parse(&["--input", "mic", "--app-stream", "unknown"]).is_err());
         assert!(parse(&["--input", "mic", "--app-volume", "0.2"]).is_err());
         assert!(parse(&["--input", "mic", "--app-stream", "2", "--app-volume", "nan"]).is_err());
@@ -961,7 +980,7 @@ mod tests {
         assert_eq!(parse(&["--input", "mic", "--app-stream", "14", "--app-stream", "7", "--app-stream", "14"]).unwrap(),
             Mode::Run { input: "mic".into(), seconds: 30, monitor_output: None,
                 app_streams: vec![14, 7], include_apps: true, app_volume: 1.0,
-                mic_volume: 1.0, gate_enabled: false, gate_threshold_db: -45.0 });
+                mic_volume: 1.0, gate_enabled: false, gate_threshold_db: -45.0, gate_attack_ms: 10.0, gate_release_ms: 150.0 });
     }
 
     #[test]
@@ -969,7 +988,7 @@ mod tests {
         assert_eq!(parse(&["--input", "mic", "--include-apps", "--app-volume", "0.5"]).unwrap(),
             Mode::Run { input: "mic".into(), seconds: 30, monitor_output: None,
                 app_streams: vec![], include_apps: true, app_volume: 0.5,
-                mic_volume: 1.0, gate_enabled: false, gate_threshold_db: -45.0 });
+                mic_volume: 1.0, gate_enabled: false, gate_threshold_db: -45.0, gate_attack_ms: 10.0, gate_release_ms: 150.0 });
         assert!(parse(&["--list-apps", "--include-apps"]).is_err());
         assert!(parse(&["--input", "mic", "--app-stream", "0"]).is_ok());
     }
@@ -980,9 +999,22 @@ mod tests {
             "--noise-gate", "--gate-threshold", "-38"]).unwrap(),
             Mode::Run { input: "mic".into(), seconds: 30, monitor_output: None,
                 app_streams: vec![], include_apps: false, app_volume: 1.0,
-                mic_volume: 1.25, gate_enabled: true, gate_threshold_db: -38.0 });
+                mic_volume: 1.25, gate_enabled: true, gate_threshold_db: -38.0, gate_attack_ms: 10.0, gate_release_ms: 150.0 });
         assert!(parse(&["--input", "mic", "--mic-volume", "5"]).is_err());
         assert!(parse(&["--input", "mic", "--gate-threshold", "nan"]).is_err());
+        assert_eq!(parse(&["--input", "mic", "--noise-gate", "--gate-attack", "25",
+            "--gate-release", "450"]).unwrap(),
+            Mode::Run { input: "mic".into(), seconds: 30, monitor_output: None,
+                app_streams: vec![], include_apps: false, app_volume: 1.0,
+                mic_volume: 1.0, gate_enabled: true, gate_threshold_db: -45.0,
+                gate_attack_ms: 25.0, gate_release_ms: 450.0 });
+        for bad in [
+            ["--gate-attack", "0"], ["--gate-attack", "NaN"],
+            ["--gate-attack", "1001"], ["--gate-release", "0"],
+            ["--gate-release", "inf"], ["--gate-release", "2001"],
+        ] {
+            assert!(parse(&["--input", "mic", bad[0], bad[1]]).is_err());
+        }
     }
 
     #[test]
@@ -1028,7 +1060,7 @@ mod tests {
             Mode::Run { input: "physical".into(), seconds: 30,
                 monitor_output: Some("alsa_output.speakers".into()),
                 app_streams: vec![], include_apps: false, app_volume: 1.0,
-                mic_volume: 1.0, gate_enabled: false, gate_threshold_db: -45.0 });
+                mic_volume: 1.0, gate_enabled: false, gate_threshold_db: -45.0, gate_attack_ms: 10.0, gate_release_ms: 150.0 });
     }
 
     #[test]
