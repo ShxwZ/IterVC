@@ -1,0 +1,65 @@
+name: Rust PCM buffers — C# equivalence and comparative benchmarks
+
+on:
+  push:
+    branches:
+      - perf/rust-pcm-buffers-benchmarks
+    paths:
+      - 'native/iter_vc_buffers/**'
+      - 'benchmarks/IterVC.BufferBenchmarks/**'
+      - '.github/workflows/rust-pcm-buffers-benchmarks.yml'
+      - 'IterVC.Audio/Buffers/**'
+  pull_request:
+    branches: [master]
+    paths:
+      - 'native/iter_vc_buffers/**'
+      - 'benchmarks/IterVC.BufferBenchmarks/**'
+      - '.github/workflows/rust-pcm-buffers-benchmarks.yml'
+      - 'IterVC.Audio/Buffers/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compare:
+    name: C# vs Rust (+ FFI) on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Rust correctness tests (FIFO, overflow, correction, silence, C ABI)
+        run: cargo test --manifest-path native/iter_vc_buffers/Cargo.toml --all-targets --verbose
+      - name: Rust optimized release library
+        run: cargo build --manifest-path native/iter_vc_buffers/Cargo.toml --release
+      - name: Compile exact production C# ring as the benchmark baseline
+        run: dotnet build benchmarks/IterVC.BufferBenchmarks/IterVC.BufferBenchmarks.csproj --configuration Release
+      - name: Verify cross-language byte/counter equivalence and measure throughput
+        shell: pwsh
+        run: |
+          $binaryDir = "benchmarks/IterVC.BufferBenchmarks/bin/Release/net8.0"
+          if ($IsWindows) {
+            $native = "native/iter_vc_buffers/target/release/iter_vc_buffers.dll"
+          } else {
+            $native = "native/iter_vc_buffers/target/release/libiter_vc_buffers.so"
+          }
+          if (-not (Test-Path $native)) { throw "Native Rust library missing: $native" }
+          Copy-Item -LiteralPath $native -Destination $binaryDir -Force
+          dotnet run --project benchmarks/IterVC.BufferBenchmarks/IterVC.BufferBenchmarks.csproj --configuration Release --no-build -- bench-results 40000
+          if ($LASTEXITCODE -ne 0) { throw "Cross-language parity/benchmark failed ($LASTEXITCODE)" }
+          Get-Content bench-results/summary.md | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+      - name: Upload per-platform results with raw trial times
+        uses: actions/upload-artifact@v4
+        with:
+          name: pcm-buffer-benchmarks-${{ matrix.os }}
+          path: bench-results/
+          if-no-files-found: error
+          retention-days: 14
