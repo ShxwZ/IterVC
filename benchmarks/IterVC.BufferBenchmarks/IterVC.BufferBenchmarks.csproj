@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Optimize>true</Optimize>
+    <AssemblyName>IterVC.BufferBenchmarks</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="NAudio" Version="2.2.1" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Compile the ACTUAL production C# files, with no rewrite or mock:
+         Windows does not use the experimental Rust buffer at runtime. -->
+    <Compile Include="../../IterVC.Audio/Buffers/RealtimeAudioBuffer.cs"
+             Link="ProductionBaseline/RealtimeAudioBuffer.cs" />
+    <Compile Include="../../IterVC.Audio/Buffers/RealtimeAudioBufferSnapshot.cs"
+             Link="ProductionBaseline/RealtimeAudioBufferSnapshot.cs" />
+  </ItemGroup>
+</Project>
