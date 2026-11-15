@@ -24,10 +24,12 @@ internal static partial class Program
     private record Measurement(string Scenario, string Backend, double[] SamplesMs,
         double MedianMs, double RequestedMiBPerSecond, long Checksum);
     private record Comparison(string Scenario, double CSharpMedianMs, double RustMedianMs,
-        double RustSpeedupVsCSharp, double CSharpMiBPerSecond, double RustMiBPerSecond);
+        double RustSpeedupVsCSharp, double CSharpMiBPerSecond, double RustMiBPerSecond,
+        double OptimizedCSharpMedianMs, double RustSpeedupVsOptimizedCSharp);
     private record Report(string Machine, string Os, string Framework, string Architecture,
         int LogicalProcessors, int IterationsPerTrial, int Trials, string Candidate,
-        Comparison[] Comparisons, Measurement[] Measurements, ThreadedMeasurement[] Threaded);
+        Comparison[] Comparisons, Measurement[] Measurements, ThreadedMeasurement[] Threaded,
+        PacedMeasurement[] Paced);
 
     private static int Main(string[] args)
     {
@@ -62,10 +64,13 @@ internal static partial class Program
             {
                 // Warm both runtimes including JIT, FFI and cache accesses.
                 RunManaged(scenario, 5_000);
+                RunManagedOptimized(scenario, 5_000);
                 RunRust(scenario, 5_000);
                 var cs = new double[trials];
+                var managedFast = new double[trials];
                 var rust = new double[trials];
                 var csChecksum = 0L;
+                var optimizedChecksum = 0L;
                 var rustChecksum = 0L;
 
                 // Alternate order to reduce bias from runner thermal/load drift.
@@ -74,43 +79,50 @@ internal static partial class Program
                     if (trial % 2 == 0)
                     {
                         (cs[trial], csChecksum) = RunManaged(scenario, iterations);
+                        (managedFast[trial], optimizedChecksum) = RunManagedOptimized(scenario, iterations);
                         (rust[trial], rustChecksum) = RunRust(scenario, iterations);
                     }
                     else
                     {
                         (rust[trial], rustChecksum) = RunRust(scenario, iterations);
+                        (managedFast[trial], optimizedChecksum) = RunManagedOptimized(scenario, iterations);
                         (cs[trial], csChecksum) = RunManaged(scenario, iterations);
                     }
                 }
-                if (csChecksum != rustChecksum)
+                if (csChecksum != rustChecksum || csChecksum != optimizedChecksum)
                     throw new InvalidOperationException(
-                        $"Different output in {scenario.Name}: C#={csChecksum} Rust={rustChecksum}");
+                        $"Different output in {scenario.Name}: original C#={csChecksum}, " +
+                        $"Span C#={optimizedChecksum}, Rust={rustChecksum}");
 
                 var bytesRequested = (double)iterations * scenario.BlockBytes;
                 // Each steady iteration requests one write AND one read; burst
                 // requests only one operation in a given iteration.
                 if (!scenario.Bursty) bytesRequested *= 2;
                 var c = cs.Order().ElementAt(trials / 2);
+                var co = managedFast.Order().ElementAt(trials / 2);
                 var r = rust.Order().ElementAt(trials / 2);
                 var csMiB = bytesRequested / (1024 * 1024) / (c / 1000);
                 var rustMiB = bytesRequested / (1024 * 1024) / (r / 1000);
                 measurements.Add(new(scenario.Name, "production C#",
                     cs, c, csMiB, csChecksum));
+                measurements.Add(new(scenario.Name, "Span-optimized C# (benchmark-only)",
+                    managedFast, co, bytesRequested / (1024 * 1024) / (co / 1000), optimizedChecksum));
                 measurements.Add(new(scenario.Name, "Rust + P/Invoke",
                     rust, r, rustMiB, rustChecksum));
-                comparisons.Add(new(scenario.Name, c, r, c / r, csMiB, rustMiB));
-                Console.WriteLine($"{scenario.Name}: C# {c:F3} ms / Rust+PInvoke {r:F3} ms " +
-                                  $"(relative speed {c / r:F2}x)");
+                comparisons.Add(new(scenario.Name, c, r, c / r, csMiB, rustMiB, co, co / r));
+                Console.WriteLine($"{scenario.Name}: original C# {c:F3} ms / Span C# {co:F3} ms / " +
+                    $"Rust+PInvoke {r:F3} ms (Rust vs original {c/r:F2}x; Rust vs Span {co/r:F2}x)");
             }
 
             Console.WriteLine("Testing concurrent producer/consumer p50/p99 tails...");
             var threaded = MeasureThreadedBenchmarks(20_000);
+            var paced = MeasurePacedBenchmarks(500);
 
             Directory.CreateDirectory(output);
             var report = new Report(Environment.MachineName,
                 RuntimeInformation.OSDescription, RuntimeInformation.FrameworkDescription,
                 RuntimeInformation.ProcessArchitecture.ToString(), Environment.ProcessorCount,
-                iterations, trials, candidate, comparisons.ToArray(), measurements.ToArray(), threaded);
+                iterations, trials, candidate, comparisons.ToArray(), measurements.ToArray(), threaded, paced);
             File.WriteAllText(Path.Combine(output, "results.json"),
                 JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }));
             var summary = RenderMarkdown(report);
@@ -128,6 +140,33 @@ internal static partial class Program
     private static (double Milliseconds, long Checksum) RunManaged(Scenario scenario, int count)
     {
         var buffer = new RealtimeAudioBuffer(Format, scenario.ReadFully);
+        var source = Data(scenario.BlockBytes);
+        var target = new byte[scenario.BlockBytes];
+        long checksum = 0;
+        var sw = Stopwatch.StartNew();
+        for (var i = 0; i < count; ++i)
+        {
+            if (!scenario.Bursty)
+            {
+                buffer.Write(source, 0, source.Length);
+                var read = buffer.Read(target, 0, target.Length);
+                checksum += read + target[0];
+            }
+            else if (i % 16 < 8)
+                buffer.Write(source, 0, source.Length);
+            else
+            {
+                var read = buffer.Read(target, 0, target.Length);
+                checksum += read + target[0];
+            }
+        }
+        sw.Stop();
+        return (sw.Elapsed.TotalMilliseconds, checksum);
+    }
+
+    private static (double Milliseconds, long Checksum) RunManagedOptimized(Scenario scenario, int count)
+    {
+        var buffer = new OptimizedRealtimeAudioBuffer(Format, scenario.ReadFully);
         var source = Data(scenario.BlockBytes);
         var target = new byte[scenario.BlockBytes];
         long checksum = 0;
@@ -190,10 +229,12 @@ internal static partial class Program
     private static void VerifyParity(bool readFully, bool countUnderflows)
     {
         var managed = new RealtimeAudioBuffer(Format, readFully, countUnderflows);
+        var optimized = new OptimizedRealtimeAudioBuffer(Format, readFully, countUnderflows);
         using var native = new RustBuffer(readFully, countUnderflows);
         var input = Data(Format.AverageBytesPerSecond / 1000 * 260 + 7);
         var left = new byte[input.Length];
         var right = new byte[input.Length];
+        var third = new byte[input.Length];
         var random = new Random(0x13579 + (readFully ? 1 : 0) +
             (countUnderflows ? 2 : 0));
 
@@ -202,6 +243,7 @@ internal static partial class Program
             if (i % 113 == 0)
             {
                 managed.Clear();
+                optimized.Clear();
                 native.Clear();
             }
             else if (i % 4 != 0)
@@ -210,6 +252,7 @@ internal static partial class Program
                 var n = i % 71 == 0 ? input.Length
                     : random.Next(0, Format.AverageBytesPerSecond / 12 + 15);
                 managed.Write(input, 0, n);
+                optimized.Write(input, 0, n);
                 native.Write(input, n);
             }
             else
@@ -217,15 +260,23 @@ internal static partial class Program
                 var n = random.Next(0, Format.AverageBytesPerSecond / 12 + 15);
                 Array.Fill(left, (byte)0xA5);
                 Array.Fill(right, (byte)0xA5);
+                Array.Fill(third, (byte)0xA5);
                 var leftCount = managed.Read(left, 0, n);
                 var rightCount = native.Read(right, n);
-                if (leftCount != rightCount ||
-                    !left.AsSpan(0, n + 1).SequenceEqual(right.AsSpan(0, n + 1)))
+                var thirdCount = optimized.Read(third, 0, n);
+                if (leftCount != rightCount || leftCount != thirdCount ||
+                    !left.AsSpan(0, n + 1).SequenceEqual(right.AsSpan(0, n + 1)) ||
+                    !left.AsSpan(0, n + 1).SequenceEqual(third.AsSpan(0, n + 1)))
                     throw new InvalidOperationException(
                         $"PCM mismatch at step {i} (readFully={readFully}, underflow={countUnderflows})");
             }
             if (i % 3 == 0 || i == 1_999)
-                AssertSnapshot(managed.GetSnapshot(), native.Snapshot(), i);
+            {
+                var originalStats = managed.GetSnapshot();
+                AssertSnapshot(originalStats, native.Snapshot(), i);
+                if (originalStats != optimized.GetSnapshot())
+                    throw new InvalidOperationException($"Span C# counters differ at step {i}");
+            }
         }
     }
 
@@ -268,12 +319,13 @@ internal static partial class Program
         sb.AppendLine($"Each scenario: {report.Trials} trials, {report.IterationsPerTrial:N0} " +
                       "iterations/trial; warm-up 5,000 iterations; alternating engine order.");
         sb.AppendLine();
-        sb.AppendLine("| Scenario | Original C# median (ms) | Rust + P/Invoke median (ms) | Relative Rust speed | C# MiB/s | Rust MiB/s |");
+        sb.AppendLine("| Scenario | Original C# (ms) | Span C# (ms) | Rust+FFI (ms) | Rust vs original | Rust vs Span |");
         sb.AppendLine("|---|---:|---:|---:|---:|---:|");
         foreach (var row in report.Comparisons)
         {
-            sb.AppendLine($"| {row.Scenario} | {row.CSharpMedianMs:F2} | {row.RustMedianMs:F2} | " +
-                $"{row.RustSpeedupVsCSharp:F2}× | {row.CSharpMiBPerSecond:F1} | {row.RustMiBPerSecond:F1} |");
+            sb.AppendLine($"| {row.Scenario} | {row.CSharpMedianMs:F2} | {row.OptimizedCSharpMedianMs:F2} | " +
+                $"{row.RustMedianMs:F2} | {row.RustSpeedupVsCSharp:F2}× | " +
+                $"{row.RustSpeedupVsOptimizedCSharp:F2}× |");
         }
         sb.AppendLine();
         sb.AppendLine("### Producer/consumer threads (independent, concurrent)");
@@ -282,7 +334,14 @@ internal static partial class Program
         foreach (var item in report.Threaded)
             sb.AppendLine($"| {item.Backend} | {item.WallMs:F1} | {item.WriteP50Us:F2}/{item.WriteP99Us:F2}/{item.WriteP999Us:F2} | {item.ReadP50Us:F2}/{item.ReadP99Us:F2}/{item.ReadP999Us:F2} | {item.Underflows} | {item.Overflows} |");
         sb.AppendLine();
-        sb.AppendLine("Thread tails are sampled and include Stopwatch overhead and OS scheduling; no audio hardware is used. ");
+        sb.AppendLine("Thread tails are sampled and include Stopwatch overhead and OS scheduling; no audio hardware is used.");
+        sb.AppendLine();
+        sb.AppendLine("### Paced virtual audio callbacks (separate threads, 1 ms period)");
+        sb.AppendLine("| Backend | Writer p99 (µs) | Reader p99 (µs) | Late writer callbacks | Late reader callbacks | Underflows |");
+        sb.AppendLine("|---|---:|---:|---:|---:|---:|");
+        foreach (var item in report.Paced)
+            sb.AppendLine($"| {item.Backend} | {item.WriteP99Us:F2} | {item.ReadP99Us:F2} | {item.LateWrites} | {item.LateReads} | {item.Underflows} |");
+        sb.AppendLine("Virtual pacing runs on GitHub virtual machines, not physical audio drivers.");
         sb.AppendLine();
         sb.AppendLine("**Method:** exact `IterVC.Audio/Buffers/RealtimeAudioBuffer.cs` " +
             "compiled unchanged; Rust C ABI, its mutex and .NET P/Invoke overhead included. " +

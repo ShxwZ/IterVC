@@ -1,69 +1,103 @@
 #!/usr/bin/env python3
-"""Same-runner Rust variant leaderboard, no invented absolute latency claims."""
+"""Rank same-runner Rust candidates against original AND optimized C#.
+
+Each candidate runs twice, once forward and once in reverse. Never infer
+a hardware/audio latency win from these short virtualized tests.
+"""
 import json
-import math
 import pathlib
 import statistics
 import sys
 
 base = pathlib.Path(sys.argv[1])
 variants = ["std", "std-fast", "parking", "parking-fast"]
+passes = ["pass-0", "pass-1"]
 rows = []
+
 for variant in variants:
-    path = base / variant / "results.json"
-    data = json.loads(path.read_text(encoding="utf-8"))
-    if data["Candidate"] != variant:
-        raise SystemExit(f"Wrong candidate label in {path}")
-    comparisons = data["Comparisons"]
-    if len(comparisons) != 3:
-        raise SystemExit(f"Missing scenarios in {path}")
-    geomean = statistics.geometric_mean(
-        c["RustSpeedupVsCSharp"] for c in comparisons
-    )
-    thread = {r["Backend"]: r for r in data["Threaded"]}
-    cs = thread["C# original"]
-    rs = thread["Rust + P/Invoke"]
+    reports = []
+    for round_dir in passes:
+        path = base / round_dir / variant / "results.json"
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if data["Candidate"] != variant:
+            raise SystemExit(f"Variant label mismatch: {path}")
+        if len(data["Comparisons"]) != 3:
+            raise SystemExit(f"Missing benchmark scenarios: {path}")
+        if len(data["Threaded"]) != 2 or len(data["Paced"]) != 3:
+            raise SystemExit(f"Missing producer/consumer or paced tests: {path}")
+        reports.append(data)
+
+    original = []
+    optimized = []
+    for data in reports:
+        original.extend(c["RustSpeedupVsCSharp"] for c in data["Comparisons"])
+        optimized.extend(c["RustSpeedupVsOptimizedCSharp"] for c in data["Comparisons"])
+
+    def med(metric, key="Rust + P/Invoke", field="Threaded"):
+        return statistics.median(
+            next(x[metric] for x in report[field] if x["Backend"] == key)
+            for report in reports
+        )
+
     rows.append(dict(
         candidate=variant,
-        geo_speedup=round(geomean, 3),
-        speedups={c["Scenario"]: round(c["RustSpeedupVsCSharp"], 3)
-                  for c in comparisons},
-        cs_read_p99_us=cs["ReadP99Us"],
-        rust_read_p99_us=rs["ReadP99Us"],
-        cs_write_p99_us=cs["WriteP99Us"],
-        rust_write_p99_us=rs["WriteP99Us"],
-        rust_thread_alloc_bytes_per_op=rs["WriterAllocBytesPerOperation"] +
-                                           rs["ReaderAllocBytesPerOperation"],
-        rust_thread_wall_ms=rs["WallMs"],
-        cs_thread_wall_ms=cs["WallMs"],
+        geo_vs_original=round(statistics.geometric_mean(original), 4),
+        geo_vs_span_csharp=round(statistics.geometric_mean(optimized), 4),
+        min_vs_span_csharp=round(min(optimized), 4),
+        rust_thread_write_p99_us=round(med("WriteP99Us"), 3),
+        rust_thread_read_p99_us=round(med("ReadP99Us"), 3),
+        cs_thread_write_p99_us=round(med("WriteP99Us", "C# original"), 3),
+        cs_thread_read_p99_us=round(med("ReadP99Us", "C# original"), 3),
+        rust_paced_write_p99_us=round(med("WriteP99Us", field="Paced"), 3),
+        rust_paced_read_p99_us=round(med("ReadP99Us", field="Paced"), 3),
+        cs_paced_write_p99_us=round(med("WriteP99Us", "C# original", "Paced"), 3),
+        cs_paced_read_p99_us=round(med("ReadP99Us", "C# original", "Paced"), 3),
+        span_paced_read_p99_us=round(med("ReadP99Us", "Span-optimized C#", "Paced"), 3),
+        rust_writer_alloc_bytes_per_op=round(med("WriterAllocBytesPerOperation"), 3),
+        rust_reader_alloc_bytes_per_op=round(med("ReaderAllocBytesPerOperation"), 3),
     ))
-rows.sort(key=lambda r: r["geo_speedup"], reverse=True)
+
+rows.sort(key=lambda x: x["geo_vs_span_csharp"], reverse=True)
+winner = rows[0]
+# Differences <=5% on hosted CI are not defensible evidence for an extra
+# dependency. Prefer the std lock if it is close to the fastest result.
+standard = next(r for r in rows if r["candidate"] == "std")
+recommended = (standard if standard["geo_vs_span_csharp"] >=
+               winner["geo_vs_span_csharp"] * 0.95 else winner)
 lines = [
-    "## Isolated Rust variants compared on this runner",
+    "## Isolated Rust candidates — original C# and optimized Span C#",
     "",
-    "Each row compiles the SAME buffer algorithm with a different lock/copy combination.",
-    "All candidates passed PCM and counter equivalence against the unmodified C# production code.",
-    "Rust/C# ratios above 1 favor Rust *for the microbenchmark only*.",
+    "4 variants × 2 opposite orders × 5 measured trials × 3 scenarios. "
+    "All runs passed exact PCM, snapshot and stress-test invariants.",
     "",
-    "| Rank | Variant | Geometric mean speedup | 1ms | 10ms | bursts | Writer p99 (Rust/C#, us) | Reader p99 (Rust/C#, us) |",
+    "| Rank | Rust variant | vs original C# | vs Span C# | Contention writer p99 (µs) | Contention reader p99 (µs) | Paced writer p99 (µs) | Paced reader p99 (µs) |",
     "|---:|---|---:|---:|---:|---:|---:|---:|",
 ]
-for rank, r in enumerate(rows, 1):
-    sp = r["speedups"]
+for i, r in enumerate(rows, 1):
     lines.append(
-        f"| {rank} | {r['candidate']} | {r['geo_speedup']:.2f}x | "
-        f"{sp['steady-1ms']:.2f}x | {sp['steady-10ms']:.2f}x | {sp['bursty-10ms']:.2f}x | "
-        f"{r['rust_write_p99_us']:.2f}/{r['cs_write_p99_us']:.2f} | "
-        f"{r['rust_read_p99_us']:.2f}/{r['cs_read_p99_us']:.2f} |"
+        f"| {i} | {r['candidate']} | {r['geo_vs_original']:.2f}× | "
+        f"{r['geo_vs_span_csharp']:.2f}× | "
+        f"{r['rust_thread_write_p99_us']:.2f} | {r['rust_thread_read_p99_us']:.2f} | "
+        f"{r['rust_paced_write_p99_us']:.2f} | {r['rust_paced_read_p99_us']:.2f} |"
     )
 lines += [
     "",
-    "These p99 values come from a short producer/consumer contention stress test, not timed audio callbacks.",
-    "They include Stopwatch instrumentation and shared-runner scheduling noise.",
-    "**The fastest microbenchmark variant is not automatically the lowest-latency or safest product choice.**",
-    "Repeat on real Windows hardware and under controlled contention before choosing a production implementation.",
+    f"**Exploratory recommendation on this runner: {recommended['candidate']}.** "
+    "When within 5% of the fastest microbenchmark candidate, the standard "
+    "mutex is preferred for less complexity. This is NOT a production sign-off.",
+    "",
+    "**Caveats:** Virtual machines, CPU scheduling and per-callback measurement "
+    "overhead dominate extreme percentiles. A synthetic 10ms packet is sent "
+    "every 1ms during the paced test (10× accelerated simulation), without "
+    "physical microphone, speakers or actual WASAPI callbacks.",
+    "Short contention runs have many underflows; interpret p99 as a stress "
+    "indicator, not a real audio deadline guarantee.",
+    "Compare p99 and allocations in leaderboard.json; never select solely by average throughput.",
     "",
 ]
+
 (base / "leaderboard.md").write_text("\n".join(lines), encoding="utf-8")
-(base / "leaderboard.json").write_text(json.dumps(rows, indent=2), encoding="utf-8")
+(base / "leaderboard.json").write_text(json.dumps(
+    {"recommended_on_this_runner": recommended["candidate"],
+     "ranking": rows, "passes": passes}, indent=2), encoding="utf-8")
 print("\n".join(lines))
