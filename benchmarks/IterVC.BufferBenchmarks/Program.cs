@@ -13,7 +13,7 @@ namespace IterVC.BufferBenchmarks;
 /// No dependency on microphone hardware, UI or the experimental Linux branch.
 /// Ratio > 1 means Rust was faster in this particular shared CI environment.
 /// </summary>
-internal static class Program
+internal static partial class Program
 {
     private static readonly WaveFormat Format = WaveFormat.CreateIeeeFloatWaveFormat(48000, 2);
     private const int CapacityMs = 120;
@@ -26,8 +26,8 @@ internal static class Program
     private record Comparison(string Scenario, double CSharpMedianMs, double RustMedianMs,
         double RustSpeedupVsCSharp, double CSharpMiBPerSecond, double RustMiBPerSecond);
     private record Report(string Machine, string Os, string Framework, string Architecture,
-        int LogicalProcessors, int IterationsPerTrial, int Trials, Comparison[] Comparisons,
-        Measurement[] Measurements);
+        int LogicalProcessors, int IterationsPerTrial, int Trials, string Candidate,
+        Comparison[] Comparisons, Measurement[] Measurements, ThreadedMeasurement[] Threaded);
 
     private static int Main(string[] args)
     {
@@ -35,6 +35,9 @@ internal static class Program
         {
             var output = args.Length > 0 ? args[0] : "bench-results";
             var iterations = args.Length > 1 ? int.Parse(args[1]) : 40_000;
+            var candidate = args.Length > 2 ? args[2] : "std";
+            if (!new[] { "std", "std-fast", "parking", "parking-fast" }.Contains(candidate))
+                throw new ArgumentException("Unknown Rust candidate: " + candidate);
             if (iterations < 1_000 || iterations > 2_000_000)
                 throw new ArgumentOutOfRangeException(nameof(iterations));
 
@@ -100,11 +103,14 @@ internal static class Program
                                   $"(relative speed {c / r:F2}x)");
             }
 
+            Console.WriteLine("Testing concurrent producer/consumer p50/p99 tails...");
+            var threaded = MeasureThreadedBenchmarks(20_000);
+
             Directory.CreateDirectory(output);
             var report = new Report(Environment.MachineName,
                 RuntimeInformation.OSDescription, RuntimeInformation.FrameworkDescription,
                 RuntimeInformation.ProcessArchitecture.ToString(), Environment.ProcessorCount,
-                iterations, trials, comparisons.ToArray(), measurements.ToArray());
+                iterations, trials, candidate, comparisons.ToArray(), measurements.ToArray(), threaded);
             File.WriteAllText(Path.Combine(output, "results.json"),
                 JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }));
             var summary = RenderMarkdown(report);
@@ -255,7 +261,7 @@ internal static class Program
     private static string RenderMarkdown(Report report)
     {
         var sb = new StringBuilder();
-        sb.AppendLine("## IterVC buffer benchmarks — original C# versus Rust C ABI");
+        sb.AppendLine($"## IterVC buffers: C# original versus Rust variant `{report.Candidate}`");
         sb.AppendLine();
         sb.AppendLine($"Platform: **{report.Os}**; .NET: **{report.Framework}**; " +
                       $"architecture: **{report.Architecture}**; CPUs: **{report.LogicalProcessors}**.");
@@ -269,6 +275,14 @@ internal static class Program
             sb.AppendLine($"| {row.Scenario} | {row.CSharpMedianMs:F2} | {row.RustMedianMs:F2} | " +
                 $"{row.RustSpeedupVsCSharp:F2}× | {row.CSharpMiBPerSecond:F1} | {row.RustMiBPerSecond:F1} |");
         }
+        sb.AppendLine();
+        sb.AppendLine("### Producer/consumer threads (independent, concurrent)");
+        sb.AppendLine("| Backend | Wall ms | Writer p50/p99/p99.9 (µs) | Reader p50/p99/p99.9 (µs) | Underflows | Overflows |");
+        sb.AppendLine("|---|---:|---:|---:|---:|---:|");
+        foreach (var item in report.Threaded)
+            sb.AppendLine($"| {item.Backend} | {item.WallMs:F1} | {item.WriteP50Us:F2}/{item.WriteP99Us:F2}/{item.WriteP999Us:F2} | {item.ReadP50Us:F2}/{item.ReadP99Us:F2}/{item.ReadP999Us:F2} | {item.Underflows} | {item.Overflows} |");
+        sb.AppendLine();
+        sb.AppendLine("Thread tails are sampled and include Stopwatch overhead and OS scheduling; no audio hardware is used. ");
         sb.AppendLine();
         sb.AppendLine("**Method:** exact `IterVC.Audio/Buffers/RealtimeAudioBuffer.cs` " +
             "compiled unchanged; Rust C ABI, its mutex and .NET P/Invoke overhead included. " +

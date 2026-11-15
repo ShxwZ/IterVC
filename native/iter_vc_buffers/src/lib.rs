@@ -13,7 +13,10 @@
 //! and must not call free concurrently with another operation.
 
 use std::slice;
+#[cfg(not(feature = "parking"))]
 use std::sync::Mutex;
+#[cfg(feature = "parking")]
+use parking_lot::Mutex;
 
 const MAX_CAPACITY_BYTES: usize = 64 * 1024 * 1024;
 
@@ -118,10 +121,25 @@ impl PcmBuffer {
         }
 
         let first = count.min(self.bytes.len() - self.write_position);
-        self.bytes[self.write_position..self.write_position + first]
-            .copy_from_slice(&source[from..from + first]);
-        self.bytes[..count - first]
-            .copy_from_slice(&source[from + first..from + count]);
+        #[cfg(feature = "fastcopy")]
+        {
+            if count == first {
+                self.bytes[self.write_position..self.write_position + count]
+                    .copy_from_slice(&source[from..from + count]);
+            } else {
+                self.bytes[self.write_position..self.write_position + first]
+                    .copy_from_slice(&source[from..from + first]);
+                self.bytes[..count - first]
+                    .copy_from_slice(&source[from + first..from + count]);
+            }
+        }
+        #[cfg(not(feature = "fastcopy"))]
+        {
+            self.bytes[self.write_position..self.write_position + first]
+                .copy_from_slice(&source[from..from + first]);
+            self.bytes[..count - first]
+                .copy_from_slice(&source[from + first..from + count]);
+        }
         self.write_position = (self.write_position + count) % self.bytes.len();
         self.buffered += count;
         self.written_frames += (count / self.block_align) as u64;
@@ -137,9 +155,23 @@ impl PcmBuffer {
         if taken == 0 && !self.read_fully { return 0; }
 
         let first = taken.min(self.bytes.len() - self.read_position);
-        output[..first]
-            .copy_from_slice(&self.bytes[self.read_position..self.read_position + first]);
-        output[first..taken].copy_from_slice(&self.bytes[..taken - first]);
+        #[cfg(feature = "fastcopy")]
+        {
+            if first == taken {
+                output[..first]
+                    .copy_from_slice(&self.bytes[self.read_position..self.read_position + first]);
+            } else {
+                output[..first]
+                    .copy_from_slice(&self.bytes[self.read_position..self.read_position + first]);
+                output[first..taken].copy_from_slice(&self.bytes[..taken - first]);
+            }
+        }
+        #[cfg(not(feature = "fastcopy"))]
+        {
+            output[..first]
+                .copy_from_slice(&self.bytes[self.read_position..self.read_position + first]);
+            output[first..taken].copy_from_slice(&self.bytes[..taken - first]);
+        }
         self.read_position = (self.read_position + taken) % self.bytes.len();
         self.buffered -= taken;
         self.read_frames += (taken / self.block_align) as u64;
@@ -201,6 +233,9 @@ unsafe fn with_handle<R>(
     handle: *mut BufferHandle, action: impl FnOnce(&mut PcmBuffer) -> R,
 ) -> Option<R> {
     let owner = handle.as_ref()?;
+    #[cfg(feature = "parking")]
+    let mut guard = owner.0.lock();
+    #[cfg(not(feature = "parking"))]
     let mut guard = owner.0.lock().unwrap_or_else(|poison| poison.into_inner());
     Some(action(&mut guard))
 }
@@ -355,6 +390,56 @@ mod tests {
         assert_eq!(b.snapshot().written_frames, 3);
         assert_eq!(b.snapshot().buffered_bytes, 0);
         assert_eq!(b.snapshot().minimum_buffered_bytes, 0);
+    }
+
+    #[test]
+    fn concurrent_producer_consumer_preserves_invariants() {
+        use std::sync::{Arc, Barrier};
+        const ROUNDS: usize = 20_000;
+        let handle = Arc::new(BufferHandle(Mutex::new(
+            PcmBuffer::new(8192, 8, 2048, 4096, true, true).unwrap())));
+        let ready = Arc::new(Barrier::new(3));
+        let producer_handle = Arc::clone(&handle);
+        let producer_ready = Arc::clone(&ready);
+        let producer = std::thread::spawn(move || {
+            let input = [0xA5u8; 80];
+            producer_ready.wait();
+            for i in 0..ROUNDS {
+                #[cfg(feature = "parking")]
+                let mut guard = producer_handle.0.lock();
+                #[cfg(not(feature = "parking"))]
+                let mut guard = producer_handle.0.lock().unwrap();
+                assert_eq!(guard.write(&input), 80);
+                if i % 64 == 0 { std::thread::yield_now(); }
+            }
+        });
+        let consumer_handle = Arc::clone(&handle);
+        let consumer_ready = Arc::clone(&ready);
+        let consumer = std::thread::spawn(move || {
+            let mut output = [0xB1u8; 80];
+            consumer_ready.wait();
+            for i in 0..ROUNDS {
+                #[cfg(feature = "parking")]
+                let mut guard = consumer_handle.0.lock();
+                #[cfg(not(feature = "parking"))]
+                let mut guard = consumer_handle.0.lock().unwrap();
+                assert_eq!(guard.read(&mut output), 80);
+                if i % 64 == 0 { std::thread::yield_now(); }
+            }
+        });
+        ready.wait();
+        producer.join().unwrap();
+        consumer.join().unwrap();
+        #[cfg(feature = "parking")]
+        let guard = handle.0.lock();
+        #[cfg(not(feature = "parking"))]
+        let guard = handle.0.lock().unwrap();
+        let snapshot = guard.snapshot();
+        assert!(snapshot.buffered_bytes <= 8192);
+        assert_eq!(snapshot.written_frames, (ROUNDS * 10) as u64);
+        assert!(snapshot.read_frames <= snapshot.written_frames);
+        assert!(snapshot.discarded_frames <= snapshot.written_frames);
+        assert!(snapshot.minimum_buffered_bytes <= snapshot.maximum_buffered_bytes);
     }
 
     #[test]

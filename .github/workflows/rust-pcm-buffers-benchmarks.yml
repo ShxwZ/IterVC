@@ -9,13 +9,6 @@ on:
       - 'benchmarks/IterVC.BufferBenchmarks/**'
       - '.github/workflows/rust-pcm-buffers-benchmarks.yml'
       - 'IterVC.Audio/Buffers/**'
-  pull_request:
-    branches: [master]
-    paths:
-      - 'native/iter_vc_buffers/**'
-      - 'benchmarks/IterVC.BufferBenchmarks/**'
-      - '.github/workflows/rust-pcm-buffers-benchmarks.yml'
-      - 'IterVC.Audio/Buffers/**'
   workflow_dispatch:
 
 permissions:
@@ -38,24 +31,42 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - name: Rust correctness tests (FIFO, overflow, correction, silence, C ABI)
         run: cargo test --manifest-path native/iter_vc_buffers/Cargo.toml --all-targets --verbose
-      - name: Rust optimized release library
-        run: cargo build --manifest-path native/iter_vc_buffers/Cargo.toml --release
+      - name: Test all Rust synchronization and copy variants
+        run: cargo test --manifest-path native/iter_vc_buffers/Cargo.toml --all-features --all-targets
+      - name: Build all Rust release variants for a same-runner comparison
+        shell: pwsh
+        run: |
+          $manifest = "native/iter_vc_buffers/Cargo.toml"
+          $variants = @(
+            @{ Name = "std"; Features = "" },
+            @{ Name = "std-fast"; Features = "fastcopy" },
+            @{ Name = "parking"; Features = "parking" },
+            @{ Name = "parking-fast"; Features = "parking,fastcopy" }
+          )
+          foreach ($v in $variants) {
+            $features = if ($v.Features -eq "") { @() } else { @("--features", $v.Features) }
+            cargo build --manifest-path $manifest --release --target-dir "native/iter_vc_buffers/target/$($v.Name)" @features
+            if ($LASTEXITCODE -ne 0) { throw "Rust build failed: $($v.Name)" }
+          }
       - name: Compile exact production C# ring as the benchmark baseline
         run: dotnet build benchmarks/IterVC.BufferBenchmarks/IterVC.BufferBenchmarks.csproj --configuration Release
       - name: Verify cross-language byte/counter equivalence and measure throughput
         shell: pwsh
         run: |
           $binaryDir = "benchmarks/IterVC.BufferBenchmarks/bin/Release/net8.0"
-          if ($IsWindows) {
-            $native = "native/iter_vc_buffers/target/release/iter_vc_buffers.dll"
-          } else {
-            $native = "native/iter_vc_buffers/target/release/libiter_vc_buffers.so"
+          $nativeName = if ($IsWindows) { "iter_vc_buffers.dll" } else { "libiter_vc_buffers.so" }
+          $variants = @("std", "std-fast", "parking", "parking-fast")
+          foreach ($variant in $variants) {
+            $native = "native/iter_vc_buffers/target/$variant/release/$nativeName"
+            if (-not (Test-Path $native)) { throw "Native Rust library missing: $native" }
+            Copy-Item -LiteralPath $native -Destination $binaryDir -Force
+            dotnet run --project benchmarks/IterVC.BufferBenchmarks/IterVC.BufferBenchmarks.csproj --configuration Release --no-build -- "bench-results/$variant" 40000 $variant
+            if ($LASTEXITCODE -ne 0) { throw "Cross-language parity/benchmark failed: $variant" }
+            Get-Content "bench-results/$variant/summary.md" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
           }
-          if (-not (Test-Path $native)) { throw "Native Rust library missing: $native" }
-          Copy-Item -LiteralPath $native -Destination $binaryDir -Force
-          dotnet run --project benchmarks/IterVC.BufferBenchmarks/IterVC.BufferBenchmarks.csproj --configuration Release --no-build -- bench-results 40000
-          if ($LASTEXITCODE -ne 0) { throw "Cross-language parity/benchmark failed ($LASTEXITCODE)" }
-          Get-Content bench-results/summary.md | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          python benchmarks/summarize_variants.py bench-results
+          if ($LASTEXITCODE -ne 0) { throw "Variant aggregator failed." }
+          Get-Content bench-results/leaderboard.md | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
       - name: Upload per-platform results with raw trial times
         uses: actions/upload-artifact@v4
         with:
