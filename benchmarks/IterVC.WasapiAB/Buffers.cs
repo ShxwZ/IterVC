@@ -21,8 +21,29 @@ internal interface IBufferBackend : IDisposable
 internal sealed class ManagedBuffer(WaveFormat format, bool readFully) : IBufferBackend
 {
     private readonly RealtimeAudioBuffer _buffer = new(format, readFully,
-        countUnderflows: readFully);
+        countUnderflows: true);
     public string Name => "C# original";
+    public void Write(byte[] bytes, int count) => _buffer.Write(bytes, 0, count);
+    public int Read(byte[] destination, int count) => _buffer.Read(destination, 0, count);
+    public BufferCounters Snapshot()
+    {
+        var s = _buffer.GetSnapshot();
+        return new(s.TotalFramesWritten, s.TotalFramesRead, s.UnderflowBlocks,
+            s.OverflowEvents, s.LatencyCorrections, s.DiscardedFrames,
+            s.BufferedMilliseconds, s.AverageBufferedMilliseconds);
+    }
+    public void Dispose() { }
+}
+
+/// <summary>
+/// Benchmark-only C# candidate. The production ring remains unchanged;
+/// this candidate substitutes Span.CopyTo for Buffer.BlockCopy.
+/// </summary>
+internal sealed class OptimizedManagedBuffer(WaveFormat format, bool readFully) : IBufferBackend
+{
+    private readonly OptimizedRealtimeAudioBuffer _buffer = new(format, readFully,
+        countUnderflows: true);
+    public string Name => "C# Span.CopyTo";
     public void Write(byte[] bytes, int count) => _buffer.Write(bytes, 0, count);
     public int Read(byte[] destination, int count) => _buffer.Read(destination, 0, count);
     public BufferCounters Snapshot()
@@ -55,7 +76,7 @@ internal sealed class RustBuffer : IBufferBackend
             return checked((nuint)Math.Max(align, bytes - bytes % align));
         }
         _handle = Native.Create(AlignMs(120), checked((nuint)align),
-            AlignMs(20), AlignMs(50), readFully ? 1 : 0, readFully ? 1 : 0);
+            AlignMs(20), AlignMs(50), readFully ? 1 : 0, 1);
         if (_handle.IsInvalid)
         {
             _handle.Dispose();
