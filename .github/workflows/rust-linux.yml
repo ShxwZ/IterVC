@@ -7,6 +7,7 @@ on:
       - 'rust/**'
       - 'IterVC.Linux/**'
       - 'native/iter_vc_rnnoise/**'
+      - '.devcontainer/**'
       - 'IterVC.Core/**'
       - '.github/workflows/rust-linux.yml'
   workflow_dispatch:
@@ -20,6 +21,28 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Validate private Codespaces browser desktop configuration
+        run: |
+          set -euo pipefail
+          bash -n .devcontainer/build-linux.sh
+          bash -n .devcontainer/start-browser-preview.sh
+          bash -n .devcontainer/desktop-session.sh
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          config = json.loads(Path(".devcontainer/devcontainer.json").read_text())
+          assert config["forwardPorts"] == [6080]
+          assert config["portsAttributes"]["6080"]["onAutoForward"] == "openBrowser"
+          assert "private" in config["portsAttributes"]["6080"]["label"].lower()
+          assert "build-linux.sh" in config["postCreateCommand"]
+          assert "start-browser-preview.sh" in config["postStartCommand"]
+          assert config["features"]["ghcr.io/devcontainers/features/dotnet:2"]["version"] == "8.0"
+          shell = Path(".devcontainer/desktop-session.sh").read_text()
+          assert "127.0.0.1:6080" in shell and "127.0.0.1:5900" in shell
+          assert "-localhost -nopw" in shell
+          assert "0.0.0.0:6080" not in shell
+          assert Path(".devcontainer/README.md").is_file()
+          PY
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
       - name: Run Rust unit tests and PCM transport integration
