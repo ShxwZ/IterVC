@@ -24,8 +24,9 @@ internal static class Program
         double P999Us, double MaximumUs);
     private sealed record Trial(
         string Backend, int Round, string Device, string Format,
-        int RequestedSeconds, int CaptureCallbacks, int ReadCalls,
-        int EmptyReads, int LateReads, Timing CaptureWrite, Timing PlaybackRead,
+        int RequestedSeconds, int CaptureCallbacks, long CaptureBytes, int ReadCalls,
+        int EmptyReads, int ShortReads, long MissingReadFrames, int LateReads,
+        Timing CaptureWrite, Timing PlaybackRead,
         BufferCounters Ring, double ProcessCpuMilliseconds,
         long ProcessAllocatedBytes, int Gen0Collections, int Gen1Collections,
         int Gen2Collections);
@@ -69,34 +70,47 @@ internal static class Program
             Console.WriteLine("No audio content is retained, saved, played, sent over the network, or logged.");
             Console.WriteLine("Windows must allow desktop apps to access the microphone.");
             Console.WriteLine($"Format: {Format}; periods: {ReadPeriodMs}ms; seconds/phase: {seconds}; rounds: {rounds}.");
-            Console.WriteLine("Order is alternated between C# and Rust each round.");
+            Console.WriteLine("Order rotates across original C#, Rust and Span C# each round.");
             Console.WriteLine("WARNING: results measure the ring with real WASAPI callbacks, not the full IterVC mixer.");
 
             var records = new List<Trial>();
             for (int round = 0; round < rounds; round++)
             {
-                var order = round % 2 == 0 ? new[] { false, true } : new[] { true, false };
-                foreach (var rust in order)
+                // Latin-square rotation: with >=3 rounds, each backend runs
+                // in every position, reducing warm-up and device drift bias.
+                var order = round % 3 switch
                 {
-                    using IBufferBackend backend = rust
-                        ? new RustBuffer(Format, readFully)
-                        : new ManagedBuffer(Format, readFully);
+                    0 => new[] { 0, 1, 2 },
+                    1 => new[] { 1, 2, 0 },
+                    _ => new[] { 2, 0, 1 }
+                };
+                foreach (var candidate in order)
+                {
+                    using IBufferBackend backend = candidate switch
+                    {
+                        0 => new ManagedBuffer(Format, readFully),
+                        1 => new RustBuffer(Format, readFully),
+                        2 => new OptimizedManagedBuffer(Format, readFully),
+                        _ => throw new InvalidOperationException("Unknown buffer candidate.")
+                    };
                     Console.WriteLine($"Round {round + 1}/{rounds}: {backend.Name}...");
                     var trial = CaptureRealMicrophone(device, backend, seconds, round + 1);
                     records.Add(trial);
                     Console.WriteLine($"  capture p99={trial.CaptureWrite.P99Us:F2} us; " +
                         $"consumer p99={trial.PlaybackRead.P99Us:F2} us; " +
-                        $"empty={trial.EmptyReads}; late={trial.LateReads}; " +
-                        $"overflows={trial.Ring.Overflows}, underflows={trial.Ring.Underflows}");
+                        $"empty={trial.EmptyReads}; short={trial.ShortReads}; " +
+                        $"missingFrames={trial.MissingReadFrames}; late={trial.LateReads}; " +
+                        $"overflows={trial.Ring.Overflows}, partialUnderflows={trial.Ring.Underflows}");
                     Thread.Sleep(250); // Release driver resources between phases.
                 }
             }
 
-            var result = new Report("1", RuntimeInformation.OSDescription,
+            var result = new Report("2", RuntimeInformation.OSDescription,
                 RuntimeInformation.FrameworkDescription, RuntimeInformation.ProcessArchitecture.ToString(),
                 Environment.ProcessorCount, readFully ? "processed-readFully" : "raw-microphone",
-                "Single real WASAPI microphone; alternating C#/Rust; capture callback writes " +
-                "while a separate consumer reads every 10ms; no playback or file recording.",
+                "Single real WASAPI microphone; Latin-square rotation of original C#, Rust " +
+                "and Span-optimized C#. Capture callback writes while a separate consumer " +
+                "reads every 10ms. No playback or file recording.",
                 device.FriendlyName, Format.ToString(), records.ToArray());
             Directory.CreateDirectory(output);
             var json = Path.Combine(output, "results.json");
@@ -127,7 +141,10 @@ internal static class Program
         var readTimes = new long[seconds * 2_000];
         var callbackCount = 0;
         var readCount = 0;
+        long captureBytes = 0;
         var emptyCount = 0;
+        var shortReadCount = 0;
+        long missingReadFrames = 0;
         var lateCount = 0;
         Exception? fault = null;
         var accepting = 1;
@@ -150,6 +167,7 @@ internal static class Program
                 var started = Stopwatch.GetTimestamp();
                 backend.Write(args.Buffer, args.BytesRecorded);
                 var elapsed = Stopwatch.GetTimestamp() - started;
+                Interlocked.Add(ref captureBytes, args.BytesRecorded);
                 var index = Interlocked.Increment(ref callbackCount) - 1;
                 if ((uint)index < (uint)writeTimes.Length)
                     writeTimes[index] = elapsed;
@@ -209,6 +227,12 @@ internal static class Program
                     var bytes = backend.Read(buffer, buffer.Length);
                     var elapsed = Stopwatch.GetTimestamp() - started;
                     if (bytes == 0) Interlocked.Increment(ref emptyCount);
+                    if (bytes < buffer.Length)
+                    {
+                        Interlocked.Increment(ref shortReadCount);
+                        Interlocked.Add(ref missingReadFrames,
+                            (buffer.Length - bytes) / Format.BlockAlign);
+                    }
                     var index = Interlocked.Increment(ref readCount) - 1;
                     if ((uint)index < (uint)readTimes.Length)
                         readTimes[index] = elapsed;
@@ -245,7 +269,8 @@ internal static class Program
             throw new InvalidOperationException("No meaningful microphone callback/read traffic recorded.");
 
         return new Trial(backend.Name, round, device.FriendlyName, Format.ToString(),
-            seconds, callbackCount, readCount, emptyCount, lateCount,
+            seconds, callbackCount, captureBytes, readCount, emptyCount,
+            shortReadCount, missingReadFrames, lateCount,
             Analyze(writeTimes, Math.Min(callbackCount, writeTimes.Length)),
             Analyze(readTimes, Math.Min(readCount, readTimes.Length)),
             backend.Snapshot(), (endCpu - startCpu).TotalMilliseconds,
@@ -294,10 +319,12 @@ internal static class Program
         {
             using IBufferBackend cs = new ManagedBuffer(Format, readFully);
             using IBufferBackend rust = new RustBuffer(Format, readFully);
+            using IBufferBackend span = new OptimizedManagedBuffer(Format, readFully);
             var source = new byte[8 * 8_000];
             new Random(57).NextBytes(source);
             var x = new byte[source.Length];
             var y = new byte[source.Length];
+            var z = new byte[source.Length];
             var rng = new Random(17);
             for (var i = 0; i < 4_000; ++i)
             {
@@ -306,20 +333,27 @@ internal static class Program
                     var amount = rng.Next(0, 7_000) / Format.BlockAlign * Format.BlockAlign;
                     cs.Write(source, amount);
                     rust.Write(source, amount);
+                    span.Write(source, amount);
                 }
                 else
                 {
                     var amount = rng.Next(0, 7_000) / Format.BlockAlign * Format.BlockAlign;
                     Array.Fill(x, (byte)91);
                     Array.Fill(y, (byte)91);
+                    Array.Fill(z, (byte)91);
                     var n = cs.Read(x, amount);
                     var m = rust.Read(y, amount);
-                    if (n != m || !x.AsSpan().SequenceEqual(y))
+                    var o = span.Read(z, amount);
+                    if (n != m || n != o ||
+                        !x.AsSpan().SequenceEqual(y) ||
+                        !x.AsSpan().SequenceEqual(z))
                         throw new InvalidOperationException($"PCM differs at {i} (readFully={readFully}).");
                 }
                 var a = cs.Snapshot();
                 var b = rust.Snapshot();
-                if (a.WrittenFrames != b.WrittenFrames || a.ReadFrames != b.ReadFrames ||
+                var c = span.Snapshot();
+                if (a != c ||
+                    a.WrittenFrames != b.WrittenFrames || a.ReadFrames != b.ReadFrames ||
                     a.Underflows != b.Underflows || a.Overflows != b.Overflows ||
                     a.Corrections != b.Corrections || a.DiscardedFrames != b.DiscardedFrames ||
                     Math.Abs(a.BufferedMs - b.BufferedMs) > 0.00001)
@@ -336,14 +370,15 @@ internal static class Program
         result.AppendLine($"Platform: {report.Os}; runtime: {report.Runtime}; architecture: {report.Architecture}.");
         result.AppendLine($"Device: **{report.Device}**; format: {report.Format}; mode: {report.TestMode}.");
         result.AppendLine();
-        result.AppendLine("| Round | Backend | Callback p50/p95/p99/p99.9 (us) | Read p50/p95/p99/p99.9 (us) | Underflows | Overflows | Empty reads | Late reads | Process CPU ms | Allocated bytes |");
-        result.AppendLine("|---:|---|---|---|---:|---:|---:|---:|---:|---:|");
+        result.AppendLine("| Round | Backend | Callback p50/p95/p99/p99.9 (us) | Read p50/p95/p99/p99.9 (us) | Partial underflows | Overflows | Empty reads | Short reads | Missing frames | Late reads | Process CPU ms | Allocated bytes |");
+        result.AppendLine("|---:|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|");
         foreach (var t in report.Trials)
         {
             static string P(Timing v) =>
                 $"{v.P50Us:F2}/{v.P95Us:F2}/{v.P99Us:F2}/{v.P999Us:F2}";
             result.AppendLine($"| {t.Round} | {t.Backend} | {P(t.CaptureWrite)} | {P(t.PlaybackRead)} | " +
-                $"{t.Ring.Underflows} | {t.Ring.Overflows} | {t.EmptyReads} | {t.LateReads} | " +
+                $"{t.Ring.Underflows} | {t.Ring.Overflows} | {t.EmptyReads} | " +
+                $"{t.ShortReads} | {t.MissingReadFrames} | {t.LateReads} | " +
                 $"{t.ProcessCpuMilliseconds:F0} | {t.ProcessAllocatedBytes:N0} |");
         }
         result.AppendLine();
@@ -352,8 +387,15 @@ internal static class Program
             "run the full IterVC mixer, mix apps or measure end-to-end audio latency.");
         result.AppendLine("Callback time includes the .NET-to-Rust P/Invoke cost; it excludes upstream NAudio processing.");
         result.AppendLine("P99.9 is unreliable when a phase contains fewer than 1000 callbacks.");
-        result.AppendLine("Late reads also reflect normal Windows scheduler delays. Process CPU and allocated bytes " +
-            "include the entire diagnostic process and WASAPI; they are not purely ring-buffer CPU/allocations.");
+        result.AppendLine("In raw mode, partial underflows count only nonempty short reads; " +
+            "empty reads are reported separately. The missing-frame count estimates " +
+            "what the consumer requested but could not obtain; it is NOT verified " +
+            "driver packet loss or audible dropout. In readFully mode, zero padding " +
+            "prevents this count from measuring absent audio.");
+        result.AppendLine("Late reads reflect Windows scheduling and the diagnostic's own " +
+            "pacing; they are not direct evidence of audio-buffer faults. Process " +
+            "CPU and allocated bytes include the entire diagnostic process, " +
+            "WASAPI and the measurement loop, not only ring-buffer work.");
         result.AppendLine("Use multiple alternating rounds on the same device; no unconditional Rust speedup is assumed.");
         return result.ToString();
     }
@@ -365,7 +407,8 @@ internal static class Program
             --self-test                   Verify C#/Rust PCM parity WITHOUT opening audio hardware.
             --capture-mic                 EXPLICITLY enable real microphone capture for A/B.
             --seconds N                   Duration of each backend phase: 5..180 (default 12).
-            --rounds N                    C#/Rust alternating pairs: 1..10 (default 2).
+            --rounds N                    Rotating groups of C#/Rust/Span C#: 1..10 (default 2).
+                                         Use at least 3 rounds for balanced order.
             --read-fully                  Simulate processed output buffers instead of raw mic buffer.
             --output DIR                  JSON/Markdown output folder (default wasapi-ab-results).
             --help                        Show this help.
