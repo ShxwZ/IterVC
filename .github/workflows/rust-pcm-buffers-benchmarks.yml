@@ -7,6 +7,7 @@ on:
     paths:
       - 'native/iter_vc_buffers/**'
       - 'benchmarks/IterVC.BufferBenchmarks/**'
+      - 'benchmarks/IterVC.WasapiAB/**'
       - '.github/workflows/rust-pcm-buffers-benchmarks.yml'
       - 'IterVC.Audio/Buffers/**'
   workflow_dispatch:
@@ -74,6 +75,25 @@ jobs:
           python benchmarks/summarize_variants.py bench-results
           if ($LASTEXITCODE -ne 0) { throw "Variant aggregator failed." }
           Get-Content bench-results/leaderboard.md | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+      - name: Publish Windows real WASAPI A/B probe (hardware is NOT available in CI)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          dotnet publish benchmarks/IterVC.WasapiAB/IterVC.WasapiAB.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -o wasapi-ab-portable
+          if ($LASTEXITCODE -ne 0) { throw "WASAPI probe failed to publish." }
+          Copy-Item -LiteralPath native/iter_vc_buffers/target/std/release/iter_vc_buffers.dll -Destination wasapi-ab-portable/iter_vc_buffers.dll -Force
+          & wasapi-ab-portable/IterVC.WasapiAB.exe --self-test
+          if ($LASTEXITCODE -ne 0) { throw "WASAPI probe C#/Rust parity self-test failed." }
+          & wasapi-ab-portable/IterVC.WasapiAB.exe --help
+          if ($LASTEXITCODE -ne 0) { throw "WASAPI probe help failed." }
+      - name: Upload opt-in Windows physical microphone A/B probe
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: itervc-wasapi-ab-hardware-win-x64
+          path: wasapi-ab-portable/
+          if-no-files-found: error
+          retention-days: 14
       - name: Upload per-platform results with raw trial times
         uses: actions/upload-artifact@v4
         with:
