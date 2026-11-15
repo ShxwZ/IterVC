@@ -39,12 +39,14 @@ internal sealed class RustBuffer : IBufferBackend
 {
     private readonly SafeNativeBuffer _handle;
     private readonly int _bytesPerSecond;
+    private readonly int _blockAlign;
 
     public RustBuffer(WaveFormat format, bool readFully)
     {
         // Constructor settings MUST match the C# production defaults.
         var align = format.BlockAlign;
         _bytesPerSecond = format.AverageBytesPerSecond;
+        _blockAlign = align;
         if (align <= 0 || _bytesPerSecond <= 0)
             throw new ArgumentException("Invalid WASAPI PCM format.", nameof(format));
         nuint AlignMs(int ms)
@@ -65,7 +67,8 @@ internal sealed class RustBuffer : IBufferBackend
     public void Write(byte[] bytes, int count)
     {
         var written = Native.Write(_handle, bytes, checked((nuint)count));
-        if (written != (nuint)(count - count % 8) && count % 8 == 0)
+        if (written != (nuint)(count - count % _blockAlign) &&
+            count <= _bytesPerSecond * 120 / 1000)
             throw new InvalidOperationException($"Rust ring accepted {written} of {count} bytes.");
     }
     public int Read(byte[] destination, int count) =>
