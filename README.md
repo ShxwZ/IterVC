@@ -60,6 +60,16 @@ Whether you're hanging out with friends, hosting events, roleplaying, or simply 
 
 ---
 
+## 🖥️ Probar IterVC Linux directamente en el navegador
+
+> **Vista previa experimental (PR #37)**. Si utilizas Windows, puedes abrir el escritorio Linux en GitHub Codespaces sin instalar Linux en tu PC.
+
+[**Abrir IterVC Linux en GitHub Codespaces**](https://codespaces.new/ShxwZ/IterVC/tree/feature/rust-buffers-linux-pipewire)
+
+El contenedor compila la aplicación de esta rama y abre una ventana Linux mediante un puerto **privado** de noVNC (6080). Para instrucciones de uso y limitaciones, consulta [la guía en español](./.devcontainer/README.md). El audio físico del PC Windows no se redirige automáticamente a Codespaces.
+
+---
+
 ## 🔌 Prerequisites
 
 - **Windows 10 (Build 19041 / Version 2004) or later**, or **Windows 11**
