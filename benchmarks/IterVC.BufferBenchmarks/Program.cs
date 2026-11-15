@@ -270,7 +270,7 @@ internal static class Program
                 $"{row.RustSpeedupVsCSharp:F2}× | {row.CSharpMiBPerSecond:F1} | {row.RustMiBPerSecond:F1} |");
         }
         sb.AppendLine();
-        sb.AppendLine("**Method:** exact \`IterVC.Audio/Buffers/RealtimeAudioBuffer.cs\` " +
+        sb.AppendLine("**Method:** exact `IterVC.Audio/Buffers/RealtimeAudioBuffer.cs` " +
             "compiled unchanged; Rust C ABI, its mutex and .NET P/Invoke overhead included. " +
             "Each test verifies PCM output and all counters first. MiB/s is **requested** " +
             "read+write payload, not actual audio hardware throughput.");
