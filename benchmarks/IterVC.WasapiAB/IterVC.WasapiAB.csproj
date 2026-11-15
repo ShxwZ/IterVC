@@ -17,5 +17,9 @@
              Link="ProductionBaseline/RealtimeAudioBuffer.cs" />
     <Compile Include="../../IterVC.Audio/Buffers/RealtimeAudioBufferSnapshot.cs"
              Link="ProductionBaseline/RealtimeAudioBufferSnapshot.cs" />
+    <!-- Controlled C# alternative: the reference logic with Span.CopyTo,
+         linked from benchmark-only source, never into production IterVC. -->
+    <Compile Include="../IterVC.BufferBenchmarks/OptimizedManagedBuffer.cs"
+             Link="Experimental/OptimizedManagedBuffer.cs" />
   </ItemGroup>
 </Project>
