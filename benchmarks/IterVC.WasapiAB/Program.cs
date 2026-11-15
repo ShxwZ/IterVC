@@ -78,7 +78,7 @@ internal static class Program
             {
                 // Latin-square rotation: with >=3 rounds, each backend runs
                 // in every position, reducing warm-up and device drift bias.
-                var order = round % 3 switch
+                var order = (round % 3) switch
                 {
                     0 => new[] { 0, 1, 2 },
                     1 => new[] { 1, 2, 0 },
