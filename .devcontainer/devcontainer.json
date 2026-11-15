@@ -1,0 +1,36 @@
+{
+  "name": "IterVC — Linux desktop in your browser",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
+  },
+  "features": {
+    "ghcr.io/devcontainers/features/dotnet:2": {
+      "version": "8.0"
+    },
+    "ghcr.io/devcontainers/features/rust:1": {
+      "version": "latest"
+    }
+  },
+  "remoteUser": "vscode",
+  "forwardPorts": [
+    6080
+  ],
+  "portsAttributes": {
+    "6080": {
+      "label": "IterVC Linux desktop (PRIVATE)",
+      "onAutoForward": "openBrowser",
+      "protocol": "http"
+    }
+  },
+  "postCreateCommand": "bash .devcontainer/build-linux.sh",
+  "postStartCommand": "bash .devcontainer/start-browser-preview.sh",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-dotnettools.csharp",
+        "rust-lang.rust-analyzer"
+      ]
+    }
+  }
+}
