@@ -63,6 +63,9 @@ public sealed class AppSettings
     /// </summary>
     public List<string> IncludedProcessNames { get; set; } = new();
 
+    /// <summary>Whether the routed application mix is muted. False for existing settings.</summary>
+    public bool ApplicationsMuted { get; set; }
+
     // ----------------------------------------------------------------
     // Campos nuevos (schemaversion 2): preferencias de UI y OSC.
     // ----------------------------------------------------------------

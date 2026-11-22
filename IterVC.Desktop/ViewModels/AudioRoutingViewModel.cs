@@ -63,6 +63,8 @@ public sealed partial class AudioRoutingViewModel : ViewModelBase
         try
         {
             RefreshDevices();
+            // Restore the application mix state before starting any routed output.
+            _router.SetApplicationsMuted(settings.ApplicationsMuted);
             Applications.HydrateIncludedProcessNames(settings.IncludedProcessNames);
             AppsVolume = settings.AppsVolume;
             _router.SetAppsVolume(AppsVolume);
