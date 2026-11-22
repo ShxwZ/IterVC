@@ -71,7 +71,7 @@ public sealed class App : Application
                             case HotkeyAction.StartRouting: await mainViewModel.Audio.StartRoutingAsync(); break;
                             case HotkeyAction.StopRouting: await mainViewModel.Audio.StopRoutingAsync(); break;
                             case HotkeyAction.ToggleApplicationsMute:
-                                mainViewModel.Audio.Applications.ToggleApplicationsMute();
+                                await mainViewModel.Audio.Applications.ToggleApplicationsMuteCommand.ExecuteAsync(null);
                                 break;
                             case HotkeyAction.ToggleMicrophone: await mainViewModel.Audio.Microphone.ToggleAsync(); break;
                         }

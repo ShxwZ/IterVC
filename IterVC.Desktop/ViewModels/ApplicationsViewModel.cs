@@ -55,11 +55,16 @@ public sealed partial class ApplicationsViewModel : ViewModelBase, IDisposable
         OnPropertyChanged(nameof(ApplicationsMuteStatusText));
     }
 
+    // Preserve existing callers while the UI and hotkey await the async command.
+    public void ToggleApplicationsMute() => ToggleApplicationsMuteCommand.Execute(null);
+
     [RelayCommand]
-    public void ToggleApplicationsMute()
+    private async Task ToggleApplicationsMuteAsync()
     {
         _router.SetApplicationsMuted(!_router.AreApplicationsMuted);
-        AreApplicationsMuted = _router.AreApplicationsMuted;
+        var muted = _router.AreApplicationsMuted;
+        AreApplicationsMuted = muted;
+        await _settings.UpdateAsync(settings => settings.ApplicationsMuted = muted);
     }
 
     public void HydrateIncludedProcessNames(IReadOnlyCollection<string> processNames)
