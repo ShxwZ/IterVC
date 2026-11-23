@@ -1,0 +1,58 @@
+---
+title: Mix
+description: Balance the shared application gain, microphone boost, and microphone monitoring.
+---
+
+import Screenshot from '../../../components/Screenshot.astro';
+
+## What the Mix tab controls
+
+The **Mix** tab contains controls that balance the routed application audio and the processed microphone. These controls affect levels and monitoring; they do not select audio devices, choose applications, or enable microphone capture.
+
+| Control | What it affects | What it does not affect |
+| --- | --- | --- |
+| Application gain | The combined level of selected application audio | Individual application volume, selected processes, or microphone level |
+| Microphone boost | The level of the captured microphone after noise-gate processing | Application audio or microphone device selection |
+| Local monitoring | Whether you hear the processed microphone through the normal output path; it requires microphone capture | Whether microphone capture is enabled or where the routed mix is sent |
+
+<Screenshot
+  src="images/guides/mix.webp"
+  alt="IterVC Mix tab with application gain, microphone boost, local monitoring, and level meters"
+  caption="The Mix tab brings application gain, microphone boost, and local monitoring together."
+  hint="Capture the Mix tab showing application gain, microphone boost, monitoring, and active level meters if possible."
+/>
+
+## Application gain
+
+**Application gain** is shared by all selected applications and ranges from **0–300%**. At 100%, the combined application mix is passed at its nominal level. Values above 100% can make quiet sources easier to hear, but they also reduce the available headroom.
+
+Adjust an application's own volume first when only that application is too quiet. Use the shared gain when the complete application mix needs balancing. For process selection and discovery, see [Application audio](../application-audio/).
+
+## Microphone boost
+
+**Microphone boost** ranges from **0.5× to 3×**. It changes the final level of the captured microphone after capture and noise-gate processing. It does not change the selected microphone device or the application mix.
+
+Start near 1×, speak at your normal volume, and increase the boost only as needed. For microphone capture and device behavior, see [Microphone](../microphone/).
+
+## Local microphone monitoring
+
+Enable **local microphone monitoring** to hear the processed microphone through the normal output path while you calibrate it. It previews the microphone after noise-gate processing and boost. Monitoring is independent of virtual routing and its destination, so it can operate while virtual routing is stopped. It requires microphone capture to be enabled, but does not enable capture itself or change where the routed mix is sent.
+
+Use headphones when monitoring a live microphone. Speakers can create an acoustic feedback loop, especially when microphone boost is high.
+
+## Calibrate with the meters
+
+Use the level meters to make small, deliberate adjustments:
+
+1. Start application gain at 100% and microphone boost near 1×.
+2. Play typical application audio and speak at your normal loudness.
+3. Watch the meters and keep regular peaks below their maximum level.
+4. Adjust one control at a time, then listen again before making another change.
+
+A meter that repeatedly reaches its maximum indicates that the signal may clip. Reduce the relevant gain or boost before continuing.
+
+## Avoid clipping and feedback
+
+Clipping can distort application audio or the microphone signal. It is more likely when application gain is above 100% or microphone boost is high. Lower the control that affects the overloaded meter rather than compensating with the other control.
+
+If you hear ringing, repeated echoes, or a rapidly rising level while local monitoring is enabled, disable monitoring and use headphones before recalibrating. Do not use speakers for live microphone monitoring unless you have verified that feedback cannot occur.

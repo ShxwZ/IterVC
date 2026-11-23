@@ -432,6 +432,13 @@
 						<RadioButton Content="{Binding Texts.TrayExit}" IsChecked="{Binding Settings.Tray.ExitOnClose}" />
 						<CheckBox Content="{Binding Texts.TrayMinimizeOnMinimize}" IsChecked="{Binding Settings.Tray.MinimizeToTrayWhenMinimized}" />
 						<Separator Height="1" Background="{DynamicResource BorderSubtleBrush}" Margin="0,4" />
+						<StackPanel Spacing="4">
+							<TextBlock Text="{Binding Texts.StartupTitle}" FontWeight="Bold" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11" />
+							<CheckBox Content="{Binding Texts.StartupRegistrationEnabled}" IsChecked="{Binding Settings.Startup.IsRegistrationEnabled}" />
+							<CheckBox Content="{Binding Texts.StartupHideOnLaunch}" IsChecked="{Binding Settings.Startup.StartHiddenOnWindowsStartup}" IsEnabled="{Binding Settings.Startup.IsRegistrationEnabled}" />
+							<TextBlock Text="{Binding Settings.Startup.Status}" TextWrapping="Wrap" FontSize="10" Foreground="{DynamicResource WarningTextBrush}" IsVisible="{Binding Settings.Startup.Status, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+						</StackPanel>
+						<Separator Height="1" Background="{DynamicResource BorderSubtleBrush}" Margin="0,4" />
 						<TextBlock Text="{Binding Texts.DiagnosticsTitle}" FontWeight="Bold" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11" />
 						<Button Classes="secondary"
 								Content="{Binding Texts.DiagnosticsOpenLogs}"

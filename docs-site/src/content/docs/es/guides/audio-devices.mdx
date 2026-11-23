@@ -1,0 +1,45 @@
+---
+title: Dispositivos de audio
+description: Configure la salida de referencia, el destino de enrutamiento y el micrófono físico.
+---
+
+import Screenshot from '../../../../components/Screenshot.astro';
+
+IterVC ofrece tres selectores de dispositivo en la pestaña **Audio devices**.
+
+## Dispositivo de salida de referencia
+
+Elija los altavoces o auriculares asociados a las aplicaciones que desea capturar. Esta selección se usa como extremo de reproducción de referencia para detectar sesiones de aplicaciones y determinar el comportamiento de captura.
+
+Si una aplicación reproduce el sonido por otro dispositivo de salida de Windows, puede que no aparezca o que no proporcione el audio esperado.
+
+## Destino de enrutamiento
+
+Elija dónde debe reproducir IterVC la mezcla final de aplicaciones y micrófono.
+
+### Cable virtual
+
+Para el flujo principal de entrada de voz, seleccione el lado de reproducción de un cable virtual, normalmente **CABLE Input**. A continuación, seleccione **CABLE Output** como micrófono en Discord, OBS, VRChat, TeamSpeak u otra aplicación receptora.
+
+[Descargue VB-CABLE desde el sitio web oficial de VB-Audio](https://vb-audio.com/Cable/).
+
+### Altavoces o auriculares
+
+También puede seleccionar altavoces convencionales, auriculares, unos auriculares con micrófono u otro extremo de reproducción disponible. Esta opción sirve para escuchar directamente la salida combinada de IterVC, pero no hace que la mezcla aparezca como micrófono en otra aplicación.
+
+Tenga cuidado si incluye el micrófono: la reproducción directa por un altavoz cercano puede causar realimentación acústica. Los auriculares son más seguros para este flujo.
+
+## Micrófono físico
+
+Elija el micrófono que desea añadir a la mezcla. El dispositivo seleccionado se recuerda entre sesiones. Puede desactivar la captura de micrófono sin perder el dispositivo elegido.
+
+<Screenshot
+  src="images/guides/audio-device-selectors.webp"
+  alt="Selectores de dispositivos de audio de IterVC"
+  caption="La salida de referencia, el destino de enrutamiento y el micrófono se configuran de forma independiente."
+  hint="Capture la pestaña Audio devices con los tres selectores desplegados o claramente visibles."
+/>
+
+## Aviso sobre audio espacial
+
+El audio espacial de Windows, el procesamiento envolvente del fabricante, las mejoras y los formatos multicanal inusuales pueden cambiar el audio que recibe la captura `process-loopback`. Si el audio capturado suena reverberante, hueco, más bajo de lo esperado o con una mezcla descendente incorrecta, consulte [Calidad de audio](../troubleshooting/audio-quality/).

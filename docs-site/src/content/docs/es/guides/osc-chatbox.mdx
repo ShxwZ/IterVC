@@ -1,0 +1,59 @@
+---
+title: Chatbox OSC
+description: Envíe la información multimedia actual de Windows al Chatbox de VRChat.
+---
+
+import Screenshot from '../../../../components/Screenshot.astro';
+
+IterVC puede leer la sesión multimedia activa de Windows y enviar un mensaje con formato al Chatbox de VRChat una vez por segundo.
+
+## Active OSC en VRChat
+
+En VRChat, active OSC desde el menú de acciones o desde la página de ajustes correspondiente antes de habilitar la opción de Chatbox en IterVC. IterVC usa el comportamiento estándar del Chatbox OSC de VRChat proporcionado por su biblioteca OSC.
+
+## Active el Chatbox en IterVC
+
+Abra la pestaña **OSC** y active la opción de Chatbox. El ajuste se conserva entre sesiones.
+
+IterVC solo envía información cuando una sesión multimedia activa tiene un título que no está vacío. Si no hay contenido en reproducción o Windows no expone metadatos multimedia, no se enviará ningún mensaje nuevo.
+
+## Tokens de plantilla
+
+Use los tokens que expone la interfaz de IterVC:
+
+| Token | Valor |
+| --- | --- |
+| `{title}` | Título multimedia actual proporcionado por Windows. |
+| `{time}` | Información temporal actual proporcionada por la sesión multimedia. |
+
+Ejemplo:
+
+```text
+🎵 {title}
+{time}
+```
+
+Los saltos de línea introducidos en la plantilla se convierten en el separador de tabulación vertical que espera la biblioteca del Chatbox OSC.
+
+<Screenshot
+  src="images/guides/osc-template.webp"
+  alt="Editor de plantillas del Chatbox OSC en IterVC"
+  caption="Mantenga las plantillas lo bastante cortas para los límites de visualización del Chatbox de VRChat."
+  hint="Capture la pestaña OSC con una plantilla útil de varias líneas que use title y time."
+/>
+
+
+<Screenshot
+  src="images/guides/osc-chatbox-in-game.webp"
+  alt="Mensaje multimedia con formato de IterVC mostrado en el Chatbox dentro del juego de VRChat"
+  caption="El mensaje multimedia con formato aparece directamente en el Chatbox dentro del juego de VRChat."
+  hint="Capture una vista limpia del Chatbox dentro del juego, con el mensaje legible y con la informaci?n privada o identificativa de jugadores reducida al m?nimo."
+/>
+
+## Longitud del mensaje
+
+VRChat puede truncar o redistribuir los mensajes largos. Los títulos multimedia no dependen de IterVC; deje espacio libre en la plantilla y evite decoraciones excesivas.
+
+## Desactive o borre el mensaje
+
+Al desactivar la función se detienen las actualizaciones multimedia periódicas. Según la acción actual de la interfaz y el estado de VRChat, el mensaje existente en el Chatbox puede permanecer visible hasta que VRChat lo borre o lo sustituya.

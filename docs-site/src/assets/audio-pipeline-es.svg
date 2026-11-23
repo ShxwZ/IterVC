@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 1140" role="img" aria-labelledby="title desc">
+  <title id="title">Canalización de procesamiento de audio de IterVC</title>
+  <desc id="desc">Las sesiones de aplicaciones de Windows seleccionadas pasan por captura de bucle invertido WASAPI por proceso, conversión, mezcla a menos canales y ganancia compartida. Un micrófono seleccionado pasa por captura, puerta de ruido y amplificación. Los buses de aplicaciones y micrófono procesado se unen en una mezcla final, que se mide, protege y diagnostica antes de llegar al dispositivo de reproducción de Windows seleccionado. El micrófono procesado también puede monitorizarse localmente, con independencia del enrutamiento virtual, mientras su captura esté activa.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto">
+      <path d="M0 0 10 5 0 10z" fill="#334155"/>
+    </marker>
+    <style>
+      text { font-family: Arial, Helvetica, sans-serif; fill: #111827; }
+      .group-label { font-size: 18px; font-weight: 700; }
+      .box-label { font-size: 18px; font-weight: 700; text-anchor: middle; }
+      .small { font-size: 14px; fill: #475569; text-anchor: middle; }
+      .flow { fill: none; stroke: #334155; stroke-width: 3; marker-end: url(#arrow); }
+      .box { fill: #FFFFFF; stroke-width: 3; }
+    </style>
+  </defs>
+
+  <rect width="860" height="1140" rx="22" fill="#F8FAFC"/>
+  <text x="30" y="44" font-size="25" font-weight="700" fill="#0F172A">Cómo llega el audio a la salida seleccionada</text>
+
+  <rect x="20" y="70" width="400" height="630" rx="18" fill="#EFF6FF" stroke="#2563EB" stroke-width="2"/>
+  <text x="40" y="108" class="group-label" fill="#1E3A8A">AUDIO DE APLICACIONES</text>
+
+  <rect x="55" y="130" width="330" height="76" rx="12" class="box" stroke="#1D4ED8"/>
+  <text x="220" y="158" class="box-label">
+    <tspan x="220">Sesiones de aplicaciones</tspan>
+    <tspan x="220" dy="25">seleccionadas</tspan>
+  </text>
+  <line x1="220" y1="206" x2="220" y2="234" class="flow"/>
+
+  <rect x="55" y="236" width="330" height="76" rx="12" class="box" stroke="#1D4ED8"/>
+  <text x="220" y="264" class="box-label">
+    <tspan x="220">Captura loopback WASAPI</tspan>
+    <tspan x="220" dy="25">por proceso</tspan>
+  </text>
+  <line x1="220" y1="312" x2="220" y2="340" class="flow"/>
+
+  <rect x="55" y="342" width="330" height="76" rx="12" class="box" stroke="#1D4ED8"/>
+  <text x="220" y="370" class="box-label">
+    <tspan x="220">Conversión de formato y</tspan>
+    <tspan x="220" dy="25">mezcla a menos canales</tspan>
+  </text>
+  <line x1="220" y1="418" x2="220" y2="446" class="flow"/>
+
+  <rect x="55" y="448" width="330" height="76" rx="12" class="box" stroke="#1D4ED8"/>
+  <text x="220" y="476" class="box-label">
+    <tspan x="220">Ganancia compartida</tspan>
+    <tspan x="220" dy="25">de aplicaciones</tspan>
+  </text>
+  <line x1="220" y1="524" x2="220" y2="552" class="flow"/>
+
+  <rect x="55" y="554" width="330" height="76" rx="12" fill="#DBEAFE" stroke="#1D4ED8" stroke-width="3"/>
+  <text x="220" y="600" class="box-label" fill="#1E3A8A">Bus de aplicaciones</text>
+
+  <rect x="440" y="70" width="400" height="630" rx="18" fill="#ECFDF5" stroke="#059669" stroke-width="2"/>
+  <text x="460" y="108" class="group-label" fill="#065F46">AUDIO DEL MICRÓFONO</text>
+
+  <rect x="475" y="130" width="330" height="76" rx="12" class="box" stroke="#047857"/>
+  <text x="640" y="158" class="box-label">
+    <tspan x="640">Micrófono físico</tspan>
+    <tspan x="640" dy="25">seleccionado</tspan>
+  </text>
+  <line x1="640" y1="206" x2="640" y2="234" class="flow"/>
+
+  <rect x="475" y="236" width="330" height="76" rx="12" class="box" stroke="#047857"/>
+  <text x="640" y="282" class="box-label">Captura</text>
+  <line x1="640" y1="312" x2="640" y2="340" class="flow"/>
+
+  <rect x="475" y="342" width="330" height="76" rx="12" class="box" stroke="#047857"/>
+  <text x="640" y="388" class="box-label">Puerta de ruido</text>
+  <line x1="640" y1="418" x2="640" y2="446" class="flow"/>
+
+  <rect x="475" y="448" width="330" height="76" rx="12" class="box" stroke="#047857"/>
+  <text x="640" y="476" class="box-label">
+    <tspan x="640">Amplificación</tspan>
+    <tspan x="640" dy="25">del micrófono</tspan>
+  </text>
+  <line x1="640" y1="524" x2="640" y2="552" class="flow"/>
+
+  <rect x="475" y="554" width="330" height="76" rx="12" fill="#D1FAE5" stroke="#047857" stroke-width="3"/>
+  <text x="640" y="582" class="box-label" fill="#065F46">
+    <tspan x="640">Bus de micrófono</tspan>
+    <tspan x="640" dy="25">procesado</tspan>
+  </text>
+
+  <path d="M805 592 H825 V724 H802" fill="none" stroke="#047857" stroke-width="3" marker-end="url(#arrow)"/>
+  <rect x="600" y="666" width="200" height="118" rx="12" fill="#FFFFFF" stroke="#047857" stroke-width="3"/>
+  <text x="700" y="697" class="box-label">Monitorización local</text>
+  <text x="700" y="727" class="small">
+    <tspan x="700">Independiente del</tspan>
+    <tspan x="700" dy="21">enrutamiento virtual</tspan>
+    <tspan x="700" dy="21">Requiere captura activa</tspan>
+  </text>
+
+  <path d="M220 630 V821 H308" class="flow"/>
+  <path d="M640 630 V646 H570 V754 H552 V821" class="flow"/>
+
+  <rect x="310" y="780" width="240" height="82" rx="12" fill="#EDE9FE" stroke="#6D28D9" stroke-width="3"/>
+  <text x="430" y="829" class="box-label" fill="#4C1D95">Mezcla final</text>
+
+  <line x1="430" y1="862" x2="430" y2="900" class="flow"/>
+  <rect x="275" y="902" width="310" height="100" rx="12" class="box" stroke="#6D28D9"/>
+  <text x="430" y="928" class="box-label">
+    <tspan x="430">Medición y protección de salida</tspan>
+    <tspan x="430" dy="25">Diagnóstico</tspan>
+  </text>
+
+  <line x1="430" y1="1002" x2="430" y2="1040" class="flow"/>
+  <rect x="140" y="1042" width="580" height="76" rx="12" fill="#FEF3C7" stroke="#B45309" stroke-width="3"/>
+  <text x="430" y="1070" class="box-label" fill="#78350F">Dispositivo de reproducción de Windows</text>
+  <text x="430" y="1098" class="small" fill="#78350F">VB-CABLE, altavoces, auriculares u otro dispositivo</text>
+</svg>

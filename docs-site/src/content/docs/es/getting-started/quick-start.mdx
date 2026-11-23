@@ -1,0 +1,40 @@
+---
+title: Inicio rápido
+description: Envíe el audio de aplicaciones seleccionadas y un micrófono a VB-CABLE, altavoces, auriculares u otro dispositivo de reproducción.
+---
+
+import Screenshot from '../../../../components/Screenshot.astro';
+import { Steps } from '@astrojs/starlight/components';
+
+<Steps>
+1. Abra **Audio devices** en IterVC.
+2. Seleccione como dispositivo de salida de referencia los altavoces o auriculares que usan las aplicaciones.
+3. Seleccione el destino de la mezcla final de IterVC:
+   - **CABLE Input** para el flujo habitual de micrófono virtual.
+   - Altavoces, auriculares u otro extremo de reproducción para escuchar directamente.
+4. Seleccione el micrófono físico o desactive la captura de micrófono si solo necesita audio de aplicaciones.
+5. Pulse **Refresh applications** si no aparece la aplicación que busca.
+6. Marque cada aplicación que deba incluirse en la mezcla.
+7. Haga clic en el control de estado de enrutamiento de la parte superior de la ventana para iniciarlo.
+8. Si usa VB-CABLE, seleccione **CABLE Output** como dispositivo de micrófono o entrada en la aplicación receptora.
+</Steps>
+
+<Screenshot
+  src="images/getting-started/main-window.webp"
+  alt="Ventana principal de IterVC con aplicaciones y ajustes de audio"
+  caption="El panel izquierdo selecciona las aplicaciones; el derecho configura los dispositivos y el procesamiento."
+  hint="Capture la ventana principal completa con una aplicación seleccionada."
+/>
+
+## Compruebe la señal
+
+IterVC muestra medidores de nivel compactos para las aplicaciones, el micrófono y la salida enrutada. Úselos para localizar el problema:
+
+- El medidor de una aplicación se mueve, pero la salida enrutada no: compruebe el estado de enrutamiento, el destino seleccionado y el silencio de la aplicación.
+- El medidor del micrófono no se mueve: compruebe el micrófono físico seleccionado y que la captura está activada.
+- La salida enrutada se mueve, pero los altavoces no emiten sonido: confirme que está seleccionado el dispositivo de reproducción esperado y que no está silenciado en Windows.
+- La salida enrutada se mueve, pero la aplicación receptora no recibe sonido por VB-CABLE: seleccione **CABLE Output** en esa aplicación.
+
+## Detenga el enrutamiento
+
+Vuelva a hacer clic en el control de estado de enrutamiento activo, use el atajo global configurado o elija la acción correspondiente en la bandeja del sistema. Al salir de IterVC también se detiene la canalización de audio activa.

@@ -70,6 +70,7 @@ public sealed class MainViewModel : ViewModelBase, IAsyncDisposable
             Settings.Language.Hydrate(settings);
             Settings.Hotkeys.Hydrate(settings);
             Settings.Tray?.Hydrate(settings);
+            Settings.Startup?.Hydrate(settings);
 
             await Audio.HydrateAsync(settings, cancellationToken);
             await Audio.Microphone.HydrateAsync(settings, cancellationToken);

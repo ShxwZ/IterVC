@@ -1,0 +1,610 @@
+:root {
+  /* IterVC dark palette from the desktop app. */
+  --sl-color-accent-low: #20204c;
+  --sl-color-accent: #5b5bf0;
+  --sl-color-accent-high: #a9a9ff;
+  --sl-color-white: #ffffff;
+  --sl-color-gray-1: #e2e2e9;
+  --sl-color-gray-2: #a9a9c3;
+  --sl-color-gray-3: #7b7b9a;
+  --sl-color-gray-4: #5f5f7a;
+  --sl-color-gray-5: #29293b;
+  --sl-color-gray-6: #15151f;
+  --sl-color-gray-7: #111116;
+  --sl-color-black: #0a0a0d;
+
+  --itervc-bg: #0a0a0d;
+  --itervc-surface: #111116;
+  --itervc-surface-raised: #15151f;
+  --itervc-surface-interactive: #181820;
+  --itervc-surface-hover: #202030;
+  --itervc-border-subtle: #1c1c28;
+  --itervc-border: #29293b;
+  --itervc-accent: #5b5bf0;
+  --itervc-accent-hover: #7070f5;
+  --itervc-accent-text: #a9a9ff;
+  --itervc-button-text: #ffffff;
+  --itervc-on-accent: #ffffff;
+  --itervc-success: #4ade80;
+  --itervc-warning: #f59e0b;
+  --itervc-danger: #f15b64;
+}
+
+:root[data-theme='light'] {
+  --sl-color-accent-low: #e7e7ff;
+  --sl-color-accent: #5050df;
+  --sl-color-accent-high: #292982;
+  --sl-color-white: #15151f;
+  --sl-color-gray-1: #29293b;
+  --sl-color-gray-2: #4a4a63;
+  --sl-color-gray-3: #6f6f8d;
+  --sl-color-gray-4: #aaaac0;
+  --sl-color-gray-5: #d6d6e3;
+  --sl-color-gray-6: #eeeef7;
+  --sl-color-gray-7: #f8f8fc;
+  --sl-color-black: #ffffff;
+
+  --itervc-bg: #f8f8fc;
+  --itervc-surface: #ffffff;
+  --itervc-surface-raised: #f1f1f9;
+  --itervc-surface-interactive: #ebebf6;
+  --itervc-surface-hover: #e2e2f1;
+  --itervc-border-subtle: #e1e1ec;
+  --itervc-border: #cecedd;
+  --itervc-accent: #5050df;
+  --itervc-accent-hover: #4141c9;
+  --itervc-accent-text: #34349c;
+  --itervc-button-text: #15151f;
+  --itervc-on-accent: #ffffff;
+  --itervc-success: #168a47;
+  --itervc-warning: #a15f00;
+  --itervc-danger: #c43c49;
+}
+
+html,
+body {
+  background: var(--itervc-bg);
+}
+
+header.header {
+  border-bottom-color: var(--itervc-border-subtle);
+  background: color-mix(in srgb, var(--itervc-bg) 92%, transparent);
+  backdrop-filter: blur(16px);
+}
+
+.sidebar-pane {
+  border-inline-end-color: var(--itervc-border-subtle);
+  background: var(--itervc-bg);
+}
+
+.right-sidebar {
+  border-inline-start-color: var(--itervc-border-subtle);
+}
+
+.site-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.site-title::after {
+  content: 'BETA';
+  flex: 0 0 auto;
+  padding: 0.16rem 0.42rem;
+  border: 1px solid color-mix(in srgb, var(--itervc-success) 48%, var(--itervc-border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--itervc-success) 14%, var(--itervc-surface-raised));
+  color: var(--itervc-success);
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  line-height: 1.2;
+}
+
+.site-title img {
+  width: 2.35rem;
+  height: 2.35rem;
+  object-fit: contain;
+  filter: drop-shadow(0 0 0.55rem color-mix(in srgb, var(--itervc-accent) 45%, transparent));
+}
+
+.itervc-social-cluster {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.itervc-github-star__link {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  min-height: 1.8rem;
+  padding: 0.2rem 0.48rem;
+  border: 1px solid var(--itervc-border);
+  border-radius: 0.45rem;
+  background: var(--itervc-surface-raised);
+  color: var(--sl-color-gray-1);
+  font-size: 0.72rem;
+  font-weight: 750;
+  line-height: 1;
+  text-decoration: none;
+  transition:
+    border-color 140ms ease,
+    background-color 140ms ease,
+    color 140ms ease,
+    transform 140ms ease;
+}
+
+.itervc-github-star__link:hover {
+  border-color: color-mix(in srgb, var(--itervc-accent) 65%, var(--itervc-border));
+  background: var(--itervc-surface-hover);
+  color: var(--sl-color-white);
+  transform: translateY(-1px);
+}
+
+.itervc-github-star__link:focus-visible {
+  outline: 2px solid var(--itervc-accent);
+  outline-offset: 2px;
+}
+
+.itervc-github-star__icon {
+  flex: 0 0 auto;
+  color: var(--itervc-warning);
+}
+
+.itervc-github-star__count {
+  display: inline-flex;
+  align-items: center;
+  border-inline-start: 1px solid var(--itervc-border);
+  padding-inline-start: 0.32rem;
+  color: var(--sl-color-gray-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.itervc-github-star__count[hidden] {
+  display: none;
+}
+
+.itervc-kicker {
+  color: var(--itervc-accent-text);
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  margin-bottom: 0.5rem;
+}
+
+/* Splash hero: explicit spacing so Starlight defaults cannot collapse it. */
+body .hero {
+  box-sizing: border-box;
+  width: 100%;
+  padding: clamp(1.5rem, 4vw, 3rem) clamp(1.5rem, 5vw, 4rem) !important;
+  border: 1px solid var(--itervc-border-subtle);
+  border-radius: 0.85rem;
+  background:
+    radial-gradient(circle at 82% 28%, color-mix(in srgb, var(--itervc-accent) 13%, transparent), transparent 34%),
+    var(--itervc-surface);
+  box-shadow: none;
+}
+
+.hero img {
+  max-width: 16rem;
+  filter: drop-shadow(0 0 1.4rem color-mix(in srgb, var(--itervc-accent) 38%, transparent));
+}
+
+.hero .tagline {
+  max-width: 44rem;
+  color: var(--sl-color-gray-2);
+}
+
+.hero .actions {
+  gap: 0.75rem;
+}
+
+.hero .actions a {
+  min-height: 2.9rem;
+  padding-inline: 1.2rem;
+  border: 1px solid var(--itervc-border);
+  border-radius: 0.55rem;
+  background: var(--itervc-surface-raised);
+  color: var(--itervc-button-text);
+  font-weight: 750;
+  line-height: 1.2;
+  box-shadow: none;
+}
+
+.hero .actions a:hover {
+  border-color: var(--itervc-accent);
+  background: var(--itervc-surface-hover);
+  color: var(--itervc-button-text);
+}
+
+.hero .actions a.primary {
+  border-color: var(--itervc-accent);
+  background: var(--itervc-accent);
+  color: var(--itervc-on-accent);
+}
+
+.hero .actions a.primary:hover {
+  border-color: var(--itervc-accent-hover);
+  background: var(--itervc-accent-hover);
+}
+
+.hero .actions a.minimal {
+  border-color: transparent;
+  background: transparent;
+  color: var(--sl-color-gray-2);
+}
+
+.hero .actions a.minimal:hover {
+  border-color: var(--itervc-border);
+  background: var(--itervc-surface-raised);
+  color: var(--sl-color-white);
+}
+
+.sl-markdown-content a:not([class]) {
+  text-underline-offset: 0.18em;
+}
+
+/* Three-step route flow. Perfectly aligned numbers, titles, and descriptions. */
+.itervc-route-flow {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  overflow: hidden;
+  margin: 1.5rem 0 2.5rem;
+  border: 1px solid var(--itervc-border);
+  border-radius: 0.8rem;
+  background: var(--itervc-surface);
+}
+
+.itervc-route-step {
+  display: grid !important;
+  grid-template-columns: 1.8rem minmax(0, 1fr);
+  align-items: start !important;
+  gap: 0.85rem;
+  padding: 1.25rem;
+  box-sizing: border-box;
+  height: 100%;
+  margin-top: 0 !important;
+}
+
+.itervc-route-step + .itervc-route-step {
+  border-inline-start: 1px solid var(--itervc-border);
+}
+
+.itervc-route-number {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.8rem;
+  height: 1.8rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--itervc-accent) 18%, var(--itervc-surface-raised));
+  color: var(--itervc-accent-text);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.itervc-route-step > div {
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: flex-start !important;
+  align-items: flex-start !important;
+  grid-column: 2;
+  min-width: 0;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.itervc-route-step strong {
+  display: block !important;
+  min-height: 0 !important;
+  margin: 0 0 0.4rem 0 !important;
+  padding: 0 !important;
+  color: var(--sl-color-white);
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+
+.itervc-route-step span:not(.itervc-route-number) {
+  display: block !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  color: var(--sl-color-gray-3);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+/* Virtual cable choice cards. Equal row height and equal heading space. */
+.itervc-choice {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: 1fr;
+  gap: 1rem;
+  margin: 1.2rem 0 2.4rem;
+}
+
+.itervc-choice__card {
+  display: grid;
+  grid-template-rows: auto 4.1rem 1fr;
+  align-content: start;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 1.25rem;
+  border: 1px solid var(--itervc-border);
+  border-radius: 0.85rem;
+  background: var(--itervc-surface);
+  margin-top: 0 !important;
+}
+
+.itervc-choice__card--primary {
+  border-color: color-mix(in srgb, var(--itervc-accent) 65%, var(--itervc-border));
+  background:
+    radial-gradient(circle at 100% 0, color-mix(in srgb, var(--itervc-accent) 18%, transparent), transparent 48%),
+    var(--itervc-surface-raised);
+}
+
+.itervc-choice__label {
+  display: inline-flex;
+  width: fit-content;
+  margin-bottom: 0.65rem;
+  padding: 0.2rem 0.52rem;
+  border-radius: 999px;
+  background: var(--itervc-surface-hover);
+  color: var(--itervc-accent-text);
+  font-size: 0.72rem;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.itervc-choice__card h3 {
+  display: flex;
+  align-items: flex-start;
+  margin: 0;
+  font-size: 1.05rem;
+  line-height: 1.35;
+}
+
+.itervc-choice__card p {
+  margin: 0;
+  color: var(--sl-color-gray-3);
+  line-height: 1.55;
+}
+
+/* Feature cards use a dedicated grid instead of Starlight CardGrid. */
+.itervc-feature-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-auto-rows: 1fr;
+  gap: 1rem;
+  margin: 1.2rem 0 2.5rem;
+}
+
+.itervc-feature-card {
+  display: grid;
+  grid-template-rows: 3.25rem 1fr;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 1.2rem;
+  border: 1px solid var(--itervc-border);
+  border-radius: 0.8rem;
+  background: linear-gradient(145deg, var(--itervc-surface-raised), var(--itervc-surface));
+}
+
+.itervc-feature-card h3 {
+  display: flex;
+  align-items: flex-start;
+  margin: 0;
+  color: var(--sl-color-white);
+  font-size: 1rem;
+  line-height: 1.35;
+}
+
+.itervc-feature-card p {
+  margin: 0;
+  color: var(--sl-color-gray-3);
+  line-height: 1.5;
+}
+
+/* Start cards are also fully controlled so adjacent cards match exactly. */
+.itervc-start-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-auto-rows: 1fr;
+  gap: 1rem;
+  margin: 1.2rem 0 2.5rem;
+}
+
+.itervc-start-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: 2rem 1fr;
+  column-gap: 1rem;
+  row-gap: 0.35rem;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 1.2rem;
+  border: 1px solid var(--itervc-border);
+  border-radius: 0.8rem;
+  background: linear-gradient(145deg, var(--itervc-surface-raised), var(--itervc-surface));
+  color: inherit;
+  text-decoration: none;
+}
+
+.itervc-start-card:hover {
+  border-color: var(--itervc-accent);
+  background: var(--itervc-surface-hover);
+}
+
+.itervc-start-card strong {
+  grid-column: 1;
+  grid-row: 1;
+  align-self: center;
+  color: var(--sl-color-white);
+  font-size: 1rem;
+  line-height: 1.3;
+}
+
+.itervc-start-card p {
+  grid-column: 1;
+  grid-row: 2;
+  margin: 0;
+  color: var(--sl-color-gray-3);
+  line-height: 1.5;
+}
+
+.itervc-start-card > span {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: center;
+  color: var(--itervc-accent-text);
+  font-size: 1.2rem;
+  font-weight: 800;
+}
+
+.itervc-screenshot {
+  margin: 1.5rem 0;
+}
+
+.itervc-screenshot__stage {
+  display: grid;
+  min-height: 260px;
+  overflow: hidden;
+  border: 1px solid var(--itervc-border);
+  border-radius: 0.8rem;
+  background:
+    radial-gradient(circle at 20% 10%, color-mix(in srgb, var(--itervc-accent) 14%, transparent), transparent 34%),
+    var(--itervc-surface-raised);
+}
+
+.itervc-screenshot__stage > * {
+  grid-area: 1 / 1;
+}
+
+.itervc-screenshot__stage img {
+  z-index: 2;
+  display: block;
+  width: 100%;
+  height: auto;
+  margin: auto;
+  background: var(--itervc-bg);
+}
+
+.itervc-screenshot__placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 2rem;
+  text-align: center;
+  color: var(--sl-color-gray-2);
+}
+
+.itervc-screenshot__placeholder strong {
+  color: var(--sl-color-white);
+  font-family: var(--sl-font-mono);
+  font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+
+.itervc-screenshot__eyebrow {
+  color: var(--itervc-accent-text);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.itervc-screenshot figcaption {
+  margin-top: 0.55rem;
+  color: var(--sl-color-gray-3);
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+@media (max-width: 30rem) {
+  .site-title {
+    gap: 0.35rem;
+  }
+
+  .site-title::after {
+    padding: 0.14rem 0.36rem;
+    font-size: 0.56rem;
+    letter-spacing: 0.06em;
+  }
+
+  .itervc-social-cluster {
+    gap: 0.35rem;
+  }
+
+  .itervc-github-star__link {
+    padding-inline: 0.38rem;
+  }
+
+  .itervc-github-star__label {
+    display: none;
+  }
+}
+
+@media (max-width: 64rem) {
+  .itervc-feature-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 50rem) {
+  body .hero {
+    width: calc(100% - 1rem);
+    margin-top: 0.65rem !important;
+    padding: 1.25rem !important;
+  }
+
+  .itervc-route-flow,
+  .itervc-choice,
+  .itervc-feature-grid,
+  .itervc-start-grid {
+    grid-template-columns: 1fr;
+    grid-auto-rows: auto;
+  }
+
+  .itervc-route-step + .itervc-route-step {
+    border-inline-start: 0;
+    border-top: 1px solid var(--itervc-border);
+  }
+
+  .itervc-route-step strong {
+    min-height: 0;
+  }
+
+  .itervc-choice__card,
+  .itervc-feature-card,
+  .itervc-start-card {
+    grid-template-rows: auto auto;
+  }
+
+  .itervc-choice__card h3,
+  .itervc-feature-card h3 {
+    min-height: 0;
+    margin-bottom: 0.55rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .itervc-github-star__link {
+    transition: none;
+  }
+
+  .itervc-github-star__link:hover {
+    transform: none;
+  }
+}

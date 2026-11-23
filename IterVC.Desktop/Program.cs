@@ -19,6 +19,17 @@ internal static class Program
     [STAThread]
     public static void Main(string[] args)
     {
+        var launchOptions = AppLaunchOptions.Parse(args);
+        using var instance = SingleInstanceCoordinator.Acquire();
+        if (!instance.IsPrimary)
+        {
+            if (!launchOptions.IsWindowsStartup)
+            {
+                try { instance.NotifyPrimaryAsync().GetAwaiter().GetResult(); }
+                catch { /* A primary process may be terminating; do not initialize a duplicate. */ }
+            }
+            return;
+        }
         var appDataDirectory = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
             "IterVC");
@@ -46,6 +57,8 @@ internal static class Program
             var logger = AppHost.Services.GetRequiredService<ILoggerFactory>().CreateLogger("IterVC");
             logger.LogInformation("IterVC {Version} started", AppVersion.Display);
 
+            App.LaunchOptions = launchOptions;
+            App.ConfigurePrimaryInstance(instance);
             BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
             logger.LogInformation("IterVC shut down cleanly");
         }
@@ -101,6 +114,10 @@ internal static class Program
             sp.GetRequiredService<DiagnosticsService>(),
             sp.GetRequiredService<ILogger<DiagnosticsViewModel>>()));
         services.AddSingleton<ISettingsService, SettingsService>();
+        services.AddSingleton<WindowsStartupRegistrationService>();
+        services.AddSingleton(sp => new StartupSettingsViewModel(
+            sp.GetRequiredService<ISettingsService>(),
+            sp.GetRequiredService<WindowsStartupRegistrationService>()));
         services.AddSingleton<ILocalizationService>(LocalizationService.Instance);
         services.AddSingleton<IDeviceService, DeviceService>();
         services.AddSingleton<IOscMediaService, OscMediaService>();
@@ -168,7 +185,8 @@ internal static class Program
             sp.GetRequiredService<HotkeysViewModel>(),
             sp.GetRequiredService<UpdateViewModel>(),
             sp.GetRequiredService<TraySettingsViewModel>(),
-            sp.GetRequiredService<DiagnosticsViewModel>()));
+            sp.GetRequiredService<DiagnosticsViewModel>(),
+            sp.GetRequiredService<StartupSettingsViewModel>()));
         services.AddSingleton<TraySettingsViewModel>();
         services.AddSingleton(sp => new MainViewModel(
             sp.GetRequiredService<IDeviceService>(),

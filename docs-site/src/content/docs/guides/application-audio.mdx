@@ -1,0 +1,44 @@
+---
+title: Application audio
+description: Discover applications, select processes, monitor levels, and mute the application mix.
+---
+
+import Screenshot from '../../../components/Screenshot.astro';
+
+## Discover running applications
+
+IterVC lists active Windows audio applications by process. Each row shows a display name, process name, process ID, and a compact level meter.
+
+Use **Refresh applications** after:
+
+- Opening a new application.
+- Starting playback for the first time.
+- Restarting an application.
+- Moving an application to another Windows output device.
+
+Some applications do not create a visible audio session until they produce sound.
+
+## Include an application
+
+Select the checkbox or click the application row. IterVC persists selected applications by process name rather than process ID because process IDs change between launches.
+
+When a selected application restarts with the same process name, IterVC can recognize the preference after the session is rediscovered.
+
+<Screenshot
+  src="images/guides/application-list.webp"
+  alt="Application list in IterVC"
+  caption="Selected applications show an accent indicator and contribute to the routed mix."
+  hint="Capture several applications, including one selected and one unselected."
+/>
+
+## Application gain
+
+Application gain is a shared control for the selected application mix, not a setting on the application list. Configure its 0–300% range, calibrate it with the meters, and review clipping guidance in [Mix: Application gain](../mix/#application-gain).
+
+Prefer adjusting the source application's own volume first. Use the shared gain when the complete application mix needs balancing.
+
+## Mute all application audio
+
+The application panel includes a control that temporarily mutes or restores the complete application mix. This does not change which processes are selected and does not disable the microphone.
+
+A global hotkey can be assigned to the same action.

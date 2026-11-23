@@ -1,0 +1,44 @@
+---
+title: Audio de aplicaciones
+description: Detecte aplicaciones, seleccione procesos, supervise niveles y silencie la mezcla de aplicaciones.
+---
+
+import Screenshot from '../../../../components/Screenshot.astro';
+
+## Detecte las aplicaciones en ejecución
+
+IterVC muestra las aplicaciones de audio activas de Windows por proceso. Cada fila incluye el nombre visible, el nombre del proceso, el identificador del proceso y un medidor de nivel compacto.
+
+Use **Refresh applications** después de:
+
+- Abrir una nueva aplicación.
+- Iniciar la reproducción por primera vez.
+- Reiniciar una aplicación.
+- Mover una aplicación a otro dispositivo de salida de Windows.
+
+Algunas aplicaciones no crean una sesión de audio visible hasta que emiten sonido.
+
+## Incluya una aplicación
+
+Marque la casilla o haga clic en la fila de la aplicación. IterVC conserva las aplicaciones seleccionadas por el nombre del proceso y no por su identificador, ya que este cambia entre ejecuciones.
+
+Cuando una aplicación seleccionada se reinicia con el mismo nombre de proceso, IterVC puede recuperar la preferencia al volver a detectar la sesión.
+
+<Screenshot
+  src="images/guides/application-list.webp"
+  alt="Lista de aplicaciones de IterVC"
+  caption="Las aplicaciones seleccionadas muestran un indicador destacado y contribuyen a la mezcla enrutada."
+  hint="Capture varias aplicaciones, incluida una seleccionada y otra sin seleccionar."
+/>
+
+## Ganancia de aplicaciones
+
+La ganancia de aplicaciones es un control compartido para la mezcla de aplicaciones seleccionadas, no un ajuste de la lista de aplicaciones. Configure su intervalo del 0 % al 300 %, calíbrela con los medidores y consulte las indicaciones sobre recorte en [Mezcla: Ganancia de aplicaciones](../mix/#ganancia-de-aplicaciones).
+
+Ajuste primero el volumen de la propia aplicación de origen. Use la ganancia compartida cuando necesite equilibrar toda la mezcla de aplicaciones.
+
+## Silencie todo el audio de las aplicaciones
+
+El panel de aplicaciones incluye un control para silenciar temporalmente o restaurar toda la mezcla de aplicaciones. No modifica los procesos seleccionados ni desactiva el micrófono.
+
+Puede asignar un atajo global a la misma acción.

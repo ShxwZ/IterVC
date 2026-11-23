@@ -1,0 +1,40 @@
+---
+title: Quick start
+description: Route selected application audio and a microphone to VB-CABLE, speakers, headphones, or another playback device.
+---
+
+import Screenshot from '../../../components/Screenshot.astro';
+import { Steps } from '@astrojs/starlight/components';
+
+<Steps>
+1. Open **Audio devices** in IterVC.
+2. Select the speakers or headphones currently used by the applications as the reference output device.
+3. Select the destination for IterVC's final mix:
+   - **CABLE Input** for the usual virtual-microphone workflow.
+   - Speakers, headphones, or another playback endpoint for direct listening.
+4. Select your physical microphone, or disable microphone capture if you only need application audio.
+5. Press **Refresh applications** if the target application is not listed.
+6. Check each application that should be included in the mix.
+7. Click the routing status control at the top of the window to start routing.
+8. When using VB-CABLE, select **CABLE Output** as the microphone/input device in the receiving application.
+</Steps>
+
+<Screenshot
+  src="images/getting-started/main-window.webp"
+  alt="IterVC main window with applications and audio settings"
+  caption="The left panel selects applications; the right panel configures devices and processing."
+  hint="Capture the full main window with one application selected."
+/>
+
+## Verify the signal
+
+IterVC displays compact level meters for applications, the microphone, and the routed output. Use them to locate a problem:
+
+- Application meter moves, routed output does not: check routing state, destination selection, and application mute.
+- Microphone meter does not move: check the selected physical microphone and microphone enable state.
+- Routed output moves, speakers remain silent: confirm the expected playback device is selected and not muted in Windows.
+- Routed output moves, receiving app hears nothing through VB-CABLE: select **CABLE Output** in that app.
+
+## Stop routing
+
+Click the active routing status control again, use the configured global hotkey, or choose the appropriate tray action. Exiting IterVC also stops its active audio pipeline.

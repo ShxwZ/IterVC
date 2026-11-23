@@ -1,0 +1,45 @@
+---
+title: Audio devices
+description: Configure the reference output, routing destination, and physical microphone.
+---
+
+import Screenshot from '../../../components/Screenshot.astro';
+
+IterVC exposes three device selectors in the **Audio devices** tab.
+
+## Reference output device
+
+Choose the speakers or headphones associated with the applications you want to capture. This selection is used as the reference render endpoint for application-session discovery and capture behavior.
+
+If an application is playing through a different Windows output device, it may not appear or may not provide the expected audio.
+
+## Routing destination
+
+Choose where IterVC should render the final application-and-microphone mix.
+
+### Virtual cable
+
+For the main voice-input workflow, choose the playback side of a virtual cable, usually **CABLE Input**. Then select **CABLE Output** as the microphone in Discord, OBS, VRChat, TeamSpeak, or another receiving application.
+
+[Download VB-CABLE from the official VB-Audio website](https://vb-audio.com/Cable/).
+
+### Speakers or headphones
+
+You can instead select regular speakers, headphones, a headset, or another available playback endpoint. This is useful when you want to hear IterVC's combined output directly. It does not make the mix appear as a microphone in another application.
+
+Be careful when the microphone is included: direct playback can create audible feedback if the destination is a speaker near the microphone. Headphones are safer for this workflow.
+
+## Physical microphone
+
+Choose the microphone you want to add to the mix. The selected device is remembered between sessions. Microphone capture can be disabled without discarding the selected device.
+
+<Screenshot
+  src="images/guides/audio-device-selectors.webp"
+  alt="IterVC audio device selectors"
+  caption="Reference output, routing destination, and microphone are configured independently."
+  hint="Capture the Audio devices tab with all three selectors expanded or clearly visible."
+/>
+
+## Spatial audio warning
+
+Windows spatial audio, vendor surround processing, enhancements, and unusual multichannel formats can change what process-loopback capture receives. If captured audio sounds reverberant, hollow, quieter than expected, or incorrectly downmixed, see [Audio quality](../troubleshooting/audio-quality/).
