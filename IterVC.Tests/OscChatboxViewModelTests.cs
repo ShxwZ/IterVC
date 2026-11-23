@@ -47,15 +47,15 @@ public sealed class OscChatboxViewModelTests
 
         viewModel.Template = "{title}|{time}";
         viewModel.IsEnabled = true;
-        viewModel.KeepVisibleWhenPaused = false;
+        viewModel.KeepVisibleWhenPaused = true;
         await viewModel.StopAsync();
 
         Assert.AreEqual("{title}|{time}", persisted.OscTemplate);
         Assert.IsTrue(persisted.EnableOscChatbox);
-        Assert.IsFalse(persisted.KeepOscChatboxVisibleWhenPaused);
-        worker.Verify(service => service.Configure(false, "{title}|{time}", true), Times.Once);
-        worker.Verify(service => service.Configure(true, "{title}|{time}", true), Times.Once);
+        Assert.IsTrue(persisted.KeepOscChatboxVisibleWhenPaused);
+        worker.Verify(service => service.Configure(false, "{title}|{time}", false), Times.Once);
         worker.Verify(service => service.Configure(true, "{title}|{time}", false), Times.Once);
+        worker.Verify(service => service.Configure(true, "{title}|{time}", true), Times.Once);
     }
 
     [TestMethod]

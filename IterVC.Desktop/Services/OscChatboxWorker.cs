@@ -19,7 +19,7 @@ internal sealed class OscChatboxWorker : IOscChatboxWorker
     private readonly object _gate = new();
     private CancellationTokenSource? _stopping;
     private Task? _runTask;
-    private ChatboxOptions _options = new(false, "{title}", true);
+    private ChatboxOptions _options = new(false, "{title}", false);
     private bool _messageVisible;
     private int _waveFrameIndex;
 

@@ -27,7 +27,7 @@ public sealed partial class OscChatboxViewModel : ViewModelBase
 
     [ObservableProperty] private bool _isEnabled;
     [ObservableProperty] private string _template = "{title}";
-    [ObservableProperty] private bool _keepVisibleWhenPaused = true;
+    [ObservableProperty] private bool _keepVisibleWhenPaused = false;
 
     public async Task HydrateAsync(AppSettings settings, CancellationToken cancellationToken = default)
     {

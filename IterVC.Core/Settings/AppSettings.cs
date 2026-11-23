@@ -80,7 +80,7 @@ public sealed class AppSettings
     public bool EnableOscChatbox { get; set; }
 
     /// <summary>Keep showing the current song in VRChat while playback is paused.</summary>
-    public bool KeepOscChatboxVisibleWhenPaused { get; set; } = true;
+    public bool KeepOscChatboxVisibleWhenPaused { get; set; } = false;
 
     /// <summary>Whether the user consented to automatic update checks. Null means not answered yet.</summary>
     public bool? CheckForUpdates { get; set; }

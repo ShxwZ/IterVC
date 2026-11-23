@@ -177,7 +177,7 @@ One can also display a message in the VRChat Chatbox using the OSC tab. The avai
 2. `{time}` displays the media playback position and duration (not the local clock).
 3. `{wave}` displays an animated wave pattern.
 
-OSC can remain active even when nothing is playing. While a song is paused, the Chatbox can either show its title with ⏸️ or clear the message, depending on the **Keep Chatbox visible when music is paused** setting. The obsolete `{status}` token is removed automatically from older settings.
+OSC can remain active even when nothing is playing. While a song is paused, the Chatbox can either show its title with ⏸️ or clear the message, depending on the **Keep Chatbox visible when music is paused** setting (disabled by default). The obsolete `{status}` token is removed automatically from older settings.
 
 ---
 

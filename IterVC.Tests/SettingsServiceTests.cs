@@ -43,6 +43,7 @@ public sealed class SettingsServiceTests : IDisposable
         Assert.IsTrue(loaded.MicrophoneEnabled);
         Assert.IsFalse(loaded.MonitorMicrophone);
         Assert.IsFalse(loaded.NoiseGateEnabled);
+        Assert.IsFalse(loaded.KeepOscChatboxVisibleWhenPaused);
         Assert.AreEqual(-45f, loaded.NoiseGateThresholdDb);
         Assert.AreEqual(10f, loaded.NoiseGateAttackMilliseconds);
         Assert.AreEqual(150f, loaded.NoiseGateReleaseMilliseconds);
@@ -220,7 +221,7 @@ public sealed class SettingsServiceTests : IDisposable
 
         Assert.AreEqual(5, loaded.SchemaVersion);
         Assert.AreEqual("{title}", loaded.OscTemplate);
-        Assert.IsTrue(loaded.KeepOscChatboxVisibleWhenPaused);
+        Assert.IsFalse(loaded.KeepOscChatboxVisibleWhenPaused);
         Assert.IsFalse(loaded.OscTemplate.Contains("{status}", StringComparison.Ordinal));
     }
 
@@ -248,12 +249,12 @@ public sealed class SettingsServiceTests : IDisposable
         await service.UpdateAsync(settings =>
         {
             settings.EnableOscChatbox = true;
-            settings.KeepOscChatboxVisibleWhenPaused = false;
+            settings.KeepOscChatboxVisibleWhenPaused = true;
         });
 
         var loaded = await CreateService().LoadAsync();
         Assert.IsTrue(loaded.EnableOscChatbox);
-        Assert.IsFalse(loaded.KeepOscChatboxVisibleWhenPaused);
+        Assert.IsTrue(loaded.KeepOscChatboxVisibleWhenPaused);
     }
 
     [TestMethod]
