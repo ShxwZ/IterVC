@@ -131,6 +131,9 @@ public sealed class App : Application
                 }
             }
 
+            // The installer has verified and staged the new binary before requesting shutdown.
+            mainViewModel.Settings.Updates.UpdateReadyToRestart += () => { _ = ExitAsync(); };
+
             desktop.ShutdownMode = ShutdownMode.OnExplicitShutdown;
             lifecycle = new DesktopLifecycleCoordinator(
                 mainViewModel.Settings.Tray!,

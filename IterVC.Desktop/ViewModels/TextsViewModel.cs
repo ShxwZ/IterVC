@@ -188,6 +188,9 @@ public sealed class TextsViewModel : ObservableObject
     public string HotkeyConflict => G(LK.HotkeyConflict);
     public string HotkeyCancel => G(LK.HotkeyCancel);
     public string HotkeyRegistrationFailed => G(LK.HotkeyRegistrationFailed);
+    public string UpdateInstall => G(LK.UpdateInstall);
+    public string UpdateInstalling => G(LK.UpdateInstalling);
+    public string UpdateInstallFailed => G(LK.UpdateInstallFailed);
     public string UpdateChecking => G(LK.UpdateChecking);
     public string UpdateCurrent => G(LK.UpdateCurrent);
     public string UpdateCheckFailed => G(LK.UpdateCheckFailed);
@@ -297,6 +300,9 @@ public sealed class TextsViewModel : ObservableObject
         OnPropertyChanged(nameof(HotkeyConflict));
         OnPropertyChanged(nameof(HotkeyCancel));
         OnPropertyChanged(nameof(HotkeyRegistrationFailed));
+        OnPropertyChanged(nameof(UpdateInstall));
+        OnPropertyChanged(nameof(UpdateInstalling));
+        OnPropertyChanged(nameof(UpdateInstallFailed));
         OnPropertyChanged(nameof(UpdateChecking));
         OnPropertyChanged(nameof(UpdateCurrent));
         OnPropertyChanged(nameof(UpdateCheckFailed));
@@ -385,6 +391,9 @@ public sealed class TextsViewModel : ObservableObject
         internal const string UpdateSettingsTitle = LocalizationService.Keys.UpdateSettingsTitle;
         internal const string UpdateEnabled = LocalizationService.Keys.UpdateEnabled;
         internal const string UpdateCheckNow = LocalizationService.Keys.UpdateCheckNow;
+        internal const string UpdateInstall = LocalizationService.Keys.UpdateInstall;
+        internal const string UpdateInstalling = LocalizationService.Keys.UpdateInstalling;
+        internal const string UpdateInstallFailed = LocalizationService.Keys.UpdateInstallFailed;
         internal const string UpdateChecking = LocalizationService.Keys.UpdateChecking;
         internal const string UpdateCurrent = LocalizationService.Keys.UpdateCurrent;
         internal const string UpdateCheckFailed = LocalizationService.Keys.UpdateCheckFailed;

@@ -1,22 +1,28 @@
 ---
 title: Comprobación de actualizaciones
-description: Controle las comprobaciones automáticas y manuales de GitHub Releases.
+description: Compruebe e instale versiones portables verificadas desde IterVC.
 ---
 
 IterVC puede consultar la última versión publicada en el repositorio oficial de GitHub.
 
-## Consentimiento
+## Consentimiento y control
 
-En el primer uso, IterVC pregunta si puede realizar comprobaciones automáticas de actualizaciones. La preferencia se guarda y puede cambiarse más adelante en **Settings**.
+En el primer uso, IterVC pregunta si puede realizar comprobaciones automáticas de actualizaciones. La preferencia se guarda y puede cambiarse en **Configuración**. **La instalación nunca es automática**: hay que pulsar **Instalar actualización** cuando se detecta una versión nueva.
 
 ## Comportamiento
 
-- El resultado correcto de una comprobación automática se guarda en caché durante 24 horas.
-- Las comprobaciones manuales omiten la caché.
-- Los errores de conexión o de la API de GitHub no impiden que la aplicación se inicie.
-- IterVC solo notifica y abre la página de la versión; no descarga ni instala una actualización automáticamente.
-- Al descartar una versión se oculta esa notificación concreta, pero una versión posterior puede volver a mostrar un aviso.
+- Las comprobaciones automáticas correctas se guardan en caché durante 24 horas; las manuales no.
+- Los errores de conexión o de la API de GitHub no impiden iniciar IterVC.
+- **Ver versión** permite seguir descargando la actualización manualmente.
+- Descartar una versión oculta esa notificación sin bloquear las siguientes.
+- La descarga y la instalación solo comienzan cuando el usuario pulsa **Instalar actualización**.
 
-## Instale una actualización
+## Instalación portable
 
-Abra la página de la versión, cierre IterVC por completo desde la bandeja del sistema y siga las instrucciones de empaquetado de la versión. Los ajustes de usuario de `%AppData%\IterVC` son independientes de los archivos de la aplicación.
+El actualizador descarga `IterVC-Windows.zip` del repositorio oficial y verifica su SHA-256 frente al hash del archivo publicado por GitHub Releases. El ZIP debe contener únicamente `IterVC.exe`. Una vez verificado, el ejecutable nuevo se prepara junto al portable actual. Un proceso auxiliar espera a que IterVC se cierre, sustituye el archivo y reinicia la aplicación.
+
+Se conserva el ejecutable anterior en el mismo directorio con el nombre `IterVC.previous-*.exe` para facilitar la recuperación. La configuración de usuario de `%AppData%\\IterVC` permanece intacta.
+
+Es necesario tener **permiso de escritura en la carpeta de IterVC.exe** y un sistema de archivos compatible con la sustitución atómica. No se admiten ejecutables renombrados ni carpetas protegidas. Si falla, utiliza **Ver versión** para descargar la actualización manualmente. Los errores ocurridos después del cierre se registran en `%AppData%\\IterVC\\last-update-error.txt`.
+
+El instalador no ejecuta ZIPs personalizados sin verificar: el archivo oficial debe incluir un hash SHA-256 en la API de GitHub Releases.
