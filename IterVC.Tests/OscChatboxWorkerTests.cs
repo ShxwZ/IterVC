@@ -65,7 +65,7 @@ public sealed class OscChatboxWorkerTests
         {
             var message = await osc.FirstMessage.WaitAsync(TimeSpan.FromSeconds(1));
             Assert.AreEqual("Artist - Track||01:02 / 03:04", message);
-            StringAssert.DoesNotContain(message, "{status}");
+            Assert.IsFalse(message.Contains("{status}", StringComparison.Ordinal));
         }
         finally { await worker.StopAsync(); }
     }

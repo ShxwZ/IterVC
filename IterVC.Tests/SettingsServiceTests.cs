@@ -221,7 +221,7 @@ public sealed class SettingsServiceTests : IDisposable
         Assert.AreEqual(5, loaded.SchemaVersion);
         Assert.AreEqual("{title}", loaded.OscTemplate);
         Assert.IsTrue(loaded.KeepOscChatboxVisibleWhenPaused);
-        StringAssert.DoesNotContain(loaded.OscTemplate, "{status}");
+        Assert.IsFalse(loaded.OscTemplate.Contains("{status}", StringComparison.Ordinal));
     }
 
     [TestMethod]
