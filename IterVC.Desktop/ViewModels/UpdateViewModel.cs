@@ -23,6 +23,7 @@ public sealed partial class UpdateViewModel : ViewModelBase
     private bool _suppressPreferencePersistence;
     private UpdateStatusKind _statusKind;
     private int _stopped;
+    private bool _restartRequested;
 
     public UpdateViewModel(IUpdateService updates, ISettingsService settings,
         IExternalUrlLauncher urlLauncher, TextsViewModel texts, ILogger<UpdateViewModel> logger,
@@ -117,7 +118,7 @@ public sealed partial class UpdateViewModel : ViewModelBase
     [RelayCommand]
     private async Task InstallAsync()
     {
-        if (IsInstalling || IsChecking || !IsAvailable || AvailableVersion is null || _installer is null)
+        if (_restartRequested || IsInstalling || IsChecking || !IsAvailable || AvailableVersion is null || _installer is null)
             return;
 
         IsInstalling = true;
@@ -129,6 +130,7 @@ public sealed partial class UpdateViewModel : ViewModelBase
                 SetStatus(UpdateStatusKind.InstallFailed);
                 return;
             }
+            _restartRequested = true;
             UpdateReadyToRestart?.Invoke(); // The helper is running; exit the old executable cleanly.
         }
         catch (OperationCanceledException) when (_lifetimeCancellation.IsCancellationRequested) { }

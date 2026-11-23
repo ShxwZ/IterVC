@@ -21,6 +21,7 @@ internal static class Program
     {
         // The verified new portable executable acts as the updater after the old process exits.
         if (PortableUpdateBootstrap.TryRun(args)) return;
+        PortableUpdateInstaller.CleanupOldUpdateDirectories();
         var launchOptions = AppLaunchOptions.Parse(args);
         using var instance = SingleInstanceCoordinator.Acquire();
         if (!instance.IsPrimary)

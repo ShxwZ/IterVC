@@ -89,6 +89,8 @@ internal sealed class PortableUpdateInstaller : IPortableUpdateInstaller
             var directory = Path.GetDirectoryName(currentExecutable)!;
             stagedExecutable = Path.Combine(directory, "IterVC.update-" + Guid.NewGuid().ToString("N") + ".exe");
             await ExtractVerifiedExecutableAsync(archivePath, stagedExecutable, cancellationToken).ConfigureAwait(false);
+            // The verified archive is no longer needed after extraction.
+            File.Delete(archivePath);
 
             // The helper runs from another path, so Windows can replace the actual portable .exe.
             var helperExecutable = Path.Combine(temporaryDirectory, "IterVC.exe");
@@ -212,6 +214,26 @@ internal sealed class PortableUpdateInstaller : IPortableUpdateInstaller
             if (total != entry.Length) throw new InvalidDataException("Incomplete portable executable");
         }
         finally { ArrayPool<byte>.Shared.Return(buffer); }
+    }
+
+    /// <summary>Remove old helper copies left by previous successful updates.</summary>
+    internal static void CleanupOldUpdateDirectories()
+    {
+        try
+        {
+            foreach (var directory in Directory.EnumerateDirectories(Path.GetTempPath(), "IterVC-update-*"))
+            {
+                var suffix = Path.GetFileName(directory)["IterVC-update-".Length..];
+                if (suffix.Length != 32 || !suffix.All(Uri.IsHexDigit) ||
+                    DateTime.UtcNow - Directory.GetLastWriteTimeUtc(directory) < TimeSpan.FromDays(2))
+                    continue;
+                try { Directory.Delete(directory, recursive: true); }
+                catch (IOException) { }
+                catch (UnauthorizedAccessException) { }
+            }
+        }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
     }
 
     internal static void TryDeleteFile(string? path)

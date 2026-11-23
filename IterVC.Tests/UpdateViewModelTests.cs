@@ -90,7 +90,7 @@ public sealed class UpdateViewModelTests
         installer.Setup(service => service.DownloadAndLaunchAsync("99.0.0", It.IsAny<CancellationToken>()))
             .ReturnsAsync(true);
         var updates = new Mock<IUpdateService>();
-        var viewModel = new UpdateViewModel(updates.Object, CreateSettings(new AppSettings()),
+        var viewModel = new UpdateViewModel(updates.Object, CreateSettings(new AppSettings()).Object,
             new Mock<IExternalUrlLauncher>().Object, new TextsViewModel(),
             NullLogger<UpdateViewModel>.Instance, installer.Object);
         var restarts = 0;
@@ -116,7 +116,7 @@ public sealed class UpdateViewModelTests
         installer.Setup(service => service.DownloadAndLaunchAsync("99.0.0", It.IsAny<CancellationToken>()))
             .ReturnsAsync(false);
         var viewModel = new UpdateViewModel(new Mock<IUpdateService>().Object,
-            CreateSettings(new AppSettings()), new Mock<IExternalUrlLauncher>().Object,
+            CreateSettings(new AppSettings()).Object, new Mock<IExternalUrlLauncher>().Object,
             new TextsViewModel(), NullLogger<UpdateViewModel>.Instance, installer.Object);
         var restarts = 0;
         viewModel.UpdateReadyToRestart += () => restarts++;
@@ -135,7 +135,7 @@ public sealed class UpdateViewModelTests
     {
         var installer = new Mock<IPortableUpdateInstaller>();
         var viewModel = new UpdateViewModel(new Mock<IUpdateService>().Object,
-            CreateSettings(new AppSettings()), new Mock<IExternalUrlLauncher>().Object,
+            CreateSettings(new AppSettings()).Object, new Mock<IExternalUrlLauncher>().Object,
             new TextsViewModel(), NullLogger<UpdateViewModel>.Instance, installer.Object);
 
         await viewModel.InstallCommand.ExecuteAsync(null);
