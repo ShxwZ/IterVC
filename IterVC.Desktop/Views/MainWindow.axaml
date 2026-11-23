@@ -240,12 +240,14 @@
 				<Border Background="{DynamicResource SuccessSurfaceBrush}" BorderBrush="{DynamicResource SuccessBorderBrush}" BorderThickness="1"
 					CornerRadius="8" Padding="10" IsVisible="{Binding Settings.Updates.IsAvailable}">
 					<Grid ColumnDefinitions="*,Auto">
-						<TextBlock VerticalAlignment="Center">
-							<Run Text="{Binding Texts.UpdateAvailable}" /><Run Text=" " /><Run Text="{Binding Settings.Updates.AvailableVersion}" FontWeight="Bold" />
-						</TextBlock>
+						<StackPanel VerticalAlignment="Center" Spacing="3">
+							<TextBlock><Run Text="{Binding Texts.UpdateAvailable}" /><Run Text=" " /><Run Text="{Binding Settings.Updates.AvailableVersion}" FontWeight="Bold" /></TextBlock>
+							<TextBlock Text="{Binding Settings.Updates.Status}" FontSize="10" TextWrapping="Wrap" />
+						</StackPanel>
 						<StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
 							<Button Classes="secondary" Content="{Binding Texts.UpdateDismiss}" Command="{Binding Settings.Updates.DismissCommand}" />
 							<Button Classes="secondary" Content="{Binding Texts.UpdateOpen}" Command="{Binding Settings.Updates.OpenPageCommand}" />
+							<Button Classes="primary" Content="{Binding Texts.UpdateInstall}" Command="{Binding Settings.Updates.InstallCommand}" IsEnabled="{Binding !Settings.Updates.IsInstalling}" />
 						</StackPanel>
 					</Grid>
 				</Border>

@@ -19,6 +19,8 @@ internal static class Program
     [STAThread]
     public static void Main(string[] args)
     {
+        // The verified new portable executable acts as the updater after the old process exits.
+        if (PortableUpdateBootstrap.TryRun(args)) return;
         var launchOptions = AppLaunchOptions.Parse(args);
         using var instance = SingleInstanceCoordinator.Acquire();
         if (!instance.IsPrimary)
@@ -166,13 +168,16 @@ internal static class Program
         services.AddSingleton<MicrophoneRoutingCoordinator>();
         services.AddSingleton(new HttpClient { Timeout = TimeSpan.FromSeconds(10) });
         services.AddSingleton<IUpdateService>(sp => new GitHubUpdateService(sp.GetRequiredService<HttpClient>()));
+        services.AddSingleton<IPortableUpdateInstaller>(sp => new PortableUpdateInstaller(
+            sp.GetRequiredService<HttpClient>(), sp.GetRequiredService<ILogger<PortableUpdateInstaller>>()));
         services.AddSingleton<IExternalUrlLauncher, ShellUrlLauncher>();
         services.AddSingleton(sp => new UpdateViewModel(
             sp.GetRequiredService<IUpdateService>(),
             sp.GetRequiredService<ISettingsService>(),
             sp.GetRequiredService<IExternalUrlLauncher>(),
             sp.GetRequiredService<TextsViewModel>(),
-            sp.GetRequiredService<ILogger<UpdateViewModel>>()));
+            sp.GetRequiredService<ILogger<UpdateViewModel>>(),
+            sp.GetRequiredService<IPortableUpdateInstaller>()));
         services.AddSingleton(sp => new LanguageViewModel(
             sp.GetRequiredService<ILocalizationService>(),
             sp.GetRequiredService<ISettingsService>(),

@@ -81,6 +81,9 @@ public sealed class LocalizationService : ILocalizationService
         public const string UpdateDecline = "update.decline";
         public const string UpdateAvailable = "update.available";
         public const string UpdateOpen = "update.open";
+        public const string UpdateInstall = "update.install";
+        public const string UpdateInstalling = "update.installing";
+        public const string UpdateInstallFailed = "update.install_failed";
         public const string UpdateSettingsTitle = "update.settings.title";
         public const string UpdateEnabled = "update.enabled";
         public const string UpdateCheckNow = "update.check_now";
@@ -224,6 +227,9 @@ public sealed class LocalizationService : ILocalizationService
         [Keys.UpdateDecline]        = "Ahora no",
         [Keys.UpdateAvailable]      = "Hay una nueva versión disponible.",
         [Keys.UpdateOpen]           = "Ver versión",
+        [Keys.UpdateInstall]        = "Instalar actualización",
+        [Keys.UpdateInstalling]     = "Descargando y preparando actualización…",
+        [Keys.UpdateInstallFailed]  = "No se pudo instalar. Usa «Ver versión» para actualizar manualmente.",
         [Keys.UpdateSettingsTitle]  = "ACTUALIZACIONES",
         [Keys.UpdateEnabled]        = "Comprobar automáticamente al iniciar",
         [Keys.UpdateCheckNow]       = "Comprobar ahora",
@@ -347,6 +353,9 @@ public sealed class LocalizationService : ILocalizationService
         [Keys.UpdateDecline]        = "Not now",
         [Keys.UpdateAvailable]      = "A new version is available.",
         [Keys.UpdateOpen]           = "View release",
+        [Keys.UpdateInstall]        = "Install update",
+        [Keys.UpdateInstalling]     = "Downloading and preparing update…",
+        [Keys.UpdateInstallFailed]  = "Installation failed. Use View release to update manually.",
         [Keys.UpdateSettingsTitle]  = "UPDATES",
         [Keys.UpdateEnabled]        = "Check automatically at startup",
         [Keys.UpdateCheckNow]       = "Check now",
