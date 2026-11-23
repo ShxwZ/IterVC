@@ -87,6 +87,8 @@ if ($env:RELEASE_VERSION) {
 if ($SingleFile) {
     $PublishArgs += "-p:PublishSingleFile=true"
     $PublishArgs += "-p:IncludeNativeLibrariesForSelfExtract=true"
+    $PublishArgs += "-p:DebugSymbols=false"
+    $PublishArgs += "-p:DebugType=None"
 }
 & dotnet $PublishArgs
 
@@ -108,7 +110,10 @@ foreach ($pattern in $PossiblePaths) {
 if (-not $signtoolPath) { throw "No se pudo encontrar SignTool.exe" }
 
 # === FIRMAR EXES ===
-$exeFiles = Get-ChildItem $PublishDir -Filter *.exe -File
+$exeFiles = @(Get-ChildItem $PublishDir -Filter *.exe -File)
+if ($exeFiles.Count -ne 1 -or $exeFiles[0].Name -ne "IterVC.exe") {
+    throw "Expected exactly one portable IterVC.exe in publish output."
+}
 foreach ($exe in $exeFiles) {
     Write-Host "Firmando $($exe.Name)..." -ForegroundColor Cyan
     & $signtoolPath sign /f $PfxFile /p $CertPassword /fd SHA256 $exe.FullName
@@ -122,7 +127,7 @@ if (-not $BaseProjectName) { $BaseProjectName = "IterVC" }
 $ZipFile = Join-Path $RepoRoot "$BaseProjectName-Windows.zip"
 if (Test-Path $ZipFile) { Remove-Item $ZipFile -Force }
 
-Compress-Archive -Path "$PublishDir\*" -DestinationPath $ZipFile
+Compress-Archive -LiteralPath ($exeFiles[0].FullName) -DestinationPath $ZipFile
 
 Write-Host ""
 Write-Host "======================================" -ForegroundColor Green

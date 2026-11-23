@@ -42,6 +42,9 @@ public sealed class AppSettings
     /// <summary>Si true, el micrófono también se escucha por el dispositivo principal (auto-monitorización).</summary>
     public bool MonitorMicrophone { get; set; }
 
+    /// <summary>Opt-in RNNoise microphone suppression, off by default.</summary>
+    public bool NoiseSuppressionEnabled { get; set; }
+
     /// <summary>Whether the microphone noise gate is enabled.</summary>
     public bool NoiseGateEnabled { get; set; }
 
@@ -59,6 +62,9 @@ public sealed class AppSettings
     /// Se persiste por nombre, no por ProcessId, porque el PID cambia entre ejecuciones.
     /// </summary>
     public List<string> IncludedProcessNames { get; set; } = new();
+
+    /// <summary>Whether the routed application mix is muted. False for existing settings.</summary>
+    public bool ApplicationsMuted { get; set; }
 
     // ----------------------------------------------------------------
     // Campos nuevos (schemaversion 2): preferencias de UI y OSC.

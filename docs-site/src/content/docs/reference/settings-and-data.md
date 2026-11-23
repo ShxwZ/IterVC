@@ -11,6 +11,7 @@ The current settings schema includes:
 - Microphone enabled state, boost, monitoring, and noise-gate values.
 - Shared application gain.
 - Included process names.
+- Application mix mute state.
 - Interface language.
 - OSC template and enabled state.
 - Update-check consent, cache, and dismissed release.

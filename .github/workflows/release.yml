@@ -22,6 +22,11 @@ jobs:
         with:
           dotnet-version: '8.0.x'
 
+      - name: Configurar Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
       - name: Compilar, Firmar y Empaquetar
         shell: pwsh
         env:
@@ -37,6 +42,14 @@ jobs:
             *.zip
           tag_name: ${{ env.RELEASE_VERSION }}
           name: Release ${{ env.RELEASE_VERSION }}
+          # Update these notes before triggering the next release.
+          body: |
+            - Se añadió supresión de ruido experimental con RNNoise, activable desde los ajustes del micrófono.
+            - Se mejoró el procesamiento del micrófono para aplicar la supresión antes de la puerta de ruido y el control de ganancia.
+            - Se unificó el audio que reciben la monitorización, los medidores de nivel y VB-Cable.
+            - Se añadió procesamiento de ruido en segundo plano para no bloquear la captura del micrófono.
+            - Se incorporó recuperación del audio sin supresión si RNNoise deja de estar disponible.
+            - Se integró RNNoise en la versión portable para Windows x64, sin descargar modelos adicionales.
           draft: false
           prerelease: false
         env:

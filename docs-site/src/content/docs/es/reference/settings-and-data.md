@@ -11,6 +11,7 @@ El esquema de ajustes actual incluye:
 - Estado de activación, amplificación, monitorización y valores de la puerta de ruido del micrófono.
 - Ganancia compartida de aplicaciones.
 - Nombres de los procesos incluidos.
+- Estado de silencio de la mezcla de aplicaciones.
 - Idioma de la interfaz.
 - Plantilla OSC y estado de activación.
 - Consentimiento, caché y versión descartada de las comprobaciones de actualización.

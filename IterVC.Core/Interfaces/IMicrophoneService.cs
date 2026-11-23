@@ -16,6 +16,9 @@ public interface IMicrophoneService : IDisposable
 
     Task SetDeviceAsync(string microphoneDeviceId);
 
-    /// <summary>Datos PCM capturados en crudo, listos para ser inyectados en el mixer.</summary>
+    /// <summary>Enable or disable the real-time microphone noise suppression stage.</summary>
+    void SetNoiseSuppressionEnabled(bool enabled);
+
+    /// <summary>PCM del micrófono, procesado con RNNoise si está activo, listo para el mezclador.</summary>
     event EventHandler<AudioDataEventArgs>? DataAvailable;
 }
