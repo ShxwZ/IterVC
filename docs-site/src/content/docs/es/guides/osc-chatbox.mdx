@@ -15,7 +15,7 @@ En VRChat, active OSC desde el menú de acciones o desde la página de ajustes c
 
 Abra la pestaña **OSC** y active la opción de Chatbox. El ajuste se conserva entre sesiones.
 
-IterVC solo envía información cuando una sesión multimedia activa tiene un título que no está vacío. Si no hay contenido en reproducción o Windows no expone metadatos multimedia, no se enviará ningún mensaje nuevo.
+El Chatbox funciona incluso sin música: muestra ⏹️ como título y `00:00 / 00:00` como tiempo. Al pausar una canción, la opción **Mantener el Chatbox visible al pausar la música** permite elegir entre conservar el título con ⏸️ o borrar el Chatbox hasta reanudar la reproducción. Está activada por defecto.
 
 ## Tokens de plantilla
 
@@ -24,7 +24,8 @@ Use los tokens que expone la interfaz de IterVC:
 | Token | Valor |
 | --- | --- |
 | `{title}` | Título multimedia actual proporcionado por Windows. |
-| `{time}` | Información temporal actual proporcionada por la sesión multimedia. |
+| `{time}` | Posición y duración de la reproducción (se detiene al pausar). |
+| `{wave}` | Patrón de onda animado. |
 
 Ejemplo:
 
@@ -56,4 +57,4 @@ VRChat puede truncar o redistribuir los mensajes largos. Los títulos multimedia
 
 ## Desactive o borre el mensaje
 
-Al desactivar la función se detienen las actualizaciones multimedia periódicas. Según la acción actual de la interfaz y el estado de VRChat, el mensaje existente en el Chatbox puede permanecer visible hasta que VRChat lo borre o lo sustituya.
+Al desactivar la función o escoger ocultar el Chatbox al pausar, IterVC envía una orden de limpieza una sola vez. Las actualizaciones se reanudan al activar el Chatbox y reproducir música. VRChat controla cuánto tiempo se muestra el mensaje.

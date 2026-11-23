@@ -1,5 +1,4 @@
 using IterVC.Core.Interfaces;
-using IterVC.Core.Localization;
 using IterVC.Core.Models;
 using Microsoft.Extensions.Logging;
 using Windows.Media.Control;
@@ -18,9 +17,14 @@ internal sealed class WindowsMediaSessionService(ILogger<WindowsMediaSessionServ
             _manager ??= await GlobalSystemMediaTransportControlsSessionManager.RequestAsync();
             cancellationToken.ThrowIfCancellationRequested();
 
-            var activeSession = _manager.GetSessions().FirstOrDefault(session =>
-                session.GetPlaybackInfo()?.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing);
+            var sessions = _manager.GetSessions();
+            var activeSession = sessions.FirstOrDefault(session =>
+                session.GetPlaybackInfo()?.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing)
+                ?? sessions.FirstOrDefault(session =>
+                    session.GetPlaybackInfo()?.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Paused);
             if (activeSession is null) return null;
+            var isPaused = activeSession.GetPlaybackInfo()?.PlaybackStatus ==
+                GlobalSystemMediaTransportControlsSessionPlaybackStatus.Paused;
 
             var properties = await activeSession.TryGetMediaPropertiesAsync();
             cancellationToken.ThrowIfCancellationRequested();
@@ -29,12 +33,14 @@ internal sealed class WindowsMediaSessionService(ILogger<WindowsMediaSessionServ
             var timeline = activeSession.GetTimelineProperties();
             var position = timeline is null
                 ? TimeSpan.Zero
-                : EstimatePosition(timeline.Position, timeline.EndTime, timeline.LastUpdatedTime, DateTimeOffset.UtcNow);
+                : GetPlaybackPosition(timeline.Position, timeline.EndTime,
+                    timeline.LastUpdatedTime, DateTimeOffset.UtcNow, isPaused);
 
             return new MediaInfo
             {
                 Title = FormatTitle(properties.Artist, properties.Title),
-                TimeInfo = timeline is null ? "00:00 / 00:00" : FormatTime(position, timeline.EndTime)
+                TimeInfo = timeline is null ? "00:00 / 00:00" : FormatTime(position, timeline.EndTime),
+                IsPaused = isPaused
             };
         }
         catch (OperationCanceledException)
@@ -47,6 +53,10 @@ internal sealed class WindowsMediaSessionService(ILogger<WindowsMediaSessionServ
             return null;
         }
     }
+
+    internal static TimeSpan GetPlaybackPosition(
+        TimeSpan position, TimeSpan end, DateTimeOffset lastUpdated, DateTimeOffset now, bool isPaused) =>
+        isPaused ? position : EstimatePosition(position, end, lastUpdated, now);
 
     internal static TimeSpan EstimatePosition(
         TimeSpan position,

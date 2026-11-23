@@ -56,11 +56,11 @@ public sealed class TextsViewModel : ObservableObject
     private string _noiseGateReleaseHelp = G(LK.NoiseGateReleaseHelp);
     private string _cardOscTitle = G(LK.CardOscTitle);
     private string _oscEnableChatbox = G(LK.OscEnableChatbox);
+    private string _oscKeepVisibleWhenPaused = G(LK.OscKeepVisibleWhenPaused);
     private string _oscTemplateLabel = G(LK.OscTemplateLabel);
     private string _oscTemplateWatermark = G(LK.OscTemplateWatermark);
     private string _oscTemplateTokens = G(LK.OscTemplateTokens);
     private string _oscTokenTitleDescription = G(LK.OscTokenTitleDescription);
-    private string _oscTokenStatusDescription = G(LK.OscTokenStatusDescription);
     private string _oscTokenTimeDescription = G(LK.OscTokenTimeDescription);
     private string _oscLengthWarningTitle = G(LK.OscLengthWarningTitle);
     private string _oscLengthWarning = G(LK.OscLengthWarning);
@@ -143,11 +143,11 @@ public sealed class TextsViewModel : ObservableObject
     public string NoiseGateReleaseHelp { get => _noiseGateReleaseHelp; set => SetProperty(ref _noiseGateReleaseHelp, value); }
     public string CardOscTitle { get => _cardOscTitle; set => SetProperty(ref _cardOscTitle, value); }
     public string OscEnableChatbox { get => _oscEnableChatbox; set => SetProperty(ref _oscEnableChatbox, value); }
+    public string OscKeepVisibleWhenPaused { get => _oscKeepVisibleWhenPaused; set => SetProperty(ref _oscKeepVisibleWhenPaused, value); }
     public string OscTemplateLabel { get => _oscTemplateLabel; set => SetProperty(ref _oscTemplateLabel, value); }
     public string OscTemplateWatermark { get => _oscTemplateWatermark; set => SetProperty(ref _oscTemplateWatermark, value); }
     public string OscTemplateTokens { get => _oscTemplateTokens; set => SetProperty(ref _oscTemplateTokens, value); }
     public string OscTokenTitleDescription { get => _oscTokenTitleDescription; set => SetProperty(ref _oscTokenTitleDescription, value); }
-    public string OscTokenStatusDescription { get => _oscTokenStatusDescription; set => SetProperty(ref _oscTokenStatusDescription, value); }
     public string OscTokenTimeDescription { get => _oscTokenTimeDescription; set => SetProperty(ref _oscTokenTimeDescription, value); }
     public string OscLengthWarningTitle { get => _oscLengthWarningTitle; set => SetProperty(ref _oscLengthWarningTitle, value); }
     public string OscLengthWarning { get => _oscLengthWarning; set => SetProperty(ref _oscLengthWarning, value); }
@@ -255,11 +255,11 @@ public sealed class TextsViewModel : ObservableObject
         NoiseGateReleaseHelp = G(LK.NoiseGateReleaseHelp);
         CardOscTitle = G(LK.CardOscTitle);
         OscEnableChatbox = G(LK.OscEnableChatbox);
+        OscKeepVisibleWhenPaused = G(LK.OscKeepVisibleWhenPaused);
         OscTemplateLabel = G(LK.OscTemplateLabel);
         OscTemplateWatermark = G(LK.OscTemplateWatermark);
         OscTemplateTokens = G(LK.OscTemplateTokens);
         OscTokenTitleDescription = G(LK.OscTokenTitleDescription);
-        OscTokenStatusDescription = G(LK.OscTokenStatusDescription);
         OscTokenTimeDescription = G(LK.OscTokenTimeDescription);
         OscLengthWarningTitle = G(LK.OscLengthWarningTitle);
         OscLengthWarning = G(LK.OscLengthWarning);
@@ -365,12 +365,12 @@ public sealed class TextsViewModel : ObservableObject
         internal const string NoiseGateAttackHelp = LocalizationService.Keys.NoiseGateAttackHelp;
         internal const string NoiseGateReleaseHelp = LocalizationService.Keys.NoiseGateReleaseHelp;
         internal const string CardOscTitle = LocalizationService.Keys.CardOscTitle; 
-        internal const string OscEnableChatbox = LocalizationService.Keys.OscEnableChatbox; 
+        internal const string OscEnableChatbox = LocalizationService.Keys.OscEnableChatbox;
+        internal const string OscKeepVisibleWhenPaused = LocalizationService.Keys.OscKeepVisibleWhenPaused; 
         internal const string OscTemplateLabel = LocalizationService.Keys.OscTemplateLabel; 
         internal const string OscTemplateWatermark = LocalizationService.Keys.OscTemplateWatermark; 
         internal const string OscTemplateTokens = LocalizationService.Keys.OscTemplateTokens; 
         internal const string OscTokenTitleDescription = LocalizationService.Keys.OscTokenTitleDescription;
-        internal const string OscTokenStatusDescription = LocalizationService.Keys.OscTokenStatusDescription;
         internal const string OscTokenTimeDescription = LocalizationService.Keys.OscTokenTimeDescription;
         internal const string OscLengthWarningTitle = LocalizationService.Keys.OscLengthWarningTitle;
         internal const string OscLengthWarning = LocalizationService.Keys.OscLengthWarning;

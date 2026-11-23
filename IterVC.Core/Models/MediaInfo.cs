@@ -5,5 +5,6 @@ public sealed record MediaInfo
 {
     public required string Title { get; init; }
     public required string TimeInfo { get; init; }
+    public bool IsPaused { get; init; }
 
 }

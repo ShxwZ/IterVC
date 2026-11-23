@@ -1,4 +1,5 @@
 using IterVC.Core.Interfaces;
+using IterVC.Core.Models;
 using Microsoft.Extensions.Logging;
 
 namespace IterVC.Desktop.Services;
@@ -6,6 +7,10 @@ namespace IterVC.Desktop.Services;
 internal sealed class OscChatboxWorker : IOscChatboxWorker
 {
     private const string WavePattern = "▁▂▄▆█▆▄▂▁▂▄▆█▆▄";
+    private const string StoppedTitle = "⏹️";
+    private const string StoppedTime = "00:00 / 00:00";
+
+    private sealed record ChatboxOptions(bool Enabled, string Template, bool KeepVisibleWhenPaused);
 
     private readonly IMediaSessionService _mediaSessions;
     private readonly IOscMediaService _oscMedia;
@@ -14,8 +19,8 @@ internal sealed class OscChatboxWorker : IOscChatboxWorker
     private readonly object _gate = new();
     private CancellationTokenSource? _stopping;
     private Task? _runTask;
-    private volatile bool _enabled;
-    private string _template = "{title} - [{time}]";
+    private ChatboxOptions _options = new(false, "{title}", true);
+    private bool _messageVisible;
     private int _waveFrameIndex;
 
     public OscChatboxWorker(IMediaSessionService mediaSessions, IOscMediaService oscMedia,
@@ -30,10 +35,9 @@ internal sealed class OscChatboxWorker : IOscChatboxWorker
         _interval = interval;
     }
 
-    public void Configure(bool enabled, string template)
+    public void Configure(bool enabled, string template, bool keepVisibleWhenPaused)
     {
-        _template = template;
-        _enabled = enabled;
+        Volatile.Write(ref _options, new ChatboxOptions(enabled, template, keepVisibleWhenPaused));
     }
 
     public Task StartAsync(CancellationToken cancellationToken = default)
@@ -67,31 +71,49 @@ internal sealed class OscChatboxWorker : IOscChatboxWorker
             while (true)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                if (_enabled)
+                var options = Volatile.Read(ref _options);
+                if (options.Enabled)
                 {
-                    var media = await _mediaSessions.GetActiveMediaInfoAsync(cancellationToken).ConfigureAwait(false);
-                    if (media is { Title.Length: > 0 })
-                    {
-                        var message = _template
-                            .Replace("{title}", media.Title)
-                            .Replace("{time}", media.TimeInfo)
-                            .Replace("{wave}", NextWaveFrame());
-                        _oscMedia.SendMediaInfo(message);
-                    }
+                    var media = await _mediaSessions.GetActiveMediaInfoAsync(cancellationToken)
+                        .ConfigureAwait(false);
+                    var hasMedia = media is not null && !string.IsNullOrWhiteSpace(media.Title);
+
+                    if (hasMedia && media!.IsPaused && !options.KeepVisibleWhenPaused)
+                        ClearIfVisible();
                     else
                     {
-                        var message = _template
-                            .Replace("{title}", "⏹️")
-                            .Replace("{time}", "00:00 / 00:00")
-                            .Replace("{wave}", NextWaveFrame());
-                        _oscMedia.SendMediaInfo(message);
+                        _oscMedia.SendMessage(FormatMessage(media, options.Template));
+                        _messageVisible = true;
                     }
                 }
+                else
+                    ClearIfVisible();
+
                 await Task.Delay(_interval, cancellationToken).ConfigureAwait(false);
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
         catch (Exception exception) { _logger.LogError(exception, "OSC chatbox worker stopped unexpectedly"); }
+    }
+
+    private string FormatMessage(MediaInfo? media, string template)
+    {
+        var hasMedia = media is not null && !string.IsNullOrWhiteSpace(media.Title);
+        var title = !hasMedia ? StoppedTitle :
+            media!.IsPaused ? media.Title + " ⏸️" : media.Title;
+
+        return template
+            .Replace("{title}", title)
+            .Replace("{time}", hasMedia ? media!.TimeInfo : StoppedTime)
+            .Replace("{status}", string.Empty) // Backwards compatibility for imported templates.
+            .Replace("{wave}", NextWaveFrame());
+    }
+
+    private void ClearIfVisible()
+    {
+        if (!_messageVisible) return;
+        _oscMedia.ClearChatbox();
+        _messageVisible = false;
     }
 
     private string NextWaveFrame()

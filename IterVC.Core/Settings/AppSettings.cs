@@ -13,7 +13,7 @@ public enum CloseBehavior
 public sealed class AppSettings
 {
     /// <summary>Versión del esquema, para permitir migraciones futuras.</summary>
-    public int SchemaVersion { get; set; } = 4;
+    public int SchemaVersion { get; set; } = 5;
 
     /// <summary>Id del dispositivo de salida principal (altavoces/auriculares) desde el que se hace loopback.</summary>
     public string? OutputDeviceId { get; set; }
@@ -73,11 +73,14 @@ public sealed class AppSettings
     /// <summary>Language selected for localized UI strings.</summary>
     public string Language { get; set; } = "Español";
 
-    /// <summary>Plantilla del mensaje OSC. Default: "{title} - {status}".</summary>
-    public string OscTemplate { get; set; } = "{title} - {status}";
+    /// <summary>OSC message template. Default: "{title}".</summary>
+    public string OscTemplate { get; set; } = "{title}";
 
     /// <summary>Si el chatbox OSC estaba activo al cerrar la app.</summary>
     public bool EnableOscChatbox { get; set; }
+
+    /// <summary>Keep showing the current song in VRChat while playback is paused.</summary>
+    public bool KeepOscChatboxVisibleWhenPaused { get; set; } = true;
 
     /// <summary>Whether the user consented to automatic update checks. Null means not answered yet.</summary>
     public bool? CheckForUpdates { get; set; }

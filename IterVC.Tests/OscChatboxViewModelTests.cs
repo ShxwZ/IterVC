@@ -21,10 +21,11 @@ public sealed class OscChatboxViewModelTests
         await viewModel.HydrateAsync(new AppSettings
         {
             EnableOscChatbox = true,
-            OscTemplate = "{title} / {time}"
+            OscTemplate = "{title} / {time}",
+            KeepOscChatboxVisibleWhenPaused = false
         });
 
-        worker.Verify(service => service.Configure(true, "{title} / {time}"), Times.Once);
+        worker.Verify(service => service.Configure(true, "{title} / {time}", false), Times.Once);
         worker.Verify(service => service.StartAsync(It.IsAny<CancellationToken>()), Times.Once);
         settings.Verify(service => service.UpdateAsync(It.IsAny<Action<AppSettings>>(),
             It.IsAny<CancellationToken>()), Times.Never);
@@ -44,14 +45,17 @@ public sealed class OscChatboxViewModelTests
         var viewModel = CreateViewModel(worker, settings);
         await viewModel.HydrateAsync(new AppSettings());
 
-        viewModel.Template = "{status}";
+        viewModel.Template = "{title}|{time}";
         viewModel.IsEnabled = true;
+        viewModel.KeepVisibleWhenPaused = false;
         await viewModel.StopAsync();
 
-        Assert.AreEqual("{status}", persisted.OscTemplate);
+        Assert.AreEqual("{title}|{time}", persisted.OscTemplate);
         Assert.IsTrue(persisted.EnableOscChatbox);
-        worker.Verify(service => service.Configure(false, "{status}"), Times.Once);
-        worker.Verify(service => service.Configure(true, "{status}"), Times.Once);
+        Assert.IsFalse(persisted.KeepOscChatboxVisibleWhenPaused);
+        worker.Verify(service => service.Configure(false, "{title}|{time}", true), Times.Once);
+        worker.Verify(service => service.Configure(true, "{title}|{time}", true), Times.Once);
+        worker.Verify(service => service.Configure(true, "{title}|{time}", false), Times.Once);
     }
 
     [TestMethod]

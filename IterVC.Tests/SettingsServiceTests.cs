@@ -37,7 +37,7 @@ public sealed class SettingsServiceTests : IDisposable
         var loaded = await service.LoadAsync();
 
         Assert.IsNotNull(loaded);
-        Assert.AreEqual(4, loaded.SchemaVersion);
+        Assert.AreEqual(5, loaded.SchemaVersion);
         Assert.AreEqual(1.0f, loaded.AppsVolume);
         Assert.AreEqual(1.0f, loaded.MicrophoneVolume);
         Assert.IsTrue(loaded.MicrophoneEnabled);
@@ -201,8 +201,59 @@ public sealed class SettingsServiceTests : IDisposable
     {
         await File.WriteAllTextAsync(Path.Combine(_tempDir, "settings.json"), "{\"SchemaVersion\":2}");
         var loaded = await CreateService().LoadAsync();
-        Assert.AreEqual(4, loaded.SchemaVersion);
+        Assert.AreEqual(5, loaded.SchemaVersion);
         Assert.IsNull(loaded.CheckForUpdates);
+    }
+
+    [TestMethod]
+    public async Task LoadAsync_MigratesLegacyOscStatusTemplate()
+    {
+        var path = Path.Combine(_tempDir, "settings.json");
+        var legacySettings = new AppSettings
+        {
+            SchemaVersion = 4,
+            OscTemplate = "{title} - {status}"
+        };
+        await File.WriteAllTextAsync(path, JsonSerializer.Serialize(legacySettings));
+
+        var loaded = await CreateService().LoadAsync();
+
+        Assert.AreEqual(5, loaded.SchemaVersion);
+        Assert.AreEqual("{title}", loaded.OscTemplate);
+        Assert.IsTrue(loaded.KeepOscChatboxVisibleWhenPaused);
+        StringAssert.DoesNotContain(loaded.OscTemplate, "{status}");
+    }
+
+    [TestMethod]
+    public async Task LoadAsync_MigratesCustomLegacyStatusTemplateWithoutLosingOtherTokens()
+    {
+        var path = Path.Combine(_tempDir, "settings.json");
+        var legacySettings = new AppSettings
+        {
+            SchemaVersion = 4,
+            OscTemplate = "Now: {title} ({status}) {time}"
+        };
+        await File.WriteAllTextAsync(path, JsonSerializer.Serialize(legacySettings));
+
+        var loaded = await CreateService().LoadAsync();
+        Assert.AreEqual(5, loaded.SchemaVersion);
+        Assert.AreEqual("Now: {title} () {time}", loaded.OscTemplate);
+    }
+
+    [TestMethod]
+    public async Task UpdateAsync_RoundTripsPausedChatboxVisibility()
+    {
+        var service = CreateService();
+        await service.LoadAsync();
+        await service.UpdateAsync(settings =>
+        {
+            settings.EnableOscChatbox = true;
+            settings.KeepOscChatboxVisibleWhenPaused = false;
+        });
+
+        var loaded = await CreateService().LoadAsync();
+        Assert.IsTrue(loaded.EnableOscChatbox);
+        Assert.IsFalse(loaded.KeepOscChatboxVisibleWhenPaused);
     }
 
     [TestMethod]
@@ -216,7 +267,7 @@ public sealed class SettingsServiceTests : IDisposable
         var loaded = await service.LoadAsync();
 
         Assert.IsNotNull(loaded);
-        Assert.AreEqual(4, loaded.SchemaVersion);
+        Assert.AreEqual(5, loaded.SchemaVersion);
         Assert.AreEqual(1.0f, loaded.AppsVolume);
     }
 

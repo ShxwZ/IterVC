@@ -323,6 +323,10 @@
 						<CheckBox Content="{Binding Texts.OscEnableChatbox}"
 								  IsChecked="{Binding OscChatbox.IsEnabled}" />
 
+						<CheckBox Content="{Binding Texts.OscKeepVisibleWhenPaused}"
+								  IsChecked="{Binding OscChatbox.KeepVisibleWhenPaused}"
+								  IsEnabled="{Binding OscChatbox.IsEnabled}" />
+
 						<StackPanel Spacing="6" IsEnabled="{Binding OscChatbox.IsEnabled}">
 							<TextBlock Text="{Binding Texts.OscTemplateLabel}"
 									   Classes="label" />
@@ -342,14 +346,6 @@
 											   FontWeight="Bold" Foreground="{DynamicResource AccentBrush}"
 											   VerticalAlignment="Center" />
 									<TextBlock Grid.Column="1" Text="{Binding Texts.OscTokenTitleDescription}"
-											   FontSize="10" Foreground="{DynamicResource TextMutedBrush}"
-											   TextWrapping="Wrap" VerticalAlignment="Center" />
-								</Grid>
-								<Grid ColumnDefinitions="52,*">
-									<TextBlock Text="{}{status}" FontSize="10"
-											   FontWeight="Bold" Foreground="{DynamicResource AccentBrush}"
-											   VerticalAlignment="Center" />
-									<TextBlock Grid.Column="1" Text="{Binding Texts.OscTokenStatusDescription}"
 											   FontSize="10" Foreground="{DynamicResource TextMutedBrush}"
 											   TextWrapping="Wrap" VerticalAlignment="Center" />
 								</Grid>
