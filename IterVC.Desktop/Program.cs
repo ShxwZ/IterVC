@@ -155,7 +155,11 @@ internal static class Program
             sp.GetRequiredService<NoiseGateViewModel>(),
             sp.GetRequiredService<AudioMetersViewModel>(),
             sp.GetRequiredService<ILogger<AudioRoutingViewModel>>()));
-        services.AddSingleton<IMediaSessionService, WindowsMediaSessionService>();
+        services.AddSingleton<WindowsMediaSessionService>();
+        services.AddSingleton<AimpMediaSessionService>();
+        services.AddSingleton<IMediaSessionService>(sp => new CompositeMediaSessionService(
+            sp.GetRequiredService<WindowsMediaSessionService>(),
+            sp.GetRequiredService<AimpMediaSessionService>()));
         services.AddSingleton<IOscChatboxWorker, OscChatboxWorker>();
         services.AddSingleton(sp => new OscChatboxViewModel(
             sp.GetRequiredService<IOscChatboxWorker>(),

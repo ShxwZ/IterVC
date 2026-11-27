@@ -7,15 +7,15 @@ description: Diagnostique mensajes del Chatbox de VRChat ausentes, desactualizad
 
 - Active OSC dentro de VRChat.
 - Active la opción de Chatbox OSC en IterVC.
-- Inicie la reproducción multimedia en una aplicación que exponga metadatos de sesión multimedia de Windows.
-- Confirme que el título multimedia aparece en los controles multimedia de Windows.
+- Inicie la reproducción multimedia en AIMP o en una aplicación que exponga metadatos de sesión multimedia de Windows.
+- Para otros reproductores, confirme que el título multimedia aparece en los controles de Windows. AIMP también puede proporcionar los metadatos mediante su API remota integrada.
 - Compruebe que el cortafuegos local o el software de seguridad no bloquean el tráfico OSC de bucle local.
 
-Actualmente, IterVC solo envía información cuando recibe un título multimedia que no está vacío.
+Si ningún reproductor compatible proporciona una canción, IterVC muestra el indicador de parada. Una canción en pausa sigue el ajuste de visibilidad del Chatbox.
 
 ## El título o la hora son incorrectos
 
-IterVC depende de los metadatos que proporciona la sesión multimedia activa de Windows. La aplicación multimedia controla el título, el formato del artista y la precisión temporal.
+IterVC usa los metadatos de las sesiones multimedia de Windows o de la API remota de AIMP. Si AIMP no se detecta, compruebe que se ejecuta en la misma sesión de usuario de Windows y con el mismo nivel de privilegios que IterVC. Cierre otros reproductores activos para comprobar el método alternativo. La aplicación multimedia controla el título, el formato del artista y la precisión temporal.
 
 ## Las plantillas de varias líneas no se muestran correctamente
 

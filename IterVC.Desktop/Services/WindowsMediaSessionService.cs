@@ -18,30 +18,51 @@ internal sealed class WindowsMediaSessionService(ILogger<WindowsMediaSessionServ
             cancellationToken.ThrowIfCancellationRequested();
 
             var sessions = _manager.GetSessions();
-            var activeSession = sessions.FirstOrDefault(session =>
-                session.GetPlaybackInfo()?.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing)
-                ?? sessions.FirstOrDefault(session =>
-                    session.GetPlaybackInfo()?.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Paused);
-            if (activeSession is null) return null;
-            var isPaused = activeSession.GetPlaybackInfo()?.PlaybackStatus ==
-                GlobalSystemMediaTransportControlsSessionPlaybackStatus.Paused;
-
-            var properties = await activeSession.TryGetMediaPropertiesAsync();
-            cancellationToken.ThrowIfCancellationRequested();
-            if (properties is null) return null;
-
-            var timeline = activeSession.GetTimelineProperties();
-            var position = timeline is null
-                ? TimeSpan.Zero
-                : GetPlaybackPosition(timeline.Position, timeline.EndTime,
-                    timeline.LastUpdatedTime, DateTimeOffset.UtcNow, isPaused);
-
-            return new MediaInfo
+            var statuses = new[]
             {
-                Title = FormatTitle(properties.Artist, properties.Title),
-                TimeInfo = timeline is null ? "00:00 / 00:00" : FormatTime(position, timeline.EndTime),
-                IsPaused = isPaused
+                GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing,
+                GlobalSystemMediaTransportControlsSessionPlaybackStatus.Paused
             };
+
+            foreach (var status in statuses)
+            {
+                foreach (var session in sessions)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    try
+                    {
+                        if (session.GetPlaybackInfo()?.PlaybackStatus != status) continue;
+
+                        var properties = await session.TryGetMediaPropertiesAsync();
+                        cancellationToken.ThrowIfCancellationRequested();
+                        if (properties is null || string.IsNullOrWhiteSpace(properties.Title)) continue;
+
+                        var isPaused = status == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Paused;
+                        var timeline = session.GetTimelineProperties();
+                        var position = timeline is null
+                            ? TimeSpan.Zero
+                            : GetPlaybackPosition(timeline.Position, timeline.EndTime,
+                                timeline.LastUpdatedTime, DateTimeOffset.UtcNow, isPaused);
+
+                        return new MediaInfo
+                        {
+                            Title = FormatTitle(properties.Artist, properties.Title),
+                            TimeInfo = timeline is null ? "00:00 / 00:00" : FormatTime(position, timeline.EndTime),
+                            IsPaused = isPaused
+                        };
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        throw;
+                    }
+                    catch (Exception exception)
+                    {
+                        logger.LogDebug(exception, "Unable to read a Windows media session; trying the next one");
+                    }
+                }
+            }
+
+            return null;
         }
         catch (OperationCanceledException)
         {
