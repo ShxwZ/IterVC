@@ -10,6 +10,7 @@ namespace IterVC.Desktop.ViewModels;
 public sealed partial class UpdateViewModel : ViewModelBase
 {
     private readonly IUpdateService _updates;
+    private readonly IPortableUpdateInstaller? _installer;
     private readonly ISettingsService _settings;
     private readonly IExternalUrlLauncher _urlLauncher;
     private readonly TextsViewModel _texts;
@@ -22,11 +23,14 @@ public sealed partial class UpdateViewModel : ViewModelBase
     private bool _suppressPreferencePersistence;
     private UpdateStatusKind _statusKind;
     private int _stopped;
+    private bool _restartRequested;
 
     public UpdateViewModel(IUpdateService updates, ISettingsService settings,
-        IExternalUrlLauncher urlLauncher, TextsViewModel texts, ILogger<UpdateViewModel> logger)
+        IExternalUrlLauncher urlLauncher, TextsViewModel texts, ILogger<UpdateViewModel> logger,
+        IPortableUpdateInstaller? installer = null)
     {
         _updates = updates;
+        _installer = installer;
         _settings = settings;
         _urlLauncher = urlLauncher;
         _texts = texts;
@@ -36,6 +40,9 @@ public sealed partial class UpdateViewModel : ViewModelBase
     [ObservableProperty] private bool _isConsentVisible;
     [ObservableProperty] private bool _isEnabled;
     [ObservableProperty] private bool _isChecking;
+    [ObservableProperty] private bool _isInstalling;
+
+    public event Action? UpdateReadyToRestart;
     [ObservableProperty] private bool _isAvailable;
     [ObservableProperty] private string? _availableVersion;
     [ObservableProperty] private string? _availableUrl;
@@ -109,6 +116,33 @@ public sealed partial class UpdateViewModel : ViewModelBase
     }
 
     [RelayCommand]
+    private async Task InstallAsync()
+    {
+        if (_restartRequested || IsInstalling || IsChecking || !IsAvailable || AvailableVersion is null || _installer is null)
+            return;
+
+        IsInstalling = true;
+        SetStatus(UpdateStatusKind.Installing);
+        try
+        {
+            if (!await _installer.DownloadAndLaunchAsync(AvailableVersion, _lifetimeCancellation.Token))
+            {
+                SetStatus(UpdateStatusKind.InstallFailed);
+                return;
+            }
+            _restartRequested = true;
+            UpdateReadyToRestart?.Invoke(); // The helper is running; exit the old executable cleanly.
+        }
+        catch (OperationCanceledException) when (_lifetimeCancellation.IsCancellationRequested) { }
+        catch (Exception exception)
+        {
+            _logger.LogWarning(exception, "Failed to prepare portable update");
+            SetStatus(UpdateStatusKind.InstallFailed);
+        }
+        finally { IsInstalling = false; }
+    }
+
+    [RelayCommand]
     private async Task DismissAsync()
     {
         var dismissedVersion = AvailableVersion;
@@ -142,7 +176,7 @@ public sealed partial class UpdateViewModel : ViewModelBase
 
     private async Task CheckAsync(bool isManual, CancellationToken cancellationToken)
     {
-        if (IsChecking) return;
+        if (IsChecking || IsInstalling) return;
         IsChecking = true;
         if (isManual) SetStatus(UpdateStatusKind.Checking);
         try
@@ -218,9 +252,11 @@ public sealed partial class UpdateViewModel : ViewModelBase
             UpdateStatusKind.CheckFailed => _texts.UpdateCheckFailed,
             UpdateStatusKind.OpenFailed => _texts.UpdateOpenFailed,
             UpdateStatusKind.Available => _texts.UpdateAvailable,
+            UpdateStatusKind.Installing => _texts.UpdateInstalling,
+            UpdateStatusKind.InstallFailed => _texts.UpdateInstallFailed,
             _ => null
         };
     }
 
-    private enum UpdateStatusKind { None, Checking, Current, CheckFailed, OpenFailed, Available }
+    private enum UpdateStatusKind { None, Checking, Current, CheckFailed, OpenFailed, Available, Installing, InstallFailed }
 }

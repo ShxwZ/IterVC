@@ -46,7 +46,14 @@ public sealed class SettingsService : ISettingsService
             await using var stream = File.OpenRead(_filePath);
             var loaded = await JsonSerializer.DeserializeAsync<AppSettings>(stream, JsonOptions, cancellationToken);
             Current = loaded ?? new AppSettings();
-            Current.SchemaVersion = 4;
+            if (Current.SchemaVersion < 5)
+            {
+                // Remove the retired token while preserving users' other template customizations.
+                Current.OscTemplate = (Current.OscTemplate ?? "{title}")
+                    .Replace(" - {status}", string.Empty, StringComparison.Ordinal)
+                    .Replace("{status}", string.Empty, StringComparison.Ordinal);
+            }
+            Current.SchemaVersion = 5;
             return Current;
         }
         catch (Exception ex)

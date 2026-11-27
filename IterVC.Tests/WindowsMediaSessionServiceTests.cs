@@ -22,6 +22,16 @@ public sealed class WindowsMediaSessionServiceTests
     }
 
     [TestMethod]
+    public void GetPlaybackPosition_DoesNotAdvanceWhilePaused()
+    {
+        var updated = new DateTimeOffset(2026, 7, 22, 12, 0, 0, TimeSpan.Zero);
+        Assert.AreEqual(TimeSpan.FromSeconds(10), WindowsMediaSessionService.GetPlaybackPosition(
+            TimeSpan.FromSeconds(10), TimeSpan.FromMinutes(1), updated, updated.AddSeconds(20), true));
+        Assert.AreEqual(TimeSpan.FromSeconds(30), WindowsMediaSessionService.GetPlaybackPosition(
+            TimeSpan.FromSeconds(10), TimeSpan.FromMinutes(1), updated, updated.AddSeconds(20), false));
+    }
+
+    [TestMethod]
     public void EstimatePosition_AddsElapsedTimeAndClampsToEnd()
     {
         var updated = new DateTimeOffset(2026, 7, 22, 12, 0, 0, TimeSpan.Zero);

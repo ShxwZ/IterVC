@@ -323,6 +323,10 @@
 						<CheckBox Content="{Binding Texts.OscEnableChatbox}"
 								  IsChecked="{Binding OscChatbox.IsEnabled}" />
 
+						<CheckBox Content="{Binding Texts.OscKeepVisibleWhenPaused}"
+								  IsChecked="{Binding OscChatbox.KeepVisibleWhenPaused}"
+								  IsEnabled="{Binding OscChatbox.IsEnabled}" />
+
 						<StackPanel Spacing="6" IsEnabled="{Binding OscChatbox.IsEnabled}">
 							<TextBlock Text="{Binding Texts.OscTemplateLabel}"
 									   Classes="label" />
@@ -342,14 +346,6 @@
 											   FontWeight="Bold" Foreground="{DynamicResource AccentBrush}"
 											   VerticalAlignment="Center" />
 									<TextBlock Grid.Column="1" Text="{Binding Texts.OscTokenTitleDescription}"
-											   FontSize="10" Foreground="{DynamicResource TextMutedBrush}"
-											   TextWrapping="Wrap" VerticalAlignment="Center" />
-								</Grid>
-								<Grid ColumnDefinitions="52,*">
-									<TextBlock Text="{}{status}" FontSize="10"
-											   FontWeight="Bold" Foreground="{DynamicResource AccentBrush}"
-											   VerticalAlignment="Center" />
-									<TextBlock Grid.Column="1" Text="{Binding Texts.OscTokenStatusDescription}"
 											   FontSize="10" Foreground="{DynamicResource TextMutedBrush}"
 											   TextWrapping="Wrap" VerticalAlignment="Center" />
 								</Grid>
@@ -432,6 +428,7 @@
 						<CheckBox Content="{Binding Texts.UpdateEnabled}" IsChecked="{Binding Settings.Updates.IsEnabled}" />
 						<Button Classes="secondary" Content="{Binding Texts.UpdateCheckNow}" Command="{Binding Settings.Updates.CheckNowCommand}" IsEnabled="{Binding !Settings.Updates.IsChecking}" />
 						<TextBlock Text="{Binding Settings.Updates.Status}" TextWrapping="Wrap" FontSize="10" Foreground="{DynamicResource TextMutedBrush}" />
+						<Button Classes="primary" Content="{Binding Texts.UpdateInstall}" Command="{Binding Settings.Updates.InstallCommand}" IsVisible="{Binding Settings.Updates.IsAvailable}" IsEnabled="{Binding !Settings.Updates.IsInstalling}" />
 						<Separator Height="1" Background="{DynamicResource BorderSubtleBrush}" Margin="0,4" />
 						<TextBlock Text="{Binding Texts.TrayTitle}" FontWeight="Bold" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11" />
 						<RadioButton Content="{Binding Texts.TrayAsk}" IsChecked="{Binding Settings.Tray.AskOnClose}" />

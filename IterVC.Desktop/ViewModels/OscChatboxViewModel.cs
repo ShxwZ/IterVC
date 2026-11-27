@@ -26,7 +26,8 @@ public sealed partial class OscChatboxViewModel : ViewModelBase
     }
 
     [ObservableProperty] private bool _isEnabled;
-    [ObservableProperty] private string _template = "{title} - [{time}]";
+    [ObservableProperty] private string _template = "{title}";
+    [ObservableProperty] private bool _keepVisibleWhenPaused = false;
 
     public async Task HydrateAsync(AppSettings settings, CancellationToken cancellationToken = default)
     {
@@ -34,8 +35,9 @@ public sealed partial class OscChatboxViewModel : ViewModelBase
         try
         {
             Template = settings.OscTemplate;
+            KeepVisibleWhenPaused = settings.KeepOscChatboxVisibleWhenPaused;
             IsEnabled = settings.EnableOscChatbox;
-            _worker.Configure(IsEnabled, Template);
+            _worker.Configure(IsEnabled, Template, KeepVisibleWhenPaused);
             await _worker.StartAsync(cancellationToken);
         }
         finally { _hydrating = false; }
@@ -44,15 +46,22 @@ public sealed partial class OscChatboxViewModel : ViewModelBase
     partial void OnIsEnabledChanged(bool value)
     {
         if (_hydrating) return;
-        _worker.Configure(value, Template);
+        _worker.Configure(value, Template, KeepVisibleWhenPaused);
         QueuePersistence(settings => settings.EnableOscChatbox = value);
     }
 
     partial void OnTemplateChanged(string value)
     {
         if (_hydrating) return;
-        _worker.Configure(IsEnabled, value);
+        _worker.Configure(IsEnabled, value, KeepVisibleWhenPaused);
         QueuePersistence(settings => settings.OscTemplate = value);
+    }
+
+    partial void OnKeepVisibleWhenPausedChanged(bool value)
+    {
+        if (_hydrating) return;
+        _worker.Configure(IsEnabled, Template, value);
+        QueuePersistence(settings => settings.KeepOscChatboxVisibleWhenPaused = value);
     }
 
     public async Task StopAsync()

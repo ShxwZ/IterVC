@@ -171,13 +171,13 @@ When an application is selected in the UI:
 
 Because the capture uses Windows Process Loopback APIs, the original application continues to play audio normally through the user's speakers or headphones.
 
-One can also display a chatbox on VRChat by using the OSC tab on the app. There are three tokens one can use:
+One can also display a message in the VRChat Chatbox using the OSC tab. The available template tokens are:
 
-1. {title} displays the song title and the artist.
-2. {status} displays wether you are playing the song or not.
-3. {time} displays your current local time and it also displays the song's timestamp. 
+1. `{title}` displays the current artist and song title, or ⏹️ when there is no active media session.
+2. `{time}` displays the media playback position and duration (not the local clock).
+3. `{wave}` displays an animated wave pattern.
 
-Support for having the chatbox opened without playing music is planned for a future release. As of now one must play music to make the chatbox appear.
+OSC can remain active even when nothing is playing. While a song is paused, the Chatbox can either show its title with ⏸️ or clear the message, depending on the **Keep Chatbox visible when music is paused** setting (disabled by default). The obsolete `{status}` token is removed automatically from older settings.
 
 ---
 

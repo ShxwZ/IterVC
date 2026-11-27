@@ -83,6 +83,67 @@ public sealed class UpdateViewModelTests
         await viewModel.StopAsync();
     }
 
+    [TestMethod]
+    public async Task InstallUpdate_OnlyOnExplicitCommand_RequestsCleanRestart()
+    {
+        var installer = new Mock<IPortableUpdateInstaller>();
+        installer.Setup(service => service.DownloadAndLaunchAsync("99.0.0", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(true);
+        var updates = new Mock<IUpdateService>();
+        var viewModel = new UpdateViewModel(updates.Object, CreateSettings(new AppSettings()).Object,
+            new Mock<IExternalUrlLauncher>().Object, new TextsViewModel(),
+            NullLogger<UpdateViewModel>.Instance, installer.Object);
+        var restarts = 0;
+        viewModel.UpdateReadyToRestart += () => restarts++;
+        viewModel.AvailableVersion = "99.0.0";
+        viewModel.IsAvailable = true;
+
+        installer.Verify(service => service.DownloadAndLaunchAsync(
+            It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        await viewModel.InstallCommand.ExecuteAsync(null);
+
+        installer.Verify(service => service.DownloadAndLaunchAsync("99.0.0",
+            It.IsAny<CancellationToken>()), Times.Once);
+        Assert.AreEqual(1, restarts);
+        Assert.IsFalse(viewModel.IsInstalling);
+        await viewModel.StopAsync();
+    }
+
+    [TestMethod]
+    public async Task InstallFailure_ShowsFallbackAndDoesNotRequestRestart()
+    {
+        var installer = new Mock<IPortableUpdateInstaller>();
+        installer.Setup(service => service.DownloadAndLaunchAsync("99.0.0", It.IsAny<CancellationToken>()))
+            .ReturnsAsync(false);
+        var viewModel = new UpdateViewModel(new Mock<IUpdateService>().Object,
+            CreateSettings(new AppSettings()).Object, new Mock<IExternalUrlLauncher>().Object,
+            new TextsViewModel(), NullLogger<UpdateViewModel>.Instance, installer.Object);
+        var restarts = 0;
+        viewModel.UpdateReadyToRestart += () => restarts++;
+        viewModel.IsAvailable = true;
+        viewModel.AvailableVersion = "99.0.0";
+        await viewModel.InstallCommand.ExecuteAsync(null);
+
+        Assert.AreEqual(0, restarts);
+        Assert.AreEqual(new TextsViewModel().UpdateInstallFailed, viewModel.Status);
+        Assert.IsFalse(viewModel.IsInstalling);
+        await viewModel.StopAsync();
+    }
+
+    [TestMethod]
+    public async Task InstallUpdate_WhenNoReleaseAvailable_IsNoOp()
+    {
+        var installer = new Mock<IPortableUpdateInstaller>();
+        var viewModel = new UpdateViewModel(new Mock<IUpdateService>().Object,
+            CreateSettings(new AppSettings()).Object, new Mock<IExternalUrlLauncher>().Object,
+            new TextsViewModel(), NullLogger<UpdateViewModel>.Instance, installer.Object);
+
+        await viewModel.InstallCommand.ExecuteAsync(null);
+        installer.Verify(service => service.DownloadAndLaunchAsync(
+            It.IsAny<string>(), It.IsAny<CancellationToken>()), Times.Never);
+        await viewModel.StopAsync();
+    }
+
     private static UpdateViewModel CreateViewModel(Mock<IUpdateService> updates,
         Mock<ISettingsService> settings, Mock<IExternalUrlLauncher>? launcher = null) =>
         new(updates.Object, settings.Object, (launcher ?? new Mock<IExternalUrlLauncher>()).Object,

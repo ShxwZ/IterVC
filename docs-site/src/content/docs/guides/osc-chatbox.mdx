@@ -5,7 +5,7 @@ description: Send current media information from Windows to the VRChat Chatbox.
 
 import Screenshot from '../../../components/Screenshot.astro';
 
-IterVC can read the active Windows media session and send a formatted message to the VRChat Chatbox once per second.
+IterVC reads Windows media sessions and can also read AIMP directly through its built-in Remote API, without an extra plugin. It sends a formatted message to the VRChat Chatbox once per second. A playing Windows session with a title takes precedence; otherwise, playing AIMP takes precedence over paused sessions.
 
 ## Enable OSC in VRChat
 
@@ -15,7 +15,7 @@ In VRChat, enable OSC from the Action Menu or the relevant settings page before 
 
 Open the **OSC** tab and enable the Chatbox option. The setting is persisted between sessions.
 
-IterVC only sends when an active media session has a non-empty title. If nothing is playing or Windows does not expose media metadata, no new media message is sent.
+The Chatbox works even when no media session is playing: it sends ⏹️ as the title and `00:00 / 00:00` as the time. When music is paused, the **Keep Chatbox visible when music is paused** option lets you choose between showing the song title with ⏸️ and clearing the Chatbox until playback resumes. The setting is disabled by default: pausing music clears the Chatbox unless you opt in to keeping it visible.
 
 ## Template tokens
 
@@ -23,8 +23,9 @@ Use the tokens exposed by the IterVC interface:
 
 | Token | Value |
 | --- | --- |
-| `{title}` | Current media title reported by Windows. |
-| `{time}` | Current media timing information supplied by the media session. |
+| `{title}` | Current media title reported by Windows or AIMP. |
+| `{time}` | Current media playback position and duration (frozen when paused). |
+| `{wave}` | Animated wave pattern. |
 
 Example:
 
@@ -55,4 +56,4 @@ VRChat may truncate or reflow long messages. Media titles are outside IterVC's c
 
 ## Disable or clear
 
-Disabling the feature stops periodic media updates. Depending on the current UI action and VRChat state, the existing Chatbox message may remain visible until VRChat clears or replaces it.
+Disabling the feature or choosing to hide the Chatbox while paused sends a clear message once; periodic updates resume when it is enabled and playing. VRChat controls how long the message is visible.

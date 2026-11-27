@@ -1,5 +1,4 @@
 using IterVC.Core.Interfaces;
-using IterVC.Core.Localization;
 using IterVC.Core.Models;
 using Microsoft.Extensions.Logging;
 using Windows.Media.Control;
@@ -18,25 +17,52 @@ internal sealed class WindowsMediaSessionService(ILogger<WindowsMediaSessionServ
             _manager ??= await GlobalSystemMediaTransportControlsSessionManager.RequestAsync();
             cancellationToken.ThrowIfCancellationRequested();
 
-            var activeSession = _manager.GetSessions().FirstOrDefault(session =>
-                session.GetPlaybackInfo()?.PlaybackStatus == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing);
-            if (activeSession is null) return null;
-
-            var properties = await activeSession.TryGetMediaPropertiesAsync();
-            cancellationToken.ThrowIfCancellationRequested();
-            if (properties is null) return null;
-
-            var timeline = activeSession.GetTimelineProperties();
-            var position = timeline is null
-                ? TimeSpan.Zero
-                : EstimatePosition(timeline.Position, timeline.EndTime, timeline.LastUpdatedTime, DateTimeOffset.UtcNow);
-
-            return new MediaInfo
+            var sessions = _manager.GetSessions();
+            var statuses = new[]
             {
-                Title = FormatTitle(properties.Artist, properties.Title),
-                Status = LocalizationService.Instance.Get(LocalizationService.Keys.MediaPlayingStatus),
-                TimeInfo = timeline is null ? "00:00 / 00:00" : FormatTime(position, timeline.EndTime)
+                GlobalSystemMediaTransportControlsSessionPlaybackStatus.Playing,
+                GlobalSystemMediaTransportControlsSessionPlaybackStatus.Paused
             };
+
+            foreach (var status in statuses)
+            {
+                foreach (var session in sessions)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    try
+                    {
+                        if (session.GetPlaybackInfo()?.PlaybackStatus != status) continue;
+
+                        var properties = await session.TryGetMediaPropertiesAsync();
+                        cancellationToken.ThrowIfCancellationRequested();
+                        if (properties is null || string.IsNullOrWhiteSpace(properties.Title)) continue;
+
+                        var isPaused = status == GlobalSystemMediaTransportControlsSessionPlaybackStatus.Paused;
+                        var timeline = session.GetTimelineProperties();
+                        var position = timeline is null
+                            ? TimeSpan.Zero
+                            : GetPlaybackPosition(timeline.Position, timeline.EndTime,
+                                timeline.LastUpdatedTime, DateTimeOffset.UtcNow, isPaused);
+
+                        return new MediaInfo
+                        {
+                            Title = FormatTitle(properties.Artist, properties.Title),
+                            TimeInfo = timeline is null ? "00:00 / 00:00" : FormatTime(position, timeline.EndTime),
+                            IsPaused = isPaused
+                        };
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        throw;
+                    }
+                    catch (Exception exception)
+                    {
+                        logger.LogDebug(exception, "Unable to read a Windows media session; trying the next one");
+                    }
+                }
+            }
+
+            return null;
         }
         catch (OperationCanceledException)
         {
@@ -48,6 +74,10 @@ internal sealed class WindowsMediaSessionService(ILogger<WindowsMediaSessionServ
             return null;
         }
     }
+
+    internal static TimeSpan GetPlaybackPosition(
+        TimeSpan position, TimeSpan end, DateTimeOffset lastUpdated, DateTimeOffset now, bool isPaused) =>
+        isPaused ? position : EstimatePosition(position, end, lastUpdated, now);
 
     internal static TimeSpan EstimatePosition(
         TimeSpan position,
